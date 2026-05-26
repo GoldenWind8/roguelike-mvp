@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Roguelike MMO</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+        background: #1a1a2e;
+        color: #e0e0e0;
+        font-family: 'Courier New', monospace;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-height: 100vh;
+        padding: 20px;
+    }
+
+    h1 {
+        color: #e94560;
+        margin-bottom: 8px;
+        font-size: 24px;
+        letter-spacing: 2px;
+    }
+
+    #connection-status {
+        font-size: 12px;
+        margin-bottom: 16px;
+    }
+    .status-connected { color: #4ecca3; }
+    .status-disconnected { color: #e94560; }
+
+    #join-screen {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        margin-top: 40px;
+    }
+    #join-screen input {
+        background: #16213e;
+        border: 2px solid #0f3460;
+        color: #e0e0e0;
+        padding: 10px 16px;
+        font-size: 16px;
+        font-family: inherit;
+        border-radius: 4px;
+        width: 220px;
+        text-align: center;
+    }
+    #join-screen input:focus { outline: none; border-color: #e94560; }
+    #join-screen button {
+        background: #e94560;
+        color: white;
+        border: none;
+        padding: 10px 32px;
+        font-size: 16px;
+        font-family: inherit;
+        cursor: pointer;
+        border-radius: 4px;
+    }
+    #join-screen button:hover { background: #c73650; }
+
+    #game-screen { display: none; }
+
+    #turn-banner {
+        font-size: 18px;
+        font-weight: bold;
+        margin-bottom: 12px;
+        height: 24px;
+    }
+    .your-turn { color: #4ecca3; }
+    .not-your-turn { color: #e94560; }
+    .game-over-banner { color: #ffd700; }
+
+    #main-area {
+        display: flex;
+        gap: 20px;
+        align-items: flex-start;
+    }
+
+    #grid-container {
+        display: grid;
+        grid-template-columns: repeat(10, 48px);
+        grid-template-rows: repeat(10, 48px);
+        gap: 2px;
+        background: #0f3460;
+        padding: 2px;
+        border-radius: 4px;
+    }
+
+    .cell {
+        width: 48px;
+        height: 48px;
+        background: #16213e;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: bold;
+        position: relative;
+        cursor: default;
+        border-radius: 2px;
+    }
+    .cell-wall {
+        background: #0a0a1a;
+    }
+    .cell-player {
+        cursor: pointer;
+    }
+    .cell-current {
+        box-shadow: inset 0 0 0 2px #4ecca3;
+    }
+    .cell-me {
+        box-shadow: inset 0 0 0 2px #ffd700;
+    }
+
+    .player-icon {
+        font-size: 20px;
+        line-height: 1;
+    }
+
+    .hp-bar {
+        width: 36px;
+        height: 4px;
+        background: #333;
+        border-radius: 2px;
+        margin-top: 2px;
+        overflow: hidden;
+    }
+    .hp-fill {
+        height: 100%;
+        border-radius: 2px;
+        transition: width 0.3s;
+    }
+
+    #sidebar {
+        width: 260px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .panel {
+        background: #16213e;
+        border: 1px solid #0f3460;
+        border-radius: 4px;
+        padding: 12px;
+    }
+    .panel h3 {
+        color: #e94560;
+        font-size: 13px;
+        margin-bottom: 8px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    #players-list {
+        list-style: none;
+        font-size: 13px;
+    }
+    #players-list li {
+        padding: 4px 0;
+        display: flex;
+        justify-content: space-between;
+    }
+    .player-dead { text-decoration: line-through; opacity: 0.5; }
+
+    #event-log {
+        height: 200px;
+        overflow-y: auto;
+        font-size: 12px;
+        line-height: 1.6;
+    }
+    #event-log div { padding: 2px 0; border-bottom: 1px solid #0a0a1a; }
+    .event-move { color: #7ec8e3; }
+    .event-attack { color: #e94560; }
+    .event-damage { color: #ff8c42; }
+    .event-death { color: #e94560; font-weight: bold; }
+    .event-join { color: #4ecca3; }
+    .event-turn { color: #b8b8b8; }
+    .event-gameover { color: #ffd700; font-weight: bold; }
+
+    #controls {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        margin-top: 8px;
+    }
+    #controls .row {
+        display: flex;
+        gap: 4px;
+    }
+    .ctrl-btn {
+        width: 48px;
+        height: 48px;
+        background: #0f3460;
+        color: #e0e0e0;
+        border: 1px solid #16213e;
+        font-size: 18px;
+        cursor: pointer;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .ctrl-btn:hover { background: #1a3a6e; }
+    .ctrl-btn:active { background: #e94560; }
+
+    #help-text {
+        font-size: 11px;
+        color: #666;
+        text-align: center;
+        margin-top: 8px;
+    }
+</style>
+</head>
+<body>
+    <h1>ROGUELIKE MMO</h1>
+    <div id="connection-status" class="status-disconnected">Disconnected</div>
+
+    <div id="join-screen">
+        <input type="text" id="player-name" placeholder="Enter your name" maxlength="12" autofocus>
+        <button onclick="joinGame()">Join Game</button>
+    </div>
+
+    <div id="game-screen">
+        <div id="turn-banner"></div>
+        <div id="main-area">
+            <div>
+                <div id="grid-container"></div>
+                <div id="controls">
+                    <div class="row">
+                        <div class="ctrl-btn" style="visibility:hidden"></div>
+                        <div class="ctrl-btn" onclick="sendMove(0,-1)">&uarr;</div>
+                        <div class="ctrl-btn" style="visibility:hidden"></div>
+                    </div>
+                    <div class="row">
+                        <div class="ctrl-btn" onclick="sendMove(-1,0)">&larr;</div>
+                        <div class="ctrl-btn" onclick="sendMove(0,1)">&darr;</div>
+                        <div class="ctrl-btn" onclick="sendMove(1,0)">&rarr;</div>
+                    </div>
+                </div>
+                <div id="help-text">Arrow keys to move &middot; Click adjacent player to attack</div>
+            </div>
+            <div id="sidebar">
+                <div class="panel">
+                    <h3>Players</h3>
+                    <ul id="players-list"></ul>
+                </div>
+                <div class="panel">
+                    <h3>Event Log</h3>
+                    <div id="event-log"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/game.js"></script>
+</body>
+</html>
