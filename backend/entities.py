@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass
@@ -23,5 +23,27 @@ class Player:
             "position": [self.position.x, self.position.y],
             "hp": self.hp,
             "max_hp": self.max_hp,
+            "is_alive": self.is_alive,
+        }
+
+
+@dataclass
+class Enemy:
+    id: str
+    name: str
+    position: Position
+    hp: int
+    max_hp: int
+    attack_damage: int
+    is_alive: bool = True
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "position": [self.position.x, self.position.y],
+            "hp": self.hp,
+            "max_hp": self.max_hp,
+            "attack_damage": self.attack_damage,
             "is_alive": self.is_alive,
         }

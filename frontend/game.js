@@ -1,9 +1,18 @@
 let ws = null;
 let myPlayerId = null;
 let gameState = null;
+let actionLocked = false;
+let waitingFor = [];
 
-const PLAYER_COLORS = ["#4ecca3", "#e94560", "#7ec8e3", "#ffd700"];
-const PLAYER_ICONS = ["⚔", "☠", "♦", "♣"];
+const PLAYER_COLORS = ["#4ecca3", "#7ec8e3", "#ffd700", "#c490e4"];
+const PLAYER_ICONS = ["⚔", "♠", "♦", "♣"];
+const ENEMY_COLOR = "#ff6b35";
+const ENEMY_ICONS = {
+    default: "👹",
+    Goblin: "G",
+    Skeleton: "S",
+    Rat: "R",
+};
 
 function connect() {
     const protocol = location.protocol === "https:" ? "wss:" : "ws:";
@@ -22,6 +31,12 @@ function connect() {
                 break;
             case "state_update":
                 handleStateUpdate(msg);
+                break;
+            case "action_locked":
+                handleActionLocked();
+                break;
+            case "waiting_for":
+                handleWaitingFor(msg);
                 break;
             case "error":
                 appendEvent("error", msg.message);
@@ -45,6 +60,7 @@ function joinGame() {
 function handleJoinAck(msg) {
     myPlayerId = msg.player_id;
     gameState = msg.state;
+    actionLocked = false;
     document.getElementById("join-screen").style.display = "none";
     document.getElementById("game-screen").style.display = "block";
     initGrid();
@@ -54,10 +70,22 @@ function handleJoinAck(msg) {
 
 function handleStateUpdate(msg) {
     gameState = msg.state;
+    actionLocked = false;
+    waitingFor = [];
     renderAll();
     if (msg.events) {
         msg.events.forEach((e) => appendEventFromServer(e));
     }
+}
+
+function handleActionLocked() {
+    actionLocked = true;
+    renderAll();
+}
+
+function handleWaitingFor(msg) {
+    waitingFor = msg.player_ids || [];
+    renderPhaseBanner();
 }
 
 function initGrid() {
@@ -78,8 +106,9 @@ function initGrid() {
 function renderAll() {
     if (!gameState) return;
     renderGrid();
-    renderPlayers();
-    renderTurnBanner();
+    renderEntities();
+    renderPhaseBanner();
+    updateControls();
 }
 
 function renderGrid() {
@@ -103,38 +132,57 @@ function renderGrid() {
         }
 
         const occupantId = gameState.grid[y][x];
-        if (occupantId) {
-            const player = gameState.players[occupantId];
-            if (!player) return;
+        if (!occupantId) return;
+
+        const player = gameState.players[occupantId];
+        const enemy = gameState.enemies ? gameState.enemies[occupantId] : null;
+
+        if (player) {
             const idx = playerIndex[occupantId] || 0;
             const color = PLAYER_COLORS[idx % PLAYER_COLORS.length];
             const icon = PLAYER_ICONS[idx % PLAYER_ICONS.length];
 
             cell.classList.add("cell-player");
-            if (occupantId === gameState.current_turn) {
-                cell.classList.add("cell-current");
-            }
-            if (occupantId === myPlayerId) {
-                cell.classList.add("cell-me");
-            }
+            if (occupantId === myPlayerId) cell.classList.add("cell-me");
 
             const iconEl = document.createElement("div");
-            iconEl.className = "player-icon";
+            iconEl.className = "entity-icon";
             iconEl.textContent = icon;
             iconEl.style.color = color;
             cell.appendChild(iconEl);
 
-            const hpBar = document.createElement("div");
-            hpBar.className = "hp-bar";
-            const hpFill = document.createElement("div");
-            hpFill.className = "hp-fill";
-            const pct = (player.hp / player.max_hp) * 100;
-            hpFill.style.width = pct + "%";
-            hpFill.style.background = pct > 50 ? "#4ecca3" : pct > 25 ? "#ff8c42" : "#e94560";
-            hpBar.appendChild(hpFill);
-            cell.appendChild(hpBar);
+            addHpBar(cell, player.hp, player.max_hp);
+        } else if (enemy) {
+            cell.classList.add("cell-enemy");
+            const icon = ENEMY_ICONS[enemy.name] || ENEMY_ICONS.default;
+
+            const iconEl = document.createElement("div");
+            iconEl.className = "entity-icon";
+            iconEl.textContent = icon;
+            iconEl.style.color = ENEMY_COLOR;
+            cell.appendChild(iconEl);
+
+            const nameEl = document.createElement("div");
+            nameEl.className = "entity-name";
+            nameEl.textContent = enemy.name;
+            nameEl.style.color = ENEMY_COLOR;
+            cell.appendChild(nameEl);
+
+            addHpBar(cell, enemy.hp, enemy.max_hp);
         }
     });
+}
+
+function addHpBar(cell, hp, maxHp) {
+    const hpBar = document.createElement("div");
+    hpBar.className = "hp-bar";
+    const hpFill = document.createElement("div");
+    hpFill.className = "hp-fill";
+    const pct = (hp / maxHp) * 100;
+    hpFill.style.width = pct + "%";
+    hpFill.style.background = pct > 50 ? "#4ecca3" : pct > 25 ? "#ff8c42" : "#e94560";
+    hpBar.appendChild(hpFill);
+    cell.appendChild(hpBar);
 }
 
 function getPlayerIndex() {
@@ -144,8 +192,8 @@ function getPlayerIndex() {
     return index;
 }
 
-function renderPlayers() {
-    const list = document.getElementById("players-list");
+function renderEntities() {
+    const list = document.getElementById("entities-list");
     list.innerHTML = "";
     const playerIndex = getPlayerIndex();
 
@@ -155,57 +203,86 @@ function renderPlayers() {
         const color = PLAYER_COLORS[idx % PLAYER_COLORS.length];
         const icon = PLAYER_ICONS[idx % PLAYER_ICONS.length];
         const isMe = p.id === myPlayerId;
-        const isTurn = p.id === gameState.current_turn;
 
         li.innerHTML = `
-            <span style="color:${color}">${icon} ${p.name}${isMe ? " (you)" : ""}${isTurn ? " ◀" : ""}</span>
+            <span style="color:${color}">${icon} ${p.name}${isMe ? " (you)" : ""}</span>
             <span>${p.hp}/${p.max_hp} HP</span>
         `;
-        if (!p.is_alive) li.classList.add("player-dead");
+        if (!p.is_alive) li.classList.add("entity-dead");
         list.appendChild(li);
     });
+
+    if (gameState.enemies) {
+        Object.values(gameState.enemies).forEach((e) => {
+            const li = document.createElement("li");
+            const icon = ENEMY_ICONS[e.name] || ENEMY_ICONS.default;
+            li.innerHTML = `
+                <span style="color:${ENEMY_COLOR}">${icon} ${e.name}</span>
+                <span>${e.hp}/${e.max_hp} HP</span>
+            `;
+            if (!e.is_alive) li.classList.add("entity-dead");
+            list.appendChild(li);
+        });
+    }
 }
 
-function renderTurnBanner() {
-    const banner = document.getElementById("turn-banner");
+function renderPhaseBanner() {
+    const banner = document.getElementById("phase-banner");
+
     if (!gameState.started) {
         banner.textContent = "Waiting for players...";
-        banner.className = "not-your-turn";
+        banner.className = "phase-waiting";
         return;
     }
 
-    const gameOverEvent = checkGameOver();
-    if (gameOverEvent) {
-        banner.textContent = gameOverEvent;
-        banner.className = "game-over-banner";
+    const gameOver = checkGameOver();
+    if (gameOver) {
+        banner.textContent = gameOver;
+        banner.className = "phase-gameover";
         return;
     }
 
-    if (gameState.current_turn === myPlayerId) {
-        banner.textContent = "Your turn!";
-        banner.className = "your-turn";
+    if (actionLocked) {
+        if (waitingFor.length > 0) {
+            const names = waitingFor.map((pid) => getName(pid));
+            banner.textContent = "Action locked — waiting for: " + names.join(", ");
+        } else {
+            banner.textContent = "Action locked — waiting for others...";
+        }
+        banner.className = "phase-locked";
+        return;
+    }
+
+    banner.textContent = "Round " + (gameState.round + 1) + " — Choose your action!";
+    banner.className = "phase-action";
+}
+
+function updateControls() {
+    const controls = document.getElementById("controls");
+    if (actionLocked || !gameState.started) {
+        controls.classList.add("locked");
     } else {
-        const current = gameState.players[gameState.current_turn];
-        const name = current ? current.name : "???";
-        banner.textContent = name + "'s turn";
-        banner.className = "not-your-turn";
+        controls.classList.remove("locked");
     }
 }
 
 function checkGameOver() {
-    const living = Object.values(gameState.players).filter((p) => p.is_alive);
-    if (gameState.started && living.length <= 1 && Object.keys(gameState.players).length >= 2) {
-        if (living.length === 1) {
-            return living[0].name + " wins!";
-        }
-        return "Draw!";
+    const livingPlayers = Object.values(gameState.players).filter((p) => p.is_alive);
+    const livingEnemies = gameState.enemies ? Object.values(gameState.enemies).filter((e) => e.is_alive) : [];
+    const totalEnemies = gameState.enemies ? Object.keys(gameState.enemies).length : 0;
+
+    if (livingPlayers.length === 0 && Object.keys(gameState.players).length > 0) {
+        return "Defeat — the dungeon claims all...";
+    }
+    if (totalEnemies > 0 && livingEnemies.length === 0 && livingPlayers.length > 0) {
+        return "Victory — all enemies defeated!";
     }
     return null;
 }
 
 function sendMove(dx, dy) {
-    if (!ws || !myPlayerId || !gameState) return;
-    if (gameState.current_turn !== myPlayerId) return;
+    if (!ws || !myPlayerId || !gameState || actionLocked) return;
+    if (!gameState.started) return;
     ws.send(JSON.stringify({
         type: "action",
         action_type: "move",
@@ -214,8 +291,8 @@ function sendMove(dx, dy) {
 }
 
 function sendAttack(targetId) {
-    if (!ws || !myPlayerId || !gameState) return;
-    if (gameState.current_turn !== myPlayerId) return;
+    if (!ws || !myPlayerId || !gameState || actionLocked) return;
+    if (!gameState.started) return;
     ws.send(JSON.stringify({
         type: "action",
         action_type: "attack",
@@ -223,10 +300,19 @@ function sendAttack(targetId) {
     }));
 }
 
+function sendWait() {
+    if (!ws || !myPlayerId || !gameState || actionLocked) return;
+    if (!gameState.started) return;
+    ws.send(JSON.stringify({
+        type: "action",
+        action_type: "wait",
+    }));
+}
+
 function handleCellClick(x, y) {
-    if (!gameState || gameState.current_turn !== myPlayerId) return;
+    if (!gameState || actionLocked || !gameState.started) return;
     const me = gameState.players[myPlayerId];
-    if (!me) return;
+    if (!me || !me.is_alive) return;
 
     const occupantId = gameState.grid[y][x];
     if (occupantId && occupantId !== myPlayerId) {
@@ -238,12 +324,15 @@ function handleCellClick(x, y) {
     }
 }
 
+function getName(id) {
+    if (!gameState) return id;
+    if (gameState.players[id]) return gameState.players[id].name;
+    if (gameState.enemies && gameState.enemies[id]) return gameState.enemies[id].name;
+    return id;
+}
+
 function appendEventFromServer(event) {
     const data = event.data;
-    const getName = (pid) => {
-        if (!gameState || !gameState.players[pid]) return pid;
-        return gameState.players[pid].name;
-    };
 
     switch (event.event_type) {
         case "player_joined":
@@ -253,7 +342,7 @@ function appendEventFromServer(event) {
             appendEvent("move", getName(data.player_id) + " moved to (" + data.to[0] + "," + data.to[1] + ")");
             break;
         case "player_attacked":
-            appendEvent("attack", getName(data.attacker_id) + " attacks " + getName(data.target_id) + " for " + data.damage + " damage");
+            appendEvent("attack", getName(data.attacker_id) + " attacks " + getName(data.target_id) + " for " + data.damage + " dmg");
             break;
         case "player_damaged":
             appendEvent("damage", getName(data.player_id) + " has " + data.hp_remaining + " HP left");
@@ -261,14 +350,23 @@ function appendEventFromServer(event) {
         case "player_died":
             appendEvent("death", getName(data.player_id) + " was slain by " + getName(data.killer_id) + "!");
             break;
-        case "turn_started":
-            appendEvent("turn", getName(data.player_id) + "'s turn");
+        case "enemy_moved":
+            appendEvent("enemy", data.name + " moves to (" + data.to[0] + "," + data.to[1] + ")");
+            break;
+        case "enemy_attacked":
+            appendEvent("enemy", data.attacker_name + " attacks " + getName(data.target_id) + " for " + data.damage + " dmg");
+            break;
+        case "enemy_died":
+            appendEvent("death", getName(data.player_id) + " was slain!");
+            break;
+        case "round_started":
+            appendEvent("round", "— Round " + (data.round + 1) + " —");
             break;
         case "player_left":
             appendEvent("join", getName(data.player_id) + " left the game");
             break;
         case "game_over":
-            appendEvent("gameover", data.winner_name + " wins the game!");
+            appendEvent("gameover", data.winner_name);
             break;
     }
 }
@@ -283,12 +381,18 @@ function appendEvent(type, message) {
 }
 
 document.addEventListener("keydown", (e) => {
+    if (document.activeElement && document.activeElement.tagName === "INPUT") return;
+
+    let handled = true;
     switch (e.key) {
         case "ArrowUp":    case "w": case "W": sendMove(0, -1); break;
         case "ArrowDown":  case "s": case "S": sendMove(0, 1);  break;
         case "ArrowLeft":  case "a": case "A": sendMove(-1, 0); break;
         case "ArrowRight": case "d": case "D": sendMove(1, 0);  break;
+        case " ": sendWait(); break;
+        default: handled = false;
     }
+    if (handled) e.preventDefault();
 });
 
 document.getElementById("player-name").addEventListener("keydown", (e) => {

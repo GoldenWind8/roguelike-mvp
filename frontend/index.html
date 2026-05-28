@@ -65,15 +65,16 @@
 
     #game-screen { display: none; }
 
-    #turn-banner {
+    #phase-banner {
         font-size: 18px;
         font-weight: bold;
         margin-bottom: 12px;
-        height: 24px;
+        min-height: 24px;
     }
-    .your-turn { color: #4ecca3; }
-    .not-your-turn { color: #e94560; }
-    .game-over-banner { color: #ffd700; }
+    .phase-action { color: #4ecca3; }
+    .phase-locked { color: #7ec8e3; }
+    .phase-waiting { color: #e94560; }
+    .phase-gameover { color: #ffd700; }
 
     #main-area {
         display: flex;
@@ -105,22 +106,19 @@
         cursor: default;
         border-radius: 2px;
     }
-    .cell-wall {
-        background: #0a0a1a;
-    }
-    .cell-player {
-        cursor: pointer;
-    }
-    .cell-current {
-        box-shadow: inset 0 0 0 2px #4ecca3;
-    }
-    .cell-me {
-        box-shadow: inset 0 0 0 2px #ffd700;
-    }
+    .cell-wall { background: #0a0a1a; }
+    .cell-player { cursor: pointer; }
+    .cell-enemy { cursor: pointer; }
+    .cell-me { box-shadow: inset 0 0 0 2px #ffd700; }
 
-    .player-icon {
+    .entity-icon {
         font-size: 20px;
         line-height: 1;
+    }
+    .entity-name {
+        font-size: 8px;
+        opacity: 0.7;
+        margin-top: 1px;
     }
 
     .hp-bar {
@@ -138,7 +136,7 @@
     }
 
     #sidebar {
-        width: 260px;
+        width: 280px;
         display: flex;
         flex-direction: column;
         gap: 12px;
@@ -158,19 +156,19 @@
         letter-spacing: 1px;
     }
 
-    #players-list {
+    #entities-list {
         list-style: none;
         font-size: 13px;
     }
-    #players-list li {
+    #entities-list li {
         padding: 4px 0;
         display: flex;
         justify-content: space-between;
     }
-    .player-dead { text-decoration: line-through; opacity: 0.5; }
+    .entity-dead { text-decoration: line-through; opacity: 0.5; }
 
     #event-log {
-        height: 200px;
+        height: 220px;
         overflow-y: auto;
         font-size: 12px;
         line-height: 1.6;
@@ -181,8 +179,10 @@
     .event-damage { color: #ff8c42; }
     .event-death { color: #e94560; font-weight: bold; }
     .event-join { color: #4ecca3; }
-    .event-turn { color: #b8b8b8; }
+    .event-round { color: #b8b8b8; }
+    .event-enemy { color: #ff6b35; }
     .event-gameover { color: #ffd700; font-weight: bold; }
+    .event-error { color: #e94560; }
 
     #controls {
         display: flex;
@@ -190,6 +190,10 @@
         align-items: center;
         gap: 4px;
         margin-top: 8px;
+    }
+    #controls.locked {
+        opacity: 0.3;
+        pointer-events: none;
     }
     #controls .row {
         display: flex;
@@ -210,6 +214,11 @@
     }
     .ctrl-btn:hover { background: #1a3a6e; }
     .ctrl-btn:active { background: #e94560; }
+    .ctrl-btn.wait-btn {
+        width: 152px;
+        font-size: 14px;
+        margin-top: 4px;
+    }
 
     #help-text {
         font-size: 11px;
@@ -229,7 +238,7 @@
     </div>
 
     <div id="game-screen">
-        <div id="turn-banner"></div>
+        <div id="phase-banner"></div>
         <div id="main-area">
             <div>
                 <div id="grid-container"></div>
@@ -244,13 +253,16 @@
                         <div class="ctrl-btn" onclick="sendMove(0,1)">&darr;</div>
                         <div class="ctrl-btn" onclick="sendMove(1,0)">&rarr;</div>
                     </div>
+                    <div class="row">
+                        <div class="ctrl-btn wait-btn" onclick="sendWait()">Wait (skip)</div>
+                    </div>
                 </div>
-                <div id="help-text">Arrow keys to move &middot; Click adjacent player to attack</div>
+                <div id="help-text">Arrow keys/WASD to move &middot; Click adjacent enemy to attack &middot; All players act simultaneously</div>
             </div>
             <div id="sidebar">
                 <div class="panel">
-                    <h3>Players</h3>
-                    <ul id="players-list"></ul>
+                    <h3>Entities</h3>
+                    <ul id="entities-list"></ul>
                 </div>
                 <div class="panel">
                     <h3>Event Log</h3>

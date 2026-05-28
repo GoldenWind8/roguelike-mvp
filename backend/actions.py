@@ -5,6 +5,7 @@ from enum import Enum
 class ActionType(Enum):
     MOVE = "move"
     ATTACK = "attack"
+    WAIT = "wait"
 
 
 @dataclass

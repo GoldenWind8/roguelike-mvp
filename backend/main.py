@@ -4,12 +4,14 @@ from pathlib import Path
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 
+from backend.config import TURN_TIMEOUT
 from backend.game import Game
 
 app = FastAPI()
 game = Game()
 connections: dict[str, WebSocket] = {}
 game_lock = asyncio.Lock()
+round_timeout_task: asyncio.Task | None = None
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
@@ -44,6 +46,49 @@ async def send_to(player_id: str, message: dict):
             connections.pop(player_id, None)
 
 
+async def broadcast_state_and_events(events):
+    await broadcast({
+        "type": "state_update",
+        "state": game.get_state(),
+        "events": [e.to_dict() for e in events],
+    })
+
+
+async def broadcast_waiting():
+    pending = game.world.players_pending()
+    if pending:
+        await broadcast({
+            "type": "waiting_for",
+            "player_ids": pending,
+        })
+
+
+def start_round_timeout():
+    global round_timeout_task
+    if round_timeout_task and not round_timeout_task.done():
+        return
+    round_timeout_task = asyncio.create_task(_round_timeout())
+
+
+def cancel_round_timeout():
+    global round_timeout_task
+    if round_timeout_task and not round_timeout_task.done():
+        round_timeout_task.cancel()
+    round_timeout_task = None
+
+
+async def _round_timeout():
+    try:
+        await asyncio.sleep(TURN_TIMEOUT)
+        async with game_lock:
+            if game.world.players_pending():
+                events = game.force_resolve()
+                cancel_round_timeout()
+                await broadcast_state_and_events(events)
+    except asyncio.CancelledError:
+        pass
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
@@ -71,11 +116,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         "state": game.get_state(),
                     })
 
-                    await broadcast({
-                        "type": "state_update",
-                        "state": game.get_state(),
-                        "events": [e.to_dict() for e in events],
-                    })
+                    await broadcast_state_and_events(events)
 
             elif msg_type == "action":
                 if not player_id:
@@ -83,7 +124,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     continue
 
                 async with game_lock:
-                    events = game.submit_action(player_id, data)
+                    events, round_resolved = game.submit_action(player_id, data)
 
                     has_error = any(e.event_type.value == "invalid_action" for e in events)
                     if has_error:
@@ -91,12 +132,13 @@ async def websocket_endpoint(websocket: WebSocket):
                             "type": "error",
                             "message": events[0].data.get("reason", "Invalid action"),
                         })
+                    elif round_resolved:
+                        cancel_round_timeout()
+                        await broadcast_state_and_events(events)
                     else:
-                        await broadcast({
-                            "type": "state_update",
-                            "state": game.get_state(),
-                            "events": [e.to_dict() for e in events],
-                        })
+                        await send_to(player_id, {"type": "action_locked"})
+                        start_round_timeout()
+                        await broadcast_waiting()
 
     except WebSocketDisconnect:
         pass
@@ -106,10 +148,6 @@ async def websocket_endpoint(websocket: WebSocket):
         if player_id:
             connections.pop(player_id, None)
             async with game_lock:
-                events = game.remove_player(player_id)
+                events, round_resolved = game.remove_player(player_id)
             if events:
-                await broadcast({
-                    "type": "state_update",
-                    "state": game.get_state(),
-                    "events": [e.to_dict() for e in events],
-                })
+                await broadcast_state_and_events(events)
