@@ -175,7 +175,7 @@ def resolve_enemy_phase(world: WorldState) -> list[GameEvent]:
         dist = abs(enemy.position.x - target.position.x) + abs(enemy.position.y - target.position.y)
         if dist != 1:
             continue
-        damage = enemy.attack_damage
+        damage = max(1, enemy.attack_damage - PLAYER_DEFENSE )
         events.append(GameEvent(
             EventType.ENEMY_ATTACKED,
             {"attacker_id": enemy.id, "attacker_name": enemy.name, "target_id": target.id, "damage": damage},
