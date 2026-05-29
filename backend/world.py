@@ -1,8 +1,10 @@
 import random
 
 from backend.actions import Action
-from backend.config import LevelConfig, PLAYER_MAX_HP
 from backend.entities import Enemy, Player, Position
+from backend.config import LevelConfig, PLAYER_MAX_HP, PLAYER_DEFENSE
+from backend.entities import Player, Position
+from backend.events import GameEvent, EventType
 
 
 class WorldState:
@@ -44,6 +46,7 @@ class WorldState:
             position=position,
             hp=PLAYER_MAX_HP,
             max_hp=PLAYER_MAX_HP,
+            defense=PLAYER_DEFENSE,
         )
 
         self.players[player_id] = player

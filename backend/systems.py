@@ -1,5 +1,5 @@
 from backend.actions import Action, ActionType
-from backend.config import PLAYER_ATTACK_DAMAGE, ENEMY_CHASE_RANGE
+from backend.config import PLAYER_ATTACK_DAMAGE, ENEMY_CHASE_RANGE, PLAYER_DEFENSE
 from backend.entities import Enemy, Player, Position
 from backend.events import GameEvent, EventType
 from backend.world import WorldState
@@ -77,7 +77,7 @@ def resolve_round(world: WorldState, player_actions: dict[str, Action]) -> list[
         dy = abs(player.position.y - target.position.y)
         if dx + dy != 1:
             continue
-        damage = PLAYER_ATTACK_DAMAGE
+        damage = max(1, PLAYER_ATTACK_DAMAGE -  PLAYER_DEFENSE)
         events.append(GameEvent(
             EventType.PLAYER_ATTACKED,
             {"attacker_id": player.id, "target_id": target.id, "damage": damage},
