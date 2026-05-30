@@ -14,7 +14,7 @@ class Player:
     position: Position
     hp: int
     max_hp: int
-    defense: int = 0
+    defense: int
     is_alive: bool = True
 
     def to_dict(self) -> dict:

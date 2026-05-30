@@ -23,7 +23,7 @@ class Game:
             self.world.round,
         )]
 
-        if len(self.world.players) >= 2 and not self.started:
+        if len(self.world.players) >= 1 and not self.started:
             self.started = True
             self.phase = "player_phase"
             events.append(GameEvent(
@@ -36,12 +36,6 @@ class Game:
 
     def submit_action(self, player_id: str, action_data: dict) -> tuple[list[GameEvent], bool]:
         """Returns (events, round_resolved). If round_resolved is True, broadcast state to all."""
-        if not self.started:
-            return ([GameEvent(
-                EventType.INVALID_ACTION,
-                {"reason": "Game hasn't started yet — waiting for more players"},
-                self.world.round,
-            )], False)
 
         if self.phase != "player_phase":
             return ([GameEvent(

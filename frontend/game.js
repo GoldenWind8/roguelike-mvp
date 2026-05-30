@@ -5,7 +5,8 @@ let actionLocked = false;
 let waitingFor = [];
 
 const PLAYER_COLORS = ["#4ecca3", "#7ec8e3", "#ffd700", "#c490e4"];
-const PLAYER_ICONS = ["⚔", "♠", "♦", "♣", "🛡"];
+const PLAYER_ICONS = ["⚔", "♠", "♦", "♣"];
+const STATS_ICONS = { defense: "🛡"}
 const ENEMY_COLOR = "#ff6b35";
 const ENEMY_ICONS = {
     default: "👹",
@@ -207,7 +208,7 @@ function renderEntities() {
         li.innerHTML = `
             <span style="color:${color}">${icon} ${p.name}${isMe ? " (you)" : ""}</span>
             <span>${p.hp}/${p.max_hp} HP</span>
-            <span>${p.defense} ${PLAYER_ICONS[4]}</span>
+            <span>${p.defense} ${STATS_ICONS.defense}</span>
         `;
         if (!p.is_alive) li.classList.add("entity-dead");
         list.appendChild(li);
