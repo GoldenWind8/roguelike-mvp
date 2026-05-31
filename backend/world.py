@@ -31,6 +31,7 @@ class WorldState:
                 position=Position(pos[0], pos[1]),
                 hp=enemy_def.hp,
                 attack_damage=enemy_def.attack_damage,
+                defense=enemy_def.defense,
             )
 
     def add_player(self, name: str) -> Player:
@@ -53,7 +54,7 @@ class WorldState:
         self.grid[position.y][position.x] = player_id
         return player
 
-    def add_enemy(self, name: str, position: Position, hp: int, attack_damage: int) -> Enemy:
+    def add_enemy(self, name: str, position: Position, hp: int, attack_damage: int, defense: int) -> Enemy:
         enemy_id = f"enemy_{self._next_enemy_num}"
         self._next_enemy_num += 1
 
@@ -64,6 +65,7 @@ class WorldState:
             hp=hp,
             max_hp=hp,
             attack_damage=attack_damage,
+            defense=defense,
         )
 
         self.enemies[enemy_id] = enemy

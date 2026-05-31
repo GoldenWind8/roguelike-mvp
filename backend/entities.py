@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from backend.config import PLAYER_ATTACK_DAMAGE, PLAYER_DEFENSE
+
 
 @dataclass
 class Position:
@@ -14,7 +16,8 @@ class Player:
     position: Position
     hp: int
     max_hp: int
-    defense: int
+    defense: int = PLAYER_DEFENSE
+    attack_damage: int = PLAYER_ATTACK_DAMAGE
     is_alive: bool = True
 
     def to_dict(self) -> dict:
@@ -25,6 +28,7 @@ class Player:
             "hp": self.hp,
             "max_hp": self.max_hp,
             "defense": self.defense,
+            "attack_damage": self.attack_damage,
             "is_alive": self.is_alive,
         }
 
@@ -37,6 +41,7 @@ class Enemy:
     hp: int
     max_hp: int
     attack_damage: int
+    defense: int
     is_alive: bool = True
 
     def to_dict(self) -> dict:
@@ -47,5 +52,6 @@ class Enemy:
             "hp": self.hp,
             "max_hp": self.max_hp,
             "attack_damage": self.attack_damage,
+            "defense": self.defense,
             "is_alive": self.is_alive,
         }

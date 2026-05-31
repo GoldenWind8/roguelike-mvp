@@ -1,5 +1,5 @@
 from backend.actions import Action, ActionType
-from backend.config import PLAYER_ATTACK_DAMAGE, ENEMY_CHASE_RANGE, PLAYER_DEFENSE
+from backend.config import ENEMY_CHASE_RANGE
 from backend.entities import Enemy, Player, Position
 from backend.events import GameEvent, EventType
 from backend.world import WorldState
@@ -34,6 +34,8 @@ def validate_player_action(world: WorldState, action: Action) -> GameEvent | Non
 
     return None
 
+def compute_damage(attacker, target) -> int:
+    return max(1, attacker.attack_damage - target.defense)
 
 def resolve_round(world: WorldState, player_actions: dict[str, Action]) -> list[GameEvent]:
     events = []
@@ -77,7 +79,7 @@ def resolve_round(world: WorldState, player_actions: dict[str, Action]) -> list[
         dy = abs(player.position.y - target.position.y)
         if dx + dy != 1:
             continue
-        damage = max(1, PLAYER_ATTACK_DAMAGE -  PLAYER_DEFENSE)
+        damage = compute_damage(player, target)
         events.append(GameEvent(
             EventType.PLAYER_ATTACKED,
             {"attacker_id": player.id, "target_id": target.id, "damage": damage},
@@ -175,7 +177,7 @@ def resolve_enemy_phase(world: WorldState) -> list[GameEvent]:
         dist = abs(enemy.position.x - target.position.x) + abs(enemy.position.y - target.position.y)
         if dist != 1:
             continue
-        damage = max(1, enemy.attack_damage - PLAYER_DEFENSE )
+        damage = compute_damage(enemy, target)
         events.append(GameEvent(
             EventType.ENEMY_ATTACKED,
             {"attacker_id": enemy.id, "attacker_name": enemy.name, "target_id": target.id, "damage": damage},
