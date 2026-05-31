@@ -25,12 +25,12 @@ class WorldState:
         ]
 
         for enemy_def in config.enemies:
-            pos = enemy_def["position"]
+            pos = enemy_def.position
             self.add_enemy(
-                name=enemy_def["name"],
+                name=enemy_def.name,
                 position=Position(pos[0], pos[1]),
-                hp=enemy_def["hp"],
-                attack_damage=enemy_def["attack_damage"],
+                hp=enemy_def.hp,
+                attack_damage=enemy_def.attack_damage,
             )
 
     def add_player(self, name: str) -> Player:
