@@ -114,9 +114,9 @@ When combat is complete, attention moves to the open-world mode — **not before
 ## Known risks (combat)
 
 - **No tests yet** — the biggest risk as logic grows; #18 is the moment to fix it (see above).
-- **Single global game** — one `Game`, one world, one `asyncio.Lock`. Fine for now; multiple rooms is a later, deliberate step.
+- **Single global game** — one `Game`, one world, one `asyncio.Lock`. Fine for now; multiple rooms is a later, deliberate step. It also caps concurrent players to one process.
+- **Restart drops live games** — in-memory state means every deploy/crash ends all active sessions. Accepted for the MVP; first thing persistence fixes.
+- **No reconnect on a live network** — a dropped WebSocket currently removes the player for good (see Identity). Decide if the MVP needs grace-window resume.
 - **Full-state broadcast + full re-render** — simple and robust (~2KB/round); richer combat visuals (area effects, status icons) will eventually want incremental rendering.
 
 ---
-
-_Beyond Part 1 — open-world exploration, AI-generated content, and the room-partitioned shared world — lives in [`VISION.md`](VISION.md). Intentionally kept later._
