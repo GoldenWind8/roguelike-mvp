@@ -1,20 +1,10 @@
 # Architecture — Part 2: Persistence & Backend
 
-How state outlives a single combat and how the system runs as **more than one process**. Part 1 ([`ARCHITECTURE.md`](ARCHITECTURE.md)) covers the combat engine; this doc covers everything *around* it — the database, the cache/message layer, and the multi-process topology that the room-partitioned world (see [`VISION.md`](VISION.md)) is built on.
-
-> **Legend:** sections marked _(current)_ describe `main` today; _(MVP)_ is the near-term target we're building toward; _(later)_ is deliberately deferred.
-
----
-
 ## Principles
 
-The rules that decide *what* gets stored *where* — so the choice is deliberate, not cargo-culted:
-
 1. **Storage follows access pattern, not hype.** Before picking a technology, ask of each piece of data: how often is it written, how often read, must it survive a crash, who needs to see it? The answer picks the tool. (This is why we have three storage tiers below, not one.)
-2. **Infrastructure is added on a trigger, never speculatively.** Each component (Postgres, Redis, queues) earns its place by solving a problem we *actually have*. We name the trigger so we add it on purpose.
-3. **The engine owns no database in the hot loop.** Combat resolution reads from memory and stays deterministic. The DB sits at the *edges* of an encounter — supplying shared definitions going in, recording durable outcomes coming out.
-4. **Determinism covers the engine, not the LLM.** `world.rng` is reproducible; a language model is not (different output, slow, costs money). So **LLM-generated content is persisted as data** — we store the resolved output, never just a recipe to re-run.
-
+2. **The engine owns no database in the hot loop.** Combat resolution reads from memory and stays deterministic. The DB sits at the *edges* of an encounter — supplying shared definitions going in, recording durable outcomes coming out.
+3. **Final MVP flow** User logs in and sees multiple rooms he can join, choosing one with player name puts him in a level along with any of his stuff like inventory.
 ---
 
 ## Runtime today & deployment
@@ -26,7 +16,6 @@ The rules that decide *what* gets stored *where* — so the choice is deliberate
 **To be genuinely playable _(MVP target)_**, deployment needs:
 - **A host** — one always-on container/VM on a managed platform (Fly.io / Render / Railway / a small VPS).
 - **HTTPS, so WebSockets become WSS** — the frontend already auto-selects `wss://` on a secure origin, so this is mostly a TLS-terminating proxy concern.
-- **Config via env** — Postgres/Redis URLs, RNG seed, timeout — so one image runs locally (point it at SQLite and skip Redis for a minimal dev loop) and in prod.
 
 ---
 
@@ -87,10 +76,6 @@ Redis is an in-memory, *shared* key-value store. It exists in this architecture 
 2. **Routing & presence.** A fast shared lookup for "which worker currently hosts room X" and "where is player Y." The gateway uses it to route a newly connecting player to the right worker.
 3. **Caching _(later)_.** Hot, frequently-read canonical data (e.g. a popular room's definition) can be cached in Redis to spare Postgres. Not needed for MVP — add it if Postgres read load actually shows up.
 
-> ⚠️ **What Redis is *not* here.** It is not the source of truth — anything in Redis is either ephemeral (presence, routing) or a disposable copy of something authoritative in Postgres. If Redis is wiped, the world survives; only live coordination is disrupted. Keep that line bright: **durable → Postgres, ephemeral/shared-fast → Redis.**
-
-> **Distributed locks?** Not for MVP. Because a room is owned by a single worker, its mutations are serialized in-process. We'd only reach for Redis locks if two workers ever needed to mutate the same resource — which the room-ownership model is specifically designed to avoid.
-
 ---
 
 ## Topology _(MVP)_
@@ -99,30 +84,27 @@ How the processes fit together:
 
 ```
    players ──WS──▶ ┌──────────────┐
-                   │  Gateway /    │  stable public endpoint; routes a
-                   │  Lobby svc    │  connecting player to the worker
+                   │  Gateway /   │  stable public endpoint; routes a
+                   │  Lobby svc   │  connecting player to the worker
                    └──────┬───────┘  hosting their current room
                           │
           ┌───────────────┼────────────────┐
           ▼               ▼                ▼
     ┌───────────┐   ┌───────────┐    ┌───────────┐
-    │room worker│   │room worker│    │room worker│   each OWNS the live
+    │room worker│   │room worker│    │room worker│   horizantally scalable workers each OWNS the live
     │ (rooms A) │   │ (rooms B) │    │ (rooms C) │   WorldState of its
     └─────┬─────┘   └─────┬─────┘    └─────┬─────┘   rooms, in memory
           │               │                │
           ├───────────────┴────────────────┤
           ▼                                 ▼
-    ┌───────────┐                     ┌───────────┐
+    ┌───────────┐                     ┌────────────┐
     │ Postgres  │                     │   Redis    │
-    │ canonical │                     │  pub/sub + │
-    │  durable  │                     │ routing/   │
+    │           │                     │  pub/sub + │
+    │           │                     │ routing/   │
     │  (Tier 1) │                     │ presence   │
     └───────────┘                     │  (Tier 3)  │
-                                       └───────────┘
+                                      └────────────┘
 ```
-
-- **Gateway/Lobby** owns the world graph and player routing — the thing that, in Part 1's single process, was implicit. It's the answer to "which worker do I send this player to?"
-- **Room workers** are horizontally scalable: add more to host more concurrent rooms. Each is a Part-1-style engine for its rooms — shared **Postgres** is authoritative, shared **Redis** is ephemeral.
 
 ---
 
@@ -144,26 +126,10 @@ Multi-process + persistent players raises the bar Part 1 deliberately left low:
 
 ---
 
-## Scope & sequence
-
-Each step is downstream of a working effect vocabulary and the Part 1 refactor:
-
-- **NOW** — finish Part 1 (Actions→Effects→Events, `pytest`). No backend work yet.
-- **MVP step 1 — persistence foundation** — Postgres + SQLAlchemy (recreate tables from models). First persisted thing: **generated item configs** (Phase 3 in `VISION.md`). Validate-then-store JSON.
-- **MVP step 2 — generated rooms** — persist level layouts as rows so rooms are revisitable.
-- **MVP step 3 — go multi-process** — gateway/lobby + room workers + Redis pub/sub for cross-worker fan-out and routing. This is where the topology above becomes real.
-- **Later** — world graph + door/portal traversal between rooms, full identity/auth, Redis caching if read load demands it.
-
----
-
 ## Known risks (backend)
-
-- **Multi-process is real complexity, early.** Choosing it for the MVP buys horizontal scale but costs a gateway, a message layer, and handoff logic that a single process wouldn't need. Accepted deliberately — but it's the biggest source of "distributed systems" bugs (split brain, stale routing). Keep room ownership strict to contain it.
-- **Redis as accidental source of truth.** The easy mistake is letting durable data drift into Redis "because it's there." Guard the durable→Postgres / ephemeral→Redis line.
-- **JSON columns hide schema drift.** Flexible storage means the DB won't catch a malformed item — *we* must, via vocabulary validation before insert. The validation is the schema.
-- **LLM content is unreproducible.** If a generated row is lost and not backed up, it's gone for good (unlike seeded engine content). Persisted generated content needs **backups** once players depend on it.
-- **Test portability isn't automatic.** Postgres-specific queries won't run on SQLite; don't assume a green local SQLite test suite proves prod behavior.
+- **Later** — world graph + door/portal traversal between rooms, full identity/auth, Redis caching if read load demands it.
+- **Multi-process is real complexity, early.** Choosing it for the MVP buys horizontal scale but costs a gateway, a message layer, and handoff logic that a single process wouldn't need. Accepted deliberately — but it's the biggest source of "distributed systems" bugs (split brain, stale routing). 
 
 ---
 
-_Part 1 — the combat engine — lives in [`ARCHITECTURE.md`](ARCHITECTURE.md). The product vision and the room-partitioned shared world live in [`VISION.md`](VISION.md)._
+_Part 1 — the combat engine — lives in [`ARCHITECTURE.md`](ARCHITECTURE.md). The product vision and the room-partitioned shared world live in [`VISION.md`](../VISION.md)._
