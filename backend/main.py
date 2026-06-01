@@ -1,13 +1,24 @@
 import asyncio
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 
 from backend.config import TURN_TIMEOUT
+from backend.db import init_db
 from backend.game import Game
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Build tables from the models before serving any request.
+    #2. create_all is idempotent anyway. It defaults to checkfirst=True — it inspects the DB and only creates tables that don't already exist.
+    await init_db()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 game = Game()
 connections: dict[str, WebSocket] = {}
 game_lock = asyncio.Lock()

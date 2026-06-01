@@ -3,3 +3,7 @@ uvicorn[standard]>=0.34.0
 sqlalchemy[asyncio]
 asyncpg
 aiosqlite
+
+# test
+pytest
+pytest-asyncio

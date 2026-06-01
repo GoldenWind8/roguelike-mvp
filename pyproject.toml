@@ -1,0 +1,4 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# auto: plain `async def test_*` functions run without an @mark on each one.
+asyncio_mode = "auto"

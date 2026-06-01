@@ -2,3 +2,6 @@
 .venv
 .idea
 CLAUDE.md
+# local sqlite db
+game.db
+__pycache__/

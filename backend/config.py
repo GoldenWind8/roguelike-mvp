@@ -1,4 +1,13 @@
+import os
 from dataclasses import dataclass, field
+
+
+# Storage config — 12-factor: the driver lives IN the URL, so the same code
+# runs on SQLite (tests) and Postgres (prod) by swapping one env var.
+#   tests/local: sqlite+aiosqlite:///./game.db
+#   prod:        postgresql+asyncpg://user:pass@host/db
+# Never hardcode credentials — prod sets DATABASE_URL in the environment.
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./game.db")
 
 
 GRID_WIDTH = 10
