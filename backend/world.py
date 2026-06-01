@@ -2,13 +2,13 @@ import random
 
 from backend.actions import Action
 from backend.entities import Enemy, Player, Position
-from backend.config import LevelConfig, PLAYER_MAX_HP, PLAYER_DEFENSE
-from backend.entities import Player, Position
+from backend.config import PLAYER_MAX_HP, PLAYER_DEFENSE
 from backend.events import GameEvent, EventType
+from backend.level_loader import LevelData
 
 
 class WorldState:
-    def __init__(self, config: LevelConfig, seed: int):
+    def __init__(self, config: LevelData, seed: int):
         self.config = config
         self.rng = random.Random(seed)
         self.round = 0

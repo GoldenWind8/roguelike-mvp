@@ -1,19 +1,21 @@
 from backend.actions import Action, ActionType, parse_action
-from backend.config import DEFAULT_LEVEL, MAX_PLAYERS, RNG_SEED, LevelConfig
+from backend.config import RNG_SEED
 from backend.entities import Player
 from backend.events import GameEvent, EventType
+from backend.level_loader import LevelData
 from backend.systems import resolve_round, validate_player_action
 from backend.world import WorldState
 
 
 class Game:
-    def __init__(self, level_config: LevelConfig = DEFAULT_LEVEL, seed: int = RNG_SEED):
-        self.world = WorldState(level_config, seed)
+    def __init__(self, level: LevelData, seed: int = RNG_SEED):
+        self.world = WorldState(level, seed)
         self.started = False
         self.phase = "waiting"
 
     def join(self, player_name: str) -> tuple[Player, list[GameEvent]]:
-        if len(self.world.players) >= MAX_PLAYERS:
+        # Room capacity = number of spawn points (replaces the old MAX_PLAYERS).
+        if len(self.world.players) >= self.world.config.capacity:
             raise ValueError("Game is full")
 
         player = self.world.add_player(player_name)
