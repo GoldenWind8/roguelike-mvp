@@ -1,6 +1,6 @@
 # Architecture — Part 1: Combat System
 
-The map of how combat works today and where it's going. This is the engine's first and current focus; the open-world mode is deliberately **out of scope here** (see [`VISION.md`](../VISION.md)).
+The map of how combat works today and where it's going. This is the engine's first and current focus; the open-world mode is deliberately **out of scope here** (see [`VISION.md`](VISION.md)).
 
 ---
 

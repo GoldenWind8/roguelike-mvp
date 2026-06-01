@@ -132,4 +132,4 @@ Multi-process + persistent players raises the bar Part 1 deliberately left low:
 
 ---
 
-_Part 1 — the combat engine — lives in [`ARCHITECTURE.md`](ARCHITECTURE.md). The product vision and the room-partitioned shared world live in [`VISION.md`](../VISION.md)._
+_Part 1 — the combat engine — lives in [`ARCHITECTURE.md`](ARCHITECTURE.md). The product vision and the room-partitioned shared world live in [`VISION.md`](VISION.md)._
