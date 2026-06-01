@@ -6,20 +6,29 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 
 from backend.config import TURN_TIMEOUT
-from backend.db import init_db
+from backend.db import SessionMaker, init_db
 from backend.game import Game
+from backend.level_loader import load_level
+from backend.levels import get_or_seed_default_room
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Build tables from the models before serving any request.
-    #2. create_all is idempotent anyway. It defaults to checkfirst=True — it inspects the DB and only creates tables that don't already exist.
+    # Build tables, then seed-if-empty and load the starting room from the DB
+    # into the in-memory Game (the level is no longer a hardcoded constant).
+    # create_all is idempotent (checkfirst=True), as is get_or_seed_default_room.
+    global game
     await init_db()
+    async with SessionMaker() as session:
+        room = await get_or_seed_default_room(session)
+        level = await load_level(session, room.id)
+    game = Game(level)
     yield
 
 
 app = FastAPI(lifespan=lifespan)
-game = Game()
+# Built in lifespan once the starting room is loaded from the DB.
+game: Game | None = None
 connections: dict[str, WebSocket] = {}
 game_lock = asyncio.Lock()
 round_timeout_task: asyncio.Task | None = None

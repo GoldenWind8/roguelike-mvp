@@ -11,6 +11,8 @@ graph has real edges from day one (walking through them is M3).
 Terrain is an ASCII grid (one char per tile, see TileType):
     #  wall      .  floor      +  door      O  portal
 """
+from sqlalchemy import select
+
 from backend.level_validation import (
     validate_connection,
     validate_enemy_refs,
@@ -128,3 +130,11 @@ async def seed_default_level(session) -> Room:
         ))
     await session.commit()
     return models["default"]
+
+
+async def get_or_seed_default_room(session) -> Room:
+    """Idempotent startup helper: return the default room, seeding the world on
+    first boot if the rooms table is empty (Decision A — zero-touch startup)."""
+    existing = (await session.execute(
+        select(Room).where(Room.name == DEFAULT_ROOM["name"]))).scalars().first()
+    return existing or await seed_default_level(session)
