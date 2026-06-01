@@ -7,6 +7,7 @@ import pytest_asyncio
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
+import backend.models  # noqa: F401 — register tables on Base.metadata before create_all
 from backend.db import Base
 
 
