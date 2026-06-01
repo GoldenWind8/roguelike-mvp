@@ -59,7 +59,7 @@ async def init_db() -> None:
     data worth keeping). Importing the models module here guarantees they're
     registered before create_all runs — until models exist this is a no-op.
     """
-    # import backend.models  # noqa: F401  — uncomment once models exist
+    import backend.models  # noqa: F401  — registers tables on Base.metadata
     async with engine.begin() as conn:
         # run_sync bridges the sync create_all into the async connection.
         await conn.run_sync(lambda c: Base.metadata.create_all(c))
