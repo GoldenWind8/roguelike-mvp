@@ -21,23 +21,23 @@ their shape — see "JSON columns" below).
 erDiagram
     ROOMS ||--o{ ROOM_CONNECTIONS : "from_room_id"
     ROOMS ||--o{ ROOM_CONNECTIONS : "to_room_id"
-    ENEMY_DEFS }o..o{ ROOMS : "enemy_spawns[].enemy_id (soft, JSON)"
+    ENEMY_DEFS }o..o{ ROOMS : "soft ref via enemy_spawns"
 
     ROOMS {
         int id PK
         string name
         int width
         int height
-        json terrain "ASCII grid, list[str]"
-        json objects "list of {type,x,y,...} — chests/barrels"
-        json spawn_points "list of [x,y], clustered near an entry"
-        json enemy_spawns "list of {enemy_id,x,y}"
+        json terrain "ASCII grid rows"
+        json objects "chests and barrels"
+        json spawn_points "coords near the entry"
+        json enemy_spawns "enemy id and coords"
     }
     ROOM_CONNECTIONS {
         int id PK
         int from_room_id FK
         int to_room_id FK
-        int from_x "the door/portal tile you step on"
+        int from_x "door or portal tile"
         int from_y
     }
     ENEMY_DEFS {
@@ -46,8 +46,8 @@ erDiagram
         int hp
         int attack_damage
         int defense
-        json on_spawn "effect-data list (closed vocab)"
-        json on_death "effect-data list (closed vocab)"
+        json on_spawn "effect list"
+        json on_death "effect list"
     }
 ```
 
@@ -83,14 +83,14 @@ erDiagram
     ITEMS ||--o{ PLAYER_INVENTORY : "item_id"
     ROOMS ||--o{ EVENTS : "room_id"
     PLAYERS }o--|| ROOMS : "current_room_id"
-    ITEMS }o..o{ ROOMS : "objects[].loot (soft, JSON)"
+    ITEMS }o..o{ ROOMS : "soft ref via loot"
 
     ITEMS {
         int id PK
         string name
-        json effects "closed vocab, validated on insert"
-        string source "hand | llm"
-        json provenance "prompt/model/seed — LLM output is unreproducible"
+        json effects "closed vocab validated"
+        string source "hand or llm"
+        json provenance "prompt model seed"
         datetime created_at
     }
     PLAYERS {
