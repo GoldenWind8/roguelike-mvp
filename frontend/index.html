@@ -25,6 +25,7 @@
         letter-spacing: 2px;
     }
 
+
     #connection-status {
         font-size: 12px;
         margin-bottom: 16px;
@@ -90,6 +91,7 @@
         background: #0f3460;
         padding: 2px;
         border-radius: 4px;
+        justify-content: center;
     }
 
     .cell {
@@ -219,9 +221,14 @@
         font-size: 14px;
         margin-top: 4px;
     }
-
+    .ctrl-btn.bomb-btn {
+         width: 152px;
+         font-size: 14px;
+         color: #c73650;
+         margin-top: 4px;
+    }
     #help-text {
-        font-size: 11px;
+        font-size: 14px;
         color: #666;
         text-align: center;
         margin-top: 8px;
@@ -255,9 +262,10 @@
                     </div>
                     <div class="row">
                         <div class="ctrl-btn wait-btn" onclick="sendWait()">Wait (skip)</div>
+                        <div class="ctrl-btn bomb-btn" onclick="toggleBomb()">💣 Bomb (B)</div>
                     </div>
                 </div>
-                <div id="help-text">Arrow keys/WASD to move &middot; Click adjacent enemy to attack &middot; All players act simultaneously</div>
+                <div id="help-text">Arrow keys/WASD to move &middot; Click adjacent enemy to attack &middot; B then click a tile to bomb &middot; All players act simultaneously</div>
             </div>
             <div id="sidebar">
                 <div class="panel">

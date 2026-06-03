@@ -1,106 +1,35 @@
-from backend.actions import Action, ActionType
+from backend.actions import Action
 from backend.config import ENEMY_CHASE_RANGE
+from backend.effects import apply_effect, Damage, compute_damage
 from backend.entities import Enemy, Player, Position
 from backend.events import GameEvent, EventType
+from backend.handlers import HANDLERS
 from backend.world import WorldState
 
 
 def validate_player_action(world: WorldState, action: Action) -> GameEvent | None:
-    player = world.get_player(action.player_id)
-    if not player or not player.is_alive:
-        return GameEvent(EventType.INVALID_ACTION, {"reason": "Player not found or dead"}, world.round)
-
-    if action.action_type == ActionType.WAIT:
-        return None
-
-    if action.action_type == ActionType.MOVE:
-        if not action.direction:
-            return GameEvent(EventType.INVALID_ACTION, {"reason": "No direction"}, world.round)
-        nx = player.position.x + action.direction[0]
-        ny = player.position.y + action.direction[1]
-        if not world.is_valid_position(nx, ny):
-            return GameEvent(EventType.INVALID_ACTION, {"reason": "Can't move there"}, world.round)
-
-    elif action.action_type == ActionType.ATTACK:
-        if not action.target_id:
-            return GameEvent(EventType.INVALID_ACTION, {"reason": "No target"}, world.round)
-        target = world.get_entity(action.target_id)
-        if not target or not target.is_alive:
-            return GameEvent(EventType.INVALID_ACTION, {"reason": "Target not found or dead"}, world.round)
-        dx = abs(player.position.x - target.position.x)
-        dy = abs(player.position.y - target.position.y)
-        if dx + dy != 1:
-            return GameEvent(EventType.INVALID_ACTION, {"reason": "Target not adjacent"}, world.round)
-
-    return None
-
-def compute_damage(attacker, target) -> int:
-    return max(1, attacker.attack_damage - target.defense)
+    return HANDLERS[action.action_type].validate(world, action)
 
 def resolve_round(world: WorldState, player_actions: dict[str, Action]) -> list[GameEvent]:
     events = []
+    phase_actions = {}
+    actions = list(player_actions.values())
 
-    # --- Player Phase: moves first, then attacks ---
-    move_actions = []
-    attack_actions = []
-    for pid, action in player_actions.items():
-        if action.action_type == ActionType.MOVE:
-            move_actions.append(action)
-        elif action.action_type == ActionType.ATTACK:
-            attack_actions.append(action)
+    for action in actions:
+        handler = HANDLERS[action.action_type]
 
-    for action in move_actions:
-        player = world.get_player(action.player_id)
-        if not player or not player.is_alive:
-            continue
-        nx = player.position.x + action.direction[0]
-        ny = player.position.y + action.direction[1]
-        if not world.is_valid_position(nx, ny):
-            continue
-        if world.is_occupied(nx, ny):
-            continue
-        old_pos = [player.position.x, player.position.y]
-        new_pos = Position(nx, ny)
-        world.move_entity(action.player_id, new_pos)
-        events.append(GameEvent(
-            EventType.PLAYER_MOVED,
-            {"player_id": action.player_id, "from": old_pos, "to": [nx, ny]},
-            world.round,
-        ))
+        phase_actions.setdefault(
+            handler.phase,
+            []
+        ).append(action)
 
-    for action in attack_actions:
-        player = world.get_player(action.player_id)
-        if not player or not player.is_alive:
-            continue
-        target = world.get_entity(action.target_id)
-        if not target or not target.is_alive:
-            continue
-        dx = abs(player.position.x - target.position.x)
-        dy = abs(player.position.y - target.position.y)
-        if dx + dy != 1:
-            continue
-        damage = compute_damage(player, target)
-        events.append(GameEvent(
-            EventType.PLAYER_ATTACKED,
-            {"attacker_id": player.id, "target_id": target.id, "damage": damage},
-            world.round,
-        ))
-        target.hp -= damage
-        events.append(GameEvent(
-            EventType.PLAYER_DAMAGED,
-            {"player_id": target.id, "damage": damage, "hp_remaining": max(0, target.hp)},
-            world.round,
-        ))
-        if target.hp <= 0:
-            target.hp = 0
-            target.is_alive = False
-            world.grid[target.position.y][target.position.x] = None
-            death_type = EventType.ENEMY_DIED if isinstance(target, Enemy) else EventType.PLAYER_DIED
-            events.append(GameEvent(
-                death_type,
-                {"player_id": target.id, "killer_id": player.id},
-                world.round,
-            ))
+    for phase in sorted(phase_actions):
+        for action in phase_actions[phase]:
+            handler = HANDLERS[action.action_type]
+
+            events.extend(
+                handler.resolve(world, action)
+            )
 
     # --- Enemy Phase ---
     events.extend(resolve_enemy_phase(world))
@@ -183,22 +112,8 @@ def resolve_enemy_phase(world: WorldState) -> list[GameEvent]:
             {"attacker_id": enemy.id, "attacker_name": enemy.name, "target_id": target.id, "damage": damage},
             world.round,
         ))
-        target.hp -= damage
-        events.append(GameEvent(
-            EventType.PLAYER_DAMAGED,
-            {"player_id": target.id, "damage": damage, "hp_remaining": max(0, target.hp)},
-            world.round,
-        ))
-        if target.hp <= 0:
-            target.hp = 0
-            target.is_alive = False
-            world.grid[target.position.y][target.position.x] = None
-            events.append(GameEvent(
-                EventType.PLAYER_DIED,
-                {"player_id": target.id, "killer_id": enemy.id},
-                world.round,
-            ))
 
+        events.extend(apply_effect(world, Damage(target.id, enemy.attack_damage, enemy.id)))
     return events
 
 

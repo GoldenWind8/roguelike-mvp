@@ -3,6 +3,7 @@ let myPlayerId = null;
 let gameState = null;
 let actionLocked = false;
 let waitingFor = [];
+let bombArmed = false;
 
 const PLAYER_COLORS = ["#4ecca3", "#7ec8e3", "#ffd700", "#c490e4"];
 const PLAYER_ICONS = ["⚔", "♠", "♦", "♣"];
@@ -72,6 +73,7 @@ function handleJoinAck(msg) {
 function handleStateUpdate(msg) {
     gameState = msg.state;
     actionLocked = false;
+    bombArmed = false;
     waitingFor = [];
     renderAll();
     if (msg.events) {
@@ -81,6 +83,7 @@ function handleStateUpdate(msg) {
 
 function handleActionLocked() {
     actionLocked = true;
+    bombArmed = false;
     renderAll();
 }
 
@@ -244,6 +247,12 @@ function renderPhaseBanner() {
         return;
     }
 
+    if (bombArmed && !actionLocked) {
+        banner.textContent = "💣 Bomb armed — click a target tile (B or Esc to cancel)";
+        banner.className = "phase-action";
+        return;
+    }
+
     if (actionLocked) {
         if (waitingFor.length > 0) {
             const names = waitingFor.map((pid) => getName(pid));
@@ -311,10 +320,31 @@ function sendWait() {
     }));
 }
 
+function sendBomb(x, y) {
+    if (!ws || !myPlayerId || !gameState || actionLocked || !gameState.started) return;
+    ws.send(JSON.stringify({
+        type: "action",
+        action_type: "bomb",
+        target_tile: [x, y],
+    }));
+}
+
+function toggleBomb() {
+    if (actionLocked || !gameState || !gameState.started) return;
+    bombArmed = !bombArmed;
+    renderPhaseBanner();
+}
+
 function handleCellClick(x, y) {
     if (!gameState || actionLocked || !gameState.started) return;
     const me = gameState.players[myPlayerId];
     if (!me || !me.is_alive) return;
+
+    if (bombArmed) {
+        sendBomb(x, y);
+        bombArmed = false;
+        return;
+    }
 
     const occupantId = gameState.grid[y][x];
     if (occupantId && occupantId !== myPlayerId) {
@@ -361,6 +391,9 @@ function appendEventFromServer(event) {
         case "enemy_died":
             appendEvent("death", getName(data.player_id) + " was slain!");
             break;
+        case "bomb_thrown":
+            appendEvent("attack", getName(data.player_id) + " hurls a bomb at (" + data.tile[0] + "," + data.tile[1] + ")");
+            break;
         case "round_started":
             appendEvent("round", "— Round " + (data.round + 1) + " —");
             break;
@@ -392,6 +425,8 @@ document.addEventListener("keydown", (e) => {
         case "ArrowLeft":  case "a": case "A": sendMove(-1, 0); break;
         case "ArrowRight": case "d": case "D": sendMove(1, 0);  break;
         case " ": sendWait(); break;
+        case "b": case "B": toggleBomb(); break;
+        case "Escape": bombArmed = false; renderPhaseBanner(); break;
         default: handled = false;
     }
     if (handled) e.preventDefault();

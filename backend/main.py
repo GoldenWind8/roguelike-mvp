@@ -1,4 +1,5 @@
 import asyncio
+import traceback
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -162,8 +163,9 @@ async def websocket_endpoint(websocket: WebSocket):
 
     except WebSocketDisconnect:
         pass
-    except Exception:
-        pass
+    except Exception as e:
+        print("WEBSOCKET ERROR:")
+        traceback.print_exc()
     finally:
         if player_id:
             connections.pop(player_id, None)
