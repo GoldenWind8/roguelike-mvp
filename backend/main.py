@@ -14,7 +14,7 @@ from backend.levels import get_or_seed_default_room
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Build tables, then seed-if-empty and load the starting room from the DB
+    # Build db tables, then seed-if-empty and load the starting room from the DB
     # into the in-memory Game (the level is no longer a hardcoded constant).
     # create_all is idempotent (checkfirst=True), as is get_or_seed_default_room.
     global game

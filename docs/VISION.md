@@ -28,6 +28,12 @@ Combat encounters can ignite *within* exploration (you wander into a fight), at 
 I want this to have a similar flow to fear and hunger termia.
 The two styles are not separate games — they're two modes of moving through the same world.
 
+Important must have features:
+- A world that is ending in 14 days along with comprehensive lore that gets built as the game goes on
+- A way to save that world but very difficult to find
+- AI NPC Characters with their own journeys and motivations that change as they interact with each other
+- A notion of time in the game that moves characters along their path
+
 ## The world: shared, divided into rooms
 
 MMO means **one shared, persistent world** — not isolated match instances. That world is partitioned into **rooms**: bounded spaces players move between.
@@ -35,7 +41,3 @@ MMO means **one shared, persistent world** — not isolated match instances. Tha
 - A room might be an **exploration zone** (free movement, social, AI characters) or a **combat encounter** (turn-based resolution kicks in).
 - Rooms keep the shared world tractable: the engine only has to resolve what's happening in an active room, and AI content can be generated per-room, on demand, and cached.
 - Players coexist in the world but are "present" in a room at a time — this is what lets a real-time-ish overworld and a turn-based fight share one server without one stalling the other.
-
-## Considerations
-
-- **How "live" are AI characters?** Pre-generated personality + scripted effects, or model-in-the-loop dialogue at runtime? Likely a spectrum — start pre-generated, add live where it earns its cost.

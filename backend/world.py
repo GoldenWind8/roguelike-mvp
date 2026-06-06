@@ -10,7 +10,7 @@ from backend.level_loader import LevelData
 class WorldState:
     def __init__(self, config: LevelData, seed: int):
         self.config = config
-        self.rng = random.Random(seed)
+        self.rng = random.Random(seed)  #TODO consider removing seed
         self.round = 0
         self.players: dict[str, Player] = {}
         self.enemies: dict[str, Enemy] = {}
