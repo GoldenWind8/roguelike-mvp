@@ -248,7 +248,7 @@ function renderPhaseBanner() {
     }
 
     if (bombArmed && !actionLocked) {
-        banner.textContent = "💣 Bomb armed — click a target tile (B or Esc to cancel)";
+        banner.textContent = "💣 Bomb armed — click a target tile. Blast hits EVERYONE in radius, including you! (B or Esc to cancel)";
         banner.className = "phase-action";
         return;
     }
@@ -402,6 +402,9 @@ function appendEventFromServer(event) {
             break;
         case "game_over":
             appendEvent("gameover", data.winner_name);
+            break;
+        case "invalid_action":
+            appendEvent("error", "Action rejected: " + (data.reason || "invalid action"));
             break;
     }
 }

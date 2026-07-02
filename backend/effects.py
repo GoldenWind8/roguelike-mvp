@@ -7,14 +7,19 @@ from backend.entities import Enemy
 
 @dataclass
 class Damage:
+    """Intent to damage a target. `amount` is the BASE damage before defense —
+    the defense subtraction and the min-1 clamp happen centrally in
+    `_apply_damage`, so no action/handler can bypass them (VISION.md: the
+    engine validates and clamps)."""
     target_id: str
     amount: int
     source_id: str | None = None
 
 Effect = Damage
 
-def compute_damage(attacker, target) -> int:
-    return max(1, attacker.attack_damage - target.defense)
+def compute_damage(base_amount: int, target) -> int:
+    """Damage a target actually takes: base amount minus defense, min 1."""
+    return max(1, base_amount - target.defense)
 
 def apply_effect(world: WorldState, effect: Effect) -> list[GameEvent]:
     if isinstance(effect, Damage):
@@ -23,9 +28,9 @@ def apply_effect(world: WorldState, effect: Effect) -> list[GameEvent]:
 
 def _apply_damage(world: WorldState, effect: Damage) -> list[GameEvent]:
     target = world.get_entity(effect.target_id)
-    damage = effect.amount
     if not target or not target.is_alive:
         return []
+    damage = compute_damage(effect.amount, target)
     target.hp -= damage
     events = [GameEvent(
         EventType.PLAYER_DAMAGED,

@@ -75,14 +75,14 @@ class AttackHandler(ActionHandler):
     def resolve(self, world: WorldState, action: Action) -> list[GameEvent]:
         player = world.get_player(action.player_id)
         target = world.get_entity(action.target_id)
-        damage = compute_damage(player, target)
+        damage = compute_damage(player.attack_damage, target)
 
         events = [GameEvent(
             EventType.PLAYER_ATTACKED,
             {"attacker_id": player.id, "target_id": target.id, "damage": damage},
-             world.round,
+            world.round,
         )]
-        events.extend(apply_effect(world, Damage(target.id, damage, player.id)))
+        events.extend(apply_effect(world, Damage(target.id, player.attack_damage, player.id)))
         return events
 
 class WaitHandler(ActionHandler):
@@ -103,15 +103,12 @@ class BombHandler(ActionHandler):
         tx, ty = action.target_tile
         if not world.is_valid_position(tx, ty):
             return _invalid(world, "Can't target there")
-        player = world.get_player(action.player_id)
         if _manhattan(player.position, Position(tx, ty)) > BOMB_THROW_RANGE:
             return _invalid(world, "Out of throwing range")
         return None
 
     def resolve(self, world: WorldState, action: Action) -> list[GameEvent]:
         player = world.get_player(action.player_id)
-        if not player or not player.is_alive:
-            return []
         tx, ty = action.target_tile
         center = Position(tx, ty)
         events = [GameEvent(
@@ -119,10 +116,12 @@ class BombHandler(ActionHandler):
             {"player_id": player.id, "tile": [tx, ty], "radius": BOMB_RADIUS},
             world.round,
         )]
+        # Friendly fire is intentional: the blast hits every living entity in
+        # radius, including the thrower and allies. Defense/clamp math lives in
+        # apply_effect, so the handler only emits intent.
         for entity in [*world.living_players(), *world.living_enemies()]:
             if _manhattan(center, entity.position) <= BOMB_RADIUS:
-                amount = max(1, BOMB_DAMAGE - entity.defense)
-                events.extend(apply_effect(world, Damage(entity.id, amount, source_id=player.id)))
+                events.extend(apply_effect(world, Damage(entity.id, BOMB_DAMAGE, source_id=player.id)))
         return events
 
 

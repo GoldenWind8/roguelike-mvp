@@ -27,6 +27,12 @@ def resolve_round(world: WorldState, player_actions: dict[str, Action]) -> list[
         for action in phase_actions[phase]:
             handler = HANDLERS[action.action_type]
 
+            # Authoritative gate (ARCHITECTURE.md): submission-time validation
+            # is advisory only — earlier actions this round may have moved or
+            # killed things, so re-check and silently no-op if now illegal.
+            if handler.validate(world, action) is not None:
+                continue
+
             events.extend(
                 handler.resolve(world, action)
             )
@@ -106,7 +112,7 @@ def resolve_enemy_phase(world: WorldState) -> list[GameEvent]:
         dist = abs(enemy.position.x - target.position.x) + abs(enemy.position.y - target.position.y)
         if dist != 1:
             continue
-        damage = compute_damage(enemy, target)
+        damage = compute_damage(enemy.attack_damage, target)
         events.append(GameEvent(
             EventType.ENEMY_ATTACKED,
             {"attacker_id": enemy.id, "attacker_name": enemy.name, "target_id": target.id, "damage": damage},
