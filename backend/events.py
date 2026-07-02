@@ -15,6 +15,7 @@ class EventType(Enum):
     INVALID_ACTION = "invalid_action"
     PLAYER_LEFT = "player_left"
     GAME_OVER = "game_over"
+    BOMB_THROWN = "bomb_thrown"
 
 
 @dataclass

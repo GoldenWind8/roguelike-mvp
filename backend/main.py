@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -163,7 +164,7 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         pass
     except Exception:
-        pass
+        logging.exception("websocket error")
     finally:
         if player_id:
             connections.pop(player_id, None)
