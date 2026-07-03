@@ -1,6 +1,6 @@
 # Architecture — Part 1: Combat System
 
-The map of how combat works today and where it's going. This is the engine's first and current focus; the open-world mode is deliberately **out of scope here** (see [`VISION.md`](VISION.md)).
+The map of how combat works today and where it's going. This is the engine's first and current focus; the open-world mode is deliberately **out of scope here** (see [`VISION.md`](VISION.md) for the vision and [`WORLD.md`](WORLD.md) for its architecture).
 
 ---
 
@@ -25,7 +25,7 @@ world.py                                  state  — WorldState, the source of t
             ↓
 effects.py        (core starts here)      logic  — effect primitives + apply_effect
             ↓
-handlers.py       (planned)               logic  — one handler per action type
+handlers.py                               logic  — one handler per action type
             ↓
 systems.py                                logic  — round resolution + enemy AI
             ↓
@@ -57,7 +57,7 @@ Client ──"action"──▶ main.py ──▶ Game.submit_action ──▶ Wo
 
 ---
 
-## The core design: Actions → Effects → Events _(planned)_
+## The core design: Actions → Effects → Events _(current — landed in #28)_
 
 This is the heart of Part 1. It splits one tangled responsibility into three clean ones.
 
