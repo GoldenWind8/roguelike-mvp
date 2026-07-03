@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.models import EnemyDef, Room, TileType
+from backend.models import EnemyDef, ObjectType, Room, TileType
 
 
 @dataclass
@@ -25,16 +25,73 @@ class EnemySpawn:
 
 
 @dataclass
+class RoomObject:
+    """A client-safe view of an object placed in a room."""
+    id: str
+    type: str
+    position: tuple[int, int]
+    label: str
+    description: str
+    details: list[str] = field(default_factory=list)
+
+    def to_summary_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "type": self.type,
+            "position": [self.position[0], self.position[1]],
+            "label": self.label,
+        }
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "type": self.type,
+            "position": [self.position[0], self.position[1]],
+            "label": self.label,
+            "description": self.description,
+            "details": list(self.details),
+        }
+
+
+@dataclass
 class LevelData:
     """In-memory view of a room. Pure runtime data with no DB awareness —
     WorldState is constructed from this. (Replaces the old hardcoded
     config.LevelConfig.)"""
+    room_id: int
+    room_name: str
     width: int
     height: int
     spawn_points: list[tuple[int, int]]
     walls: set[tuple[int, int]]
     enemies: list[EnemySpawn] = field(default_factory=list)
+    objects: list[RoomObject] = field(default_factory=list)
     capacity: int = 0
+
+
+def _object_payload(raw: dict, index: int) -> RoomObject:
+    object_type = ObjectType(raw["type"])
+    label = {
+        ObjectType.CHEST: "Chest",
+        ObjectType.FIRE_BARREL: "Fire Barrel",
+    }[object_type]
+    description = {
+        ObjectType.CHEST: "An old iron-bound chest with a stubborn latch.",
+        ObjectType.FIRE_BARREL: "An oil-soaked barrel with blackened bands.",
+    }[object_type]
+    details = {
+        ObjectType.CHEST: ["Latch: rusted", "Contents: sealed"],
+        ObjectType.FIRE_BARREL: ["Stability: fragile", "Surface: oily"],
+    }[object_type]
+
+    return RoomObject(
+        id=f"object_{index + 1}",
+        type=object_type.value,
+        position=(raw["x"], raw["y"]),
+        label=label,
+        description=description,
+        details=details,
+    )
 
 
 async def load_level(session: AsyncSession, room_id: int) -> LevelData:
@@ -61,11 +118,19 @@ async def load_level(session: AsyncSession, room_id: int) -> LevelData:
             defense=ed.defense, position=(spawn["x"], spawn["y"]),
         ))
 
+    objects = [
+        _object_payload(raw, i)
+        for i, raw in enumerate(room.objects or [])
+    ]
+
     return LevelData(
+        room_id=room.id,
+        room_name=room.name,
         width=room.width,
         height=room.height,
         spawn_points=[tuple(p) for p in room.spawn_points],
         walls=walls,
         enemies=enemies,
+        objects=objects,
         capacity=room.capacity,
     )

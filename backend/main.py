@@ -161,6 +161,26 @@ async def websocket_endpoint(websocket: WebSocket):
                         start_round_timeout()
                         await broadcast_waiting()
 
+            elif msg_type == "inspect_object":
+                if not player_id:
+                    await websocket.send_json({"type": "error", "message": "Join first"})
+                    continue
+
+                async with game_lock:
+                    obj = game.world.get_object(data.get("object_id"))
+
+                if not obj:
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": "Object not found",
+                    })
+                    continue
+
+                await websocket.send_json({
+                    "type": "object_inspection",
+                    "object": obj.to_dict(),
+                })
+
     except WebSocketDisconnect:
         pass
     except Exception:

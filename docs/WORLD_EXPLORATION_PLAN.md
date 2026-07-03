@@ -48,33 +48,19 @@ Already available:
 - Validation for door/portal connection origins.
 - `load_level(session, room_id)` for turning a DB room into runtime data.
 - `Game(level)` for running combat from `LevelData`.
+- Server state includes room identity, width, height, and object summaries.
+- The browser renders variable-size room grids and room metadata.
+- The browser can inspect visible room objects through the server.
 
 Missing:
 
-- Runtime awareness of current `room_id`.
+- Runtime use of current `room_id` for traversal.
 - Destination arrival coordinates.
-- Frontend support for variable room dimensions.
-- Client rendering for objects and room metadata.
 - An exploration movement path that does not wait for a combat round.
 
 ## Proposed Implementation Order
 
-### 1. Make Room Dimensions Part Of State
-
-Add `width`, `height`, and probably `room_id` / `room_name` to the state sent to
-the client.
-
-Then update the frontend grid creation:
-
-- Use `gameState.width` and `gameState.height`.
-- Set CSS grid columns dynamically.
-- Remove hardcoded `10`.
-- Guard all grid reads by actual dimensions.
-
-This should be the first code change because it makes every later room feature
-visible.
-
-### 2. Represent Room Mode
+### 1. Represent Room Mode
 
 Add a room mode concept before adding many actions:
 
@@ -87,7 +73,7 @@ At first, the mode can come from room metadata or a simple default. If metadata
 is not in the schema yet, start with a conservative server-side rule and promote
 it to persisted data once the behavior is understood.
 
-### 3. Add A Minimal Room Runtime Seam
+### 2. Add A Minimal Room Runtime Seam
 
 Keep the shape small:
 
@@ -108,7 +94,7 @@ Possible first step:
 This is not the final MMO shape, but it proves traversal without inventing a
 large room orchestration layer too early.
 
-### 4. Support Door Traversal
+### 3. Support Door Traversal
 
 Add server logic:
 
@@ -126,7 +112,7 @@ The current schema only stores the origin tile. Soon after traversal works, add:
 
 Until then, using the first destination spawn is acceptable.
 
-### 5. Add Exploration Movement
+### 4. Add Exploration Movement
 
 Exploration movement should not wait for every player to submit a turn.
 
@@ -140,48 +126,10 @@ Keep the same validation instincts:
 
 The difference is timing: apply movement immediately in exploration rooms.
 
-### 6. Send Objects To The Client
+### 5. Add Basic NPC Dialogue
 
-The DB already stores room objects, but `LevelData` currently does not expose
-them to the runtime/client.
-
-First object payload can be simple:
-
-```json
-{
-  "id": "object_1",
-  "type": "chest",
-  "position": [1, 1],
-  "label": "Chest"
-}
-```
-
-Do not build full object state yet. First prove that objects can be seen and
-selected.
-
-### 7. Add Examine Object
-
-Add a server-owned interaction:
-
-```mermaid
-sequenceDiagram
-    participant Client
-    participant Server
-    Client->>Server: examine object_id
-    Server->>Server: validate object exists in current room
-    Server-->>Client: object description / result
-```
-
-First results can be hand-authored:
-
-- "The chest is old and iron-bound."
-- "The fire barrel smells of oil."
-- "You find a bomb." only if you are ready for minimal item state.
-
-### 8. Add Basic NPC Dialogue
-
-Do this after object examination. Dialogue adds UI and server state, so it is
-easier once one room interaction path already exists.
+Dialogue adds UI and server state, so it should stay small and hand-authored at
+first.
 
 First NPC shape:
 
@@ -195,6 +143,12 @@ First NPC shape:
 Dialogue state should be scoped to a player and NPC. The NPC response may come
 from a model, but any gameplay effects must still become validated data before
 they affect the world.
+
+### 6. Add Object Effects When They Earn It
+
+Object inspection exists. Opening chests, damaging barrels, rewards, and
+inventory should come later through the same validated action/effect/event path
+used by combat.
 
 ## What Not To Build Yet
 
@@ -212,11 +166,11 @@ they affect the world.
 The first satisfying milestone is:
 
 - Player starts in the pillared hall.
-- Frontend renders the room using backend dimensions.
 - Player can move to a door.
 - Server loads the antechamber.
 - Frontend renders the antechamber correctly.
 - Player can move back.
+- Object markers and inspection still work after the room changes.
 - Existing combat still works.
 
 That is the point where the project stops being only a combat prototype and

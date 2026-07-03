@@ -4,13 +4,6 @@ This document keeps the larger open-world architecture ideas in one place:
 `RoomMode`, `RoomManager`, per-room locks, traversal, AI seams, and a possible
 future frontend structure.
 
-It is **not** the current architecture and it is **not** the next coding plan.
-
-- Current implementation: [Current Architecture](ARCHITECTURE.md)
-- Next implementation plan: [World Exploration Plan](WORLD_EXPLORATION_PLAN.md)
-- Product vision: [Game Design](GAME_DESIGN.md)
-- Long-term scale backend: [Future Backend](FUTURE_BACKEND.md)
-
 ## Status
 
 Proposal, kept for design thinking.
@@ -31,7 +24,7 @@ The proposal matches the direction of the project, but it is ahead of the code.
 | Room loading | starting room loaded from DB | load rooms on demand |
 | Room traversal | data exists, behavior missing | first-class transition flow |
 | Modes | combat only | combat and exploration modes |
-| Client | static HTML/JS | possible Vite/TypeScript DOM app later |
+| Client | static HTML/JS | possible React/TypeScript/Vite DOM app later |
 | AI | not in runtime yet | validated generation and NPC action seams |
 
 The near-term plan should still stay smaller:
@@ -39,10 +32,9 @@ The near-term plan should still stay smaller:
 ```mermaid
 flowchart LR
     A["Current Game"] --> B["room_id in state"]
-    B --> C["dynamic grid"]
-    C --> D["door traversal"]
-    D --> E["simple exploration actions"]
-    E --> F["later: RoomMode / RoomManager"]
+    B --> C["door traversal"]
+    C --> D["simple exploration actions"]
+    D --> E["later: RoomMode / RoomManager"]
 ```
 
 ## Core Principles
@@ -278,17 +270,19 @@ engine's perspective.
 
 ## Client Direction
 
-The current client is static HTML/JS. That is fine for the next milestone.
+The current client is static HTML/JS. That is fine while traversal and
+exploration timing are being proven.
 
-A future Vite/TypeScript DOM client may become useful when:
+A future React/TypeScript/Vite DOM client may become useful when:
 
 - UI state becomes hard to reason about.
 - Dialogue, inventory, map, journal, and inspection panels grow.
 - The grid needs better diffing instead of rebuilding.
 - Tests or type safety would clearly reduce bugs.
 
-Do not rebuild the frontend before traversal works. The next client task is
-smaller: render backend-provided room dimensions.
+Do not rebuild the frontend before traversal works. The current DOM client can
+already render backend-provided room dimensions, room metadata, object markers,
+and first-pass object inspection.
 
 Possible future structure:
 
@@ -301,8 +295,12 @@ frontend/
   main.ts
 ```
 
-Keep the renderer DOM-based unless room size, animation, or performance proves
-that canvas is needed.
+Keep the renderer DOM-based. Canvas is a "millionaire-budget exception": only
+reconsider it with dedicated rendering time, a much larger budget, and a proven
+DOM performance problem. It would make layout, hit testing, accessibility, text,
+and ordinary UI panels more custom than this grid-first game needs.
+
+For the frontend source of truth, see [Frontend Design](FRONTEND_DESIGN.md).
 
 ## Adoption Plan
 
@@ -322,7 +320,7 @@ flowchart TD
 
 - Rewriting combat just to make the names prettier.
 - Adding `RoomManager` before there are multiple active rooms.
-- Adding Vite/TypeScript before the existing client blocks progress.
+- Adding React/TypeScript/Vite before the existing client blocks progress.
 - Calling LLMs while holding a room lock.
 - Letting AI output bypass validation.
 - Writing live session changes back into `rooms`.
@@ -336,8 +334,8 @@ flowchart TD
   configured in code until it earns a column?
 - When a player traverses alone, does the old room remain active for other
   players or does the first version keep one active room globally?
-- Should object inspection return only text at first, or can it grant a simple
-  item immediately?
+- Should object effects open the inventory path immediately, or stay as
+  descriptive interactions until traversal and dialogue work?
 - How much NPC memory is needed before dialogue feels coherent?
 
 ## Recommendation
@@ -345,5 +343,5 @@ flowchart TD
 Keep this document as the ambitious architecture target. Build from
 [World Exploration Plan](WORLD_EXPLORATION_PLAN.md) first.
 
-The correct next move is still small: dynamic room rendering, current room
-identity, door traversal, and simple exploration interactions.
+The correct next move is still small: use current room identity for traversal,
+then add simple exploration movement and dialogue.

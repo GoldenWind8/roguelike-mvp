@@ -178,10 +178,8 @@ prove the full MMO backend.
 
 Focus next:
 
-- Dynamic frontend grid size.
 - Door/portal traversal.
 - Exploration movement.
-- Object examination.
 - Basic NPC dialogue.
 - Combat rooms that reuse the existing combat engine.
 
@@ -193,3 +191,6 @@ Defer:
 - Autonomous NPC background scripts.
 - Complex item crafting or object-use puzzles.
 - World-ending multi-day simulation.
+
+Current foundation already includes variable-size room rendering and first-pass
+object inspection. Next work should make movement through the world real.

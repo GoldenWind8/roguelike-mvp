@@ -4,6 +4,9 @@ let gameState = null;
 let actionLocked = false;
 let waitingFor = [];
 let bombArmed = false;
+let renderedGridWidth = 0;
+let renderedGridHeight = 0;
+let inspectedObject = null;
 
 const PLAYER_COLORS = ["#4ecca3", "#7ec8e3", "#ffd700", "#c490e4"];
 const PLAYER_ICONS = ["⚔", "♠", "♦", "♣"];
@@ -14,6 +17,10 @@ const ENEMY_ICONS = {
     Goblin: "G",
     Skeleton: "S",
     Rat: "R",
+};
+const OBJECT_ICONS = {
+    chest: "C",
+    fire_barrel: "B",
 };
 
 function connect() {
@@ -39,6 +46,9 @@ function connect() {
                 break;
             case "waiting_for":
                 handleWaitingFor(msg);
+                break;
+            case "object_inspection":
+                handleObjectInspection(msg);
                 break;
             case "error":
                 appendEvent("error", msg.message);
@@ -75,6 +85,9 @@ function handleStateUpdate(msg) {
     actionLocked = false;
     bombArmed = false;
     waitingFor = [];
+    if (inspectedObject && !getObjectById(inspectedObject.id)) {
+        inspectedObject = null;
+    }
     renderAll();
     if (msg.events) {
         msg.events.forEach((e) => appendEventFromServer(e));
@@ -92,11 +105,23 @@ function handleWaitingFor(msg) {
     renderPhaseBanner();
 }
 
+function handleObjectInspection(msg) {
+    inspectedObject = msg.object || null;
+    renderInspection();
+}
+
 function initGrid() {
     const container = document.getElementById("grid-container");
+    const size = getRoomSize();
+    renderedGridWidth = size.width;
+    renderedGridHeight = size.height;
+
     container.innerHTML = "";
-    for (let y = 0; y < 10; y++) {
-        for (let x = 0; x < 10; x++) {
+    container.style.gridTemplateColumns = `repeat(${size.width}, var(--cell-size))`;
+    container.style.gridTemplateRows = `repeat(${size.height}, var(--cell-size))`;
+
+    for (let y = 0; y < size.height; y++) {
+        for (let x = 0; x < size.width; x++) {
             const cell = document.createElement("div");
             cell.className = "cell";
             cell.dataset.x = x;
@@ -109,16 +134,65 @@ function initGrid() {
 
 function renderAll() {
     if (!gameState) return;
+    ensureGrid();
+    renderRoomInfo();
     renderGrid();
     renderEntities();
+    renderInspection();
     renderPhaseBanner();
     updateControls();
+}
+
+function getRoomSize() {
+    const room = gameState && gameState.room ? gameState.room : {};
+    const grid = gameState && Array.isArray(gameState.grid) ? gameState.grid : [];
+    const width = gameState?.width || room.width || (grid[0] ? grid[0].length : 10);
+    const height = gameState?.height || room.height || grid.length || 10;
+    return { width, height };
+}
+
+function ensureGrid() {
+    const size = getRoomSize();
+    const cellCount = document.querySelectorAll(".cell").length;
+    if (
+        size.width !== renderedGridWidth ||
+        size.height !== renderedGridHeight ||
+        cellCount !== size.width * size.height
+    ) {
+        initGrid();
+    }
+}
+
+function getGridOccupant(x, y) {
+    if (!gameState || !Array.isArray(gameState.grid)) return null;
+    const row = gameState.grid[y];
+    return row ? row[x] : null;
+}
+
+function getObjectById(objectId) {
+    const objects = gameState && Array.isArray(gameState.objects) ? gameState.objects : [];
+    return objects.find((obj) => obj.id === objectId) || null;
+}
+
+function getObjectAt(x, y) {
+    const objects = gameState && Array.isArray(gameState.objects) ? gameState.objects : [];
+    return objects.find((obj) => obj.position[0] === x && obj.position[1] === y) || null;
+}
+
+function getObjectIndex() {
+    const index = {};
+    const objects = gameState && Array.isArray(gameState.objects) ? gameState.objects : [];
+    objects.forEach((obj) => {
+        index[obj.position[0] + "," + obj.position[1]] = obj;
+    });
+    return index;
 }
 
 function renderGrid() {
     const cells = document.querySelectorAll(".cell");
     const wallSet = new Set(gameState.walls.map((w) => w[0] + "," + w[1]));
     const playerIndex = getPlayerIndex();
+    const objectIndex = getObjectIndex();
 
     cells.forEach((cell) => {
         const x = parseInt(cell.dataset.x);
@@ -127,6 +201,8 @@ function renderGrid() {
 
         cell.className = "cell";
         cell.innerHTML = "";
+        cell.title = "";
+        cell.style.color = "";
 
         if (wallSet.has(key)) {
             cell.classList.add("cell-wall");
@@ -135,7 +211,15 @@ function renderGrid() {
             return;
         }
 
-        const occupantId = gameState.grid[y][x];
+        const object = objectIndex[key];
+        const occupantId = getGridOccupant(x, y);
+
+        if (object) {
+            cell.classList.add("cell-object");
+            cell.title = object.label;
+            renderObject(cell, object, Boolean(occupantId));
+        }
+
         if (!occupantId) return;
 
         const player = gameState.players[occupantId];
@@ -177,6 +261,20 @@ function renderGrid() {
     });
 }
 
+function renderObject(cell, object, hasOccupant) {
+    const marker = document.createElement("div");
+    marker.className = hasOccupant ? "object-marker object-marker-corner" : "object-marker";
+    marker.textContent = OBJECT_ICONS[object.type] || "?";
+    cell.appendChild(marker);
+
+    if (!hasOccupant) {
+        const nameEl = document.createElement("div");
+        nameEl.className = "object-name";
+        nameEl.textContent = object.label;
+        cell.appendChild(nameEl);
+    }
+}
+
 function addHpBar(cell, hp, maxHp) {
     const hpBar = document.createElement("div");
     hpBar.className = "hp-bar";
@@ -194,6 +292,61 @@ function getPlayerIndex() {
     const ids = Object.keys(gameState.players).sort();
     ids.forEach((id, i) => { index[id] = i; });
     return index;
+}
+
+function renderRoomInfo() {
+    const panel = document.getElementById("room-info");
+    if (!panel) return;
+
+    const room = gameState.room || {};
+    const size = getRoomSize();
+    const objects = Array.isArray(gameState.objects) ? gameState.objects : [];
+    const rows = [
+        ["Name", room.name || gameState.room_name || "Unknown"],
+        ["Size", size.width + " x " + size.height],
+        ["Mode", room.mode || gameState.phase || "unknown"],
+        ["Objects", String(objects.length)],
+    ];
+
+    panel.innerHTML = "";
+    rows.forEach(([label, value]) => {
+        const row = document.createElement("div");
+        row.className = "room-row";
+
+        const labelEl = document.createElement("span");
+        labelEl.textContent = label;
+        row.appendChild(labelEl);
+
+        const valueEl = document.createElement("strong");
+        valueEl.textContent = value;
+        row.appendChild(valueEl);
+
+        panel.appendChild(row);
+    });
+}
+
+function renderInspection() {
+    const panel = document.getElementById("inspection-panel");
+    const title = document.getElementById("inspection-title");
+    const description = document.getElementById("inspection-description");
+    const details = document.getElementById("inspection-details");
+    if (!panel || !title || !description || !details) return;
+
+    if (!inspectedObject) {
+        panel.hidden = true;
+        return;
+    }
+
+    panel.hidden = false;
+    title.textContent = inspectedObject.label || "Object";
+    description.textContent = inspectedObject.description || "";
+    details.innerHTML = "";
+
+    (inspectedObject.details || []).forEach((detail) => {
+        const li = document.createElement("li");
+        li.textContent = detail;
+        details.appendChild(li);
+    });
 }
 
 function renderEntities() {
@@ -329,6 +482,14 @@ function sendBomb(x, y) {
     }));
 }
 
+function sendInspectObject(objectId) {
+    if (!ws || !myPlayerId || !gameState) return;
+    ws.send(JSON.stringify({
+        type: "inspect_object",
+        object_id: objectId,
+    }));
+}
+
 function toggleBomb() {
     if (actionLocked || !gameState || !gameState.started) return;
     bombArmed = !bombArmed;
@@ -336,17 +497,28 @@ function toggleBomb() {
 }
 
 function handleCellClick(x, y) {
-    if (!gameState || actionLocked || !gameState.started) return;
-    const me = gameState.players[myPlayerId];
-    if (!me || !me.is_alive) return;
+    if (!gameState) return;
 
     if (bombArmed) {
+        if (actionLocked || !gameState.started) return;
         sendBomb(x, y);
         bombArmed = false;
         return;
     }
 
-    const occupantId = gameState.grid[y][x];
+    const object = getObjectAt(x, y);
+    if (object) {
+        inspectedObject = object;
+        renderInspection();
+        sendInspectObject(object.id);
+        return;
+    }
+
+    if (actionLocked || !gameState.started) return;
+    const me = gameState.players[myPlayerId];
+    if (!me || !me.is_alive) return;
+
+    const occupantId = getGridOccupant(x, y);
     if (occupantId && occupantId !== myPlayerId) {
         const dx = Math.abs(me.position[0] - x);
         const dy = Math.abs(me.position[1] - y);

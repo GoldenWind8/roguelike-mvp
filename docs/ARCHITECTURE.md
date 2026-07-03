@@ -167,6 +167,7 @@ flowchart LR
 
 The database provides template data:
 
+- Room id and name.
 - Room width and height.
 - Terrain.
 - Spawn points.
@@ -179,6 +180,7 @@ The database provides template data:
 - Player positions and HP.
 - Enemy positions and HP.
 - Occupancy grid.
+- Client-safe object summaries.
 - Pending actions.
 - Current round.
 
@@ -190,10 +192,9 @@ an enemy dying is session state, not a change to the authored room definition.
 These are accepted constraints for the current prototype:
 
 - Only one global game is active.
-- The frontend currently assumes a 10x10 grid.
-- The backend can load variable-size rooms.
 - Room connections exist but traversal is not implemented.
-- Objects are stored in room data but not rendered/interacted with yet.
+- Objects can be inspected for text, but object effects and inventory are not
+  implemented yet.
 - Disconnect removes the player.
 - Restart drops the live game state.
 - There is no player account or persistent inventory.

@@ -13,6 +13,8 @@ async def test_load_level_maps_terrain_and_enemies(session):
     room = await seed_default_level(session)
     level = await load_level(session, room.id)
 
+    assert level.room_id == room.id
+    assert level.room_name == "The Pillared Hall"
     assert (level.width, level.height, level.capacity) == (10, 10, 4)
     assert level.spawn_points == [(3, 8), (4, 8), (5, 8), (4, 7)]
 
@@ -28,6 +30,17 @@ async def test_load_level_maps_terrain_and_enemies(session):
     assert (goblin.hp, goblin.attack_damage, goblin.defense) == (6, 1, 1)
     assert goblin.position == (4, 3)
 
+    assert len(level.objects) == 3
+    chest = level.objects[0]
+    assert chest.to_summary_dict() == {
+        "id": "object_1",
+        "type": "chest",
+        "position": [1, 1],
+        "label": "Chest",
+    }
+    assert chest.description
+    assert "loot" not in chest.to_summary_dict()
+
 
 async def test_worldstate_built_from_level(session):
     room = await seed_default_level(session)
@@ -42,6 +55,17 @@ async def test_worldstate_built_from_level(session):
     # The Goblin's tile holds an enemy occupant on the grid.
     assert world.grid[3][4] is not None
     assert world.grid[3][4].startswith("enemy_")
+
+    state = world.to_dict()
+    assert state["room"]["name"] == "The Pillared Hall"
+    assert (state["width"], state["height"]) == (10, 10)
+    assert state["objects"][0] == {
+        "id": "object_1",
+        "type": "chest",
+        "position": [1, 1],
+        "label": "Chest",
+    }
+    assert world.get_object("object_1").description
 
 
 async def test_game_capacity_from_spawn_points(session):

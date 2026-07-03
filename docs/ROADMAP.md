@@ -21,45 +21,35 @@ The project currently has:
 - Validation for room layouts, terrain, spawns, objects, enemies, and room
   connections.
 - A loader that turns DB room rows into runtime `LevelData`.
+- Server state that includes room dimensions, room identity, and object
+  summaries.
+- Browser rendering for variable-size rooms, room metadata, object markers, and
+  first-pass object inspection.
 - Tests covering DB setup, validation, seeding, and loading.
 
 Known current limitations:
 
-- The frontend grid is hardcoded to 10x10.
-- The backend can load variable-size rooms, but the UI cannot render them yet.
 - Room connections exist in the DB, but players cannot traverse them.
-- Objects exist in room data, but players cannot inspect or use them.
+- Objects can be inspected for text, but they cannot be opened, picked up, or
+  used yet.
 - NPCs and dialogue are not implemented.
 - Disconnect removes a player from the live game.
 
 ## Next: Exploration MVP
 
-Goal: a player can move through a small connected world, inspect simple objects,
-talk to a basic NPC, and enter combat without rewriting the combat engine.
+Goal: a player can move through a small connected world, talk to a basic NPC,
+and enter combat without rewriting the combat engine.
 
 ```mermaid
 flowchart TD
-    A["Current combat room"] --> B["Dynamic grid rendering"]
-    B --> C["Exploration movement mode"]
-    C --> D["Door/portal traversal"]
-    D --> E["Object inspection"]
-    E --> F["Basic NPC dialogue"]
-    F --> G["Combat-room integration"]
+    A["Current room state"] --> B["Room runtime boundary"]
+    B --> C["Door/portal traversal"]
+    C --> D["Exploration movement mode"]
+    D --> E["Basic NPC dialogue"]
+    E --> F["Combat-room integration"]
 ```
 
-### Milestone 1: Dynamic Room Rendering
-
-Definition of done:
-
-- Backend state includes room width and height.
-- Frontend builds the grid from backend dimensions.
-- Existing 10x10 combat still works.
-- The seeded 7x5 antechamber can render correctly once loaded.
-
-Why first: the backend already supports variable rooms, but the UI does not.
-Traversal work will feel broken until this mismatch is fixed.
-
-### Milestone 2: Room Runtime Boundary
+### Milestone 1: Room Runtime Boundary
 
 Definition of done:
 
@@ -74,7 +64,7 @@ Likely shape:
 - Add only the smallest room/session seam needed for traversal.
 - Avoid a big `RoomManager` until multiple active rooms truly need it.
 
-### Milestone 3: Door And Portal Traversal
+### Milestone 2: Door And Portal Traversal
 
 Definition of done:
 
@@ -91,7 +81,7 @@ First version can be simple:
 - No cross-process routing.
 - No procedural generation yet.
 
-### Milestone 4: Exploration Mode
+### Milestone 3: Exploration Mode
 
 Definition of done:
 
@@ -103,20 +93,7 @@ Definition of done:
 Senior-dev habit: do not duplicate movement rules. Share the grid and position
 model; let the room mode decide timing and allowed actions.
 
-### Milestone 5: Object Inspection
-
-Definition of done:
-
-- Room objects are sent to the client.
-- Clicking or selecting an object can request an inspection.
-- The server returns a description.
-- A chest may optionally reveal a simple item, but inventory can stay minimal or
-  mocked until the item model is ready.
-
-Keep this boring on purpose. Examination proves interaction without exploding
-scope into crafting, puzzles, keys, and complex item use.
-
-### Milestone 6: Basic NPC Dialogue
+### Milestone 4: Basic NPC Dialogue
 
 Definition of done:
 
@@ -128,7 +105,7 @@ Definition of done:
 
 First NPC data can be hand-authored. Add AI after the shape is clear.
 
-### Milestone 7: Combat-Room Integration
+### Milestone 5: Combat-Room Integration
 
 Definition of done:
 
@@ -146,6 +123,7 @@ These belong in the project, but not before the exploration loop works:
 - Room runtime architecture from [World Architecture Proposal](WORLD.md).
 - Persistent player accounts.
 - Inventory that follows players between rooms.
+- Object pickup, opening, destruction, and item effects.
 - AI-generated room creation on first visit.
 - NPC friendship and followers.
 - NPC death/friendship state.

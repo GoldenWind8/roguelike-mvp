@@ -15,6 +15,7 @@ class WorldState:
         self.players: dict[str, Player] = {}
         self.enemies: dict[str, Enemy] = {}
         self.walls: set[tuple[int, int]] = set(config.walls)
+        self.objects = list(config.objects)
         self.pending_actions: dict[str, Action] = {}
         self._next_player_num = 1
         self._next_enemy_num = 1
@@ -90,6 +91,12 @@ class WorldState:
             return self.enemies.get(entity_id)
         return None
 
+    def get_object(self, object_id: str):
+        for obj in self.objects:
+            if obj.id == object_id:
+                return obj
+        return None
+
     def is_valid_position(self, x: int, y: int) -> bool:
         if x < 0 or x >= self.config.width or y < 0 or y >= self.config.height:
             return False
@@ -119,9 +126,21 @@ class WorldState:
 
     def to_dict(self) -> dict:
         return {
+            "room": {
+                "id": self.config.room_id,
+                "name": self.config.room_name,
+                "width": self.config.width,
+                "height": self.config.height,
+                "mode": "combat",
+            },
+            "room_id": self.config.room_id,
+            "room_name": self.config.room_name,
+            "width": self.config.width,
+            "height": self.config.height,
             "round": self.round,
             "grid": self.grid,
             "walls": list(self.walls),
+            "objects": [obj.to_summary_dict() for obj in self.objects],
             "players": {pid: p.to_dict() for pid, p in self.players.items()},
             "enemies": {eid: e.to_dict() for eid, e in self.enemies.items()},
             "pending_player_ids": self.players_pending(),

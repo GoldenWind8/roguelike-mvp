@@ -19,13 +19,16 @@ ideas stay separate.
 - SQLAlchemy-backed room definitions using the local SQLite database.
 - Seeded room data with terrain, objects, enemy definitions, spawn points, and
   room connections.
+- Server-broadcast room dimensions and object summaries.
+- Browser rendering for variable-size rooms, room metadata, and first-pass
+  object inspection.
 - Tests covering database setup, room validation, seeding, and room loading.
 
 ## Not Built Yet
 
 - Walking through doors/portals into another room.
 - Exploration mode outside turn-based combat.
-- Object inspection or item pickup.
+- Object pickup, inventory, or object effects.
 - NPC dialogue.
 - Persistent player accounts or inventory.
 - Multi-process workers, Redis routing, or production-scale MMO infrastructure.
@@ -76,6 +79,8 @@ enter a name in each, and play.
   plan after this docs pass.
 - [World Architecture Proposal](docs/WORLD.md): larger room/runtime ideas to
   revisit after the simple exploration loop works.
+- [Frontend Design](docs/FRONTEND_DESIGN.md): current client direction and
+  future React/TypeScript/Vite notes.
 - [Current Architecture](docs/ARCHITECTURE.md): how the app works today.
 - [Backend Notes](docs/BACKEND.md): current runtime, persistence, and boundaries.
 - [Database Schema](docs/DB_SCHEMA.md): current and planned data model.

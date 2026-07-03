@@ -9,8 +9,7 @@ from backend.entities import Enemy
 class Damage:
     """Intent to damage a target. `amount` is the BASE damage before defense —
     the defense subtraction and the min-1 clamp happen centrally in
-    `_apply_damage`, so no action/handler can bypass them (VISION.md: the
-    engine validates and clamps)."""
+    `_apply_damage`, so no action/handler can bypass the engine clamp."""
     target_id: str
     amount: int
     source_id: str | None = None

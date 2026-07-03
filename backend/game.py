@@ -19,6 +19,7 @@ class Game:
             raise ValueError("Game is full")
 
         player = self.world.add_player(player_name)
+
         events = [GameEvent(
             EventType.PLAYER_JOINED,
             {"player_id": player.id, "name": player.name, "position": [player.position.x, player.position.y]},
