@@ -1,103 +1,222 @@
-# Architecture — Part 1: Combat System
+# Current Architecture
 
-The map of how combat works today and where it's going. This is the engine's first and current focus; the open-world mode is deliberately **out of scope here** (see [`VISION.md`](VISION.md) for the vision and [`WORLD.md`](WORLD.md) for its architecture).
+This document describes how the project works today. For gameplay direction see
+[Game Design](GAME_DESIGN.md). For near-term build order see
+[Roadmap](ROADMAP.md) and [World Exploration Plan](WORLD_EXPLORATION_PLAN.md).
+For multi-process backend ideas see [Future Backend](FUTURE_BACKEND.md).
 
----
+## Current Runtime
 
-## Principles
+The app is currently one process:
 
-The rules that keep the engine small as combat grows richer:
+- FastAPI serves the static frontend.
+- FastAPI owns one WebSocket endpoint at `/ws`.
+- One global `Game` is created at startup.
+- `Game` wraps one in-memory `WorldState`.
+- One `asyncio.Lock` serializes live state mutation.
+- SQLAlchemy loads room definitions from the local SQLite database.
 
-1. **Server-authoritative** — the client sends *intent* and renders state; it never decides outcomes.
-2. **One source of truth** — `WorldState` owns all state. Systems read and mutate it; they never hold their own.
-3. **Small closed core, open content edge** — the engine understands a *handful* of effect primitives. Items, abilities, and enemies are built from those, never by widening the core.
-
----
-
-## Dependency layers
-
-Strict one-directional imports — a module never reaches for something above it:
-
-```
-config · entities · actions · events     leaf   — pure dataclasses & enums
-            ↓
-world.py                                  state  — WorldState, the source of truth
-            ↓
-effects.py        (core starts here)      logic  — effect primitives + apply_effect
-            ↓
-handlers.py                               logic  — one handler per action type
-            ↓
-systems.py                                logic  — round resolution + enemy AI
-            ↓
-game.py  →  main.py                       round lifecycle  →  WebSocket / asyncio
+```mermaid
+flowchart TB
+    B["Browser client"] <-- "HTTP: index.html / game.js" --> A["FastAPI app"]
+    B <-- "WebSocket: /ws" --> A
+    A --> G["Game"]
+    G --> W["WorldState"]
+    A --> L["level_loader.load_level"]
+    L --> DB["SQLite via SQLAlchemy"]
+    DB --> R["Room / EnemyDef / RoomConnection"]
 ```
 
-**Rule of thumb:** if a module needs something from a layer *above* it, push that thing *down* instead. (That's why `apply_effect` lives in `effects.py`: both `handlers.py` and `systems.py` use it, so it must sit below both — otherwise they'd import each other in a cycle.)
+This is a good shape for the current prototype. It is not production MMO
+infrastructure, and it does not need to be yet.
 
----
+## Current Startup Flow
 
-## The combat round
+At startup, the server:
 
-Simultaneous, phase-based turns:
+1. Creates database tables if they do not exist.
+2. Seeds the default rooms if the database is empty.
+3. Loads the starting room from the database.
+4. Builds a `Game(level)`.
+5. Accepts WebSocket joins.
 
-1. **Player phase** — all living players submit actions; the server waits for everyone (or a 30s timeout). **Moves resolve first** (submission order breaks ties), **then attacks** resolve against post-move positions.
-2. **World phase** — each enemy chases the nearest player (Manhattan distance) and attacks if adjacent. No waiting.
-Note: In future World phase can include other things like, LLM controlled entity making a move, NPC helper making a move, a world event like a dragon appearing
+```mermaid
+sequenceDiagram
+    participant App as FastAPI lifespan
+    participant DB as Database
+    participant Loader as Level loader
+    participant Game as Game runtime
 
-
-
-Then the server broadcasts the full new state plus the round's events; the client re-renders from scratch.
-
+    App->>DB: init_db()
+    App->>DB: get_or_seed_default_room()
+    App->>Loader: load_level(room.id)
+    Loader->>DB: read room and enemy defs
+    Loader-->>App: LevelData
+    App->>Game: Game(LevelData)
 ```
-Client ──"action"──▶ main.py ──▶ Game.submit_action ──▶ WorldState.pending_actions
-                                        │ (all submitted, or timeout)
-                                        ▼
-                                  resolve_round ──▶ broadcast state + events ──▶ all clients
+
+## Dependency Layers
+
+The combat engine has a useful one-way dependency shape:
+
+```text
+config / entities / actions / events
+              |
+              v
+world.py      WorldState, source of truth
+              |
+              v
+effects.py    atomic mutations
+              |
+              v
+handlers.py   one handler per action type
+              |
+              v
+systems.py    round resolution and enemy phase
+              |
+              v
+game.py       round lifecycle
+              |
+              v
+main.py       WebSocket and FastAPI boundary
 ```
 
----
+Rule of thumb: if a lower layer needs something from a higher layer, move the
+shared concept down instead of creating an import cycle.
 
-## The core design: Actions → Effects → Events _(current — landed in #28)_
+## Combat Model
 
-This is the heart of Part 1. It splits one tangled responsibility into three clean ones.
+Combat is server-authoritative. The client sends intent; the server validates,
+resolves, mutates state, and broadcasts the result.
 
-| Term | What it is | Example |
+```mermaid
+flowchart LR
+    C["Client action"] --> M["main.py"]
+    M --> G["Game.submit_action"]
+    G --> V["validate_player_action"]
+    V --> P["WorldState.pending_actions"]
+    P --> R{"All players acted or timeout?"}
+    R -- "no" --> W["waiting_for"]
+    R -- "yes" --> S["systems.resolve_round"]
+    S --> E["events"]
+    E --> B["broadcast state_update"]
+```
+
+The round order is:
+
+1. Player actions are collected.
+2. Movement actions resolve first.
+3. Attack/bomb/wait actions resolve next.
+4. Enemy phase resolves.
+5. Game-over checks run.
+6. The round increments.
+7. A full state update and event list are sent to clients.
+
+## Actions, Handlers, Effects, Events
+
+This is the core extension pattern:
+
+```mermaid
+flowchart LR
+    A["Action: player intent"] --> H["Handler: validate and resolve"]
+    H --> F["Effect: atomic mutation"]
+    F --> AP["apply_effect"]
+    AP --> EV["Event: client-readable fact"]
+```
+
+| Concept | Role | Example |
 |---|---|---|
-| **Action** | A player's *intent* for the round | "attack enemy_1", "throw bomb at (4,4)" |
-| **Effect** | An atomic *mutation* — the closed vocabulary | `Damage(enemy_1, 5)` |
-| **Event** | A *record* of what happened, sent to clients | `PLAYER_DAMAGED`, `ENEMY_DIED` |
+| Action | A player's requested intent | move north, attack enemy, throw bomb |
+| Handler | Validates and resolves one action type | `AttackHandler`, `BombHandler` |
+| Effect | Atomic state mutation | `Damage(target, amount)` |
+| Event | Record of what happened | `player_attacked`, `enemy_died` |
 
-> **Actions are unbounded; effects are a small closed set.** An action's job is to produce a list of effects; one applier applies them. A bomb isn't a new *kind* of thing — it's the same `Damage` emitted once per entity in range.
+Adding a combat action should usually mean:
 
-**The payoff:** adding an action = **a new handler + one registry line.** `resolve_round` and `apply_effect` never reopen.
+1. Add an `ActionType`.
+2. Extend action parsing.
+3. Add a handler.
+4. Register the handler.
+5. Reuse existing effects where possible.
 
-| Action | Resolves into |
-|---|---|
-| Attack | `[Damage(enemy, 5)]` |
-| Bomb (area effect) | `[Damage(e1, 8), Damage(e2, 8), …]` |
-| Potion _(future)_ | `[Heal(ally, 10)]` |
+Do not widen `WorldState` or `resolve_round` just because a new action is
+flavorful. Push variety to handlers and effect data.
 
----
+## Validation Pattern
 
-## Validation: advisory vs authoritative
+Validation happens twice:
 
-Because turns are simultaneous, state can change between submit and resolve (a target moves or dies).
+- Submission-time validation gives quick feedback.
+- Resolution-time validation is authoritative.
 
-- **At submission** — `validate_player_action` gives the player quick feedback ("not adjacent"). Advisory only.
-- **At resolution** — every handler **re-checks** its preconditions and silently does nothing if the action is no longer legal. This is the authoritative gate.
+This matters because the world can change between submission and resolution. A
+target may move, die, or become invalid before the action resolves.
 
----
+## Data Loading Boundary
 
-## Enemy AI _(current)_
+Room definitions live in the database. Live combat state lives in memory.
 
-Deliberately simple, lives in `systems.resolve_enemy_phase`: find nearest player → if adjacent, attack → else step toward them (within chase range). Enemy damage flows through the same `apply_effect` choke point as players, so combat math stays consistent across both.
+```mermaid
+flowchart LR
+    R["Room row"] --> LD["load_level"]
+    ED["EnemyDef rows"] --> LD
+    LD --> L["LevelData"]
+    L --> W["WorldState"]
+    W --> S["state_update"]
+```
 
----
+The database provides template data:
 
-## Future considerations
-- **Single global game** — one `Game`, one world, one `asyncio.Lock`. Fine for now; multiple rooms is a later, deliberate step. It also caps concurrent players to one process.
-- **Restart drops live games** — in-memory state means every deploy/crash ends all active sessions. Accepted for the MVP; first thing persistence fixes.
-- **No reconnect on a live network** — a dropped WebSocket currently removes the player for good (see Identity). Decide if the MVP needs grace-window resume.
-- **Full-state broadcast + full re-render** — simple and robust (~2KB/round); richer combat visuals (area effects, status icons) will eventually want incremental rendering.
+- Room width and height.
+- Terrain.
+- Spawn points.
+- Object definitions.
+- Enemy placements.
+- Room connections.
 
----
+`WorldState` owns live runtime state:
+
+- Player positions and HP.
+- Enemy positions and HP.
+- Occupancy grid.
+- Pending actions.
+- Current round.
+
+Do not write live mutations back into the room template. A chest being opened or
+an enemy dying is session state, not a change to the authored room definition.
+
+## Current Limitations
+
+These are accepted constraints for the current prototype:
+
+- Only one global game is active.
+- The frontend currently assumes a 10x10 grid.
+- The backend can load variable-size rooms.
+- Room connections exist but traversal is not implemented.
+- Objects are stored in room data but not rendered/interacted with yet.
+- Disconnect removes the player.
+- Restart drops the live game state.
+- There is no player account or persistent inventory.
+
+These are not failures. They are the correct next set of engineering choices to
+make as exploration becomes real.
+
+## Next Architectural Move
+
+The next architectural move should be small:
+
+```text
+current Game + WorldState
+        |
+        v
+explicit current room identity
+        |
+        v
+load another room on traversal
+        |
+        v
+later, only if needed: RoomSession / RoomManager
+```
+
+Avoid jumping straight to workers, Redis, gateway routing, or full account
+systems. First prove room traversal and exploration in one process.
