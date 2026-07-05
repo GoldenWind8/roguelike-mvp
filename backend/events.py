@@ -14,6 +14,7 @@ class EventType(Enum):
     ROUND_STARTED = "round_started"
     INVALID_ACTION = "invalid_action"
     PLAYER_LEFT = "player_left"
+    PLAYER_ENTERED_DOOR = "player_entered_door"
     GAME_OVER = "game_over"
     BOMB_THROWN = "bomb_thrown"
 

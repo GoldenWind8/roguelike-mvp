@@ -1,6 +1,6 @@
 from backend.actions import Action, ActionType, parse_action
 from backend.config import RNG_SEED
-from backend.entities import Player
+from backend.entities import Player, Position
 from backend.events import GameEvent, EventType
 from backend.level_loader import LevelData
 from backend.systems import resolve_round, validate_player_action
@@ -36,6 +36,48 @@ class Game:
             ))
 
         return player, events
+
+    def attach_player(self, player: Player) -> list[GameEvent]:
+        """Traversal arrival: place an EXISTING player (hp/id/name preserved)
+        at a free spawn. Raises ValueError when the room can't take them —
+        the caller denies the traversal and the player stays where they were."""
+        if len(self.world.players) >= self.world.config.capacity:
+            raise ValueError("The way is blocked")
+        spawn = self.world.free_spawn()
+        if spawn is None:
+            raise ValueError("The way is blocked")
+
+        self.world.attach_player(player, Position(spawn[0], spawn[1]))
+
+        events = [GameEvent(
+            EventType.PLAYER_JOINED,
+            {"player_id": player.id, "name": player.name, "position": [player.position.x, player.position.y]},
+            self.world.round,
+        )]
+
+        # Same start logic as join(): arriving in a dormant room wakes it.
+        if not self.started:
+            self.started = True
+            self.phase = "player_phase"
+            events.append(GameEvent(
+                EventType.ROUND_STARTED,
+                {"round": self.world.round},
+                self.world.round,
+            ))
+
+        return events
+
+    def detach_player(self, player_id: str) -> Player | None:
+        """Traversal departure. No PLAYER_LEFT event (the resolution's
+        PLAYER_ENTERED_DOOR already tells the story) and no auto-resolve —
+        traversal happens after a round resolves, so nobody is pending on us."""
+        player = self.world.detach_player(player_id)
+        if player is None:
+            return None
+        if not self.world.living_players():
+            self.started = False
+            self.phase = "waiting"
+        return player
 
     def submit_action(self, player_id: str, action_data: dict) -> tuple[list[GameEvent], bool]:
         """Returns (events, round_resolved). If round_resolved is True, broadcast state to all."""

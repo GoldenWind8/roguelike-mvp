@@ -46,16 +46,21 @@ Already available:
 - Seeded default room and antechamber.
 - Door tiles in terrain.
 - Validation for door/portal connection origins.
-- `load_level(session, room_id)` for turning a DB room into runtime data.
+- `load_level(session, room_id)` for turning a DB room (including its
+  outgoing connections) into runtime data.
 - `Game(level)` for running combat from `LevelData`.
 - Server state includes room identity, width, height, and object summaries.
-- The browser renders variable-size room grids and room metadata.
+- **Door traversal (steps 2-3 below, done):** a room registry of live
+  `RoomRuntime`s, `PLAYER_ENTERED_DOOR` domain events, player transfer with
+  hp/id preserved, `room_changed` client message, evict-on-empty.
+- The browser renders variable-size room grids, room transitions, and room
+  metadata.
 - The browser can inspect visible room objects through the server.
 
 Missing:
 
-- Runtime use of current `room_id` for traversal.
-- Destination arrival coordinates.
+- Destination arrival coordinates (`to_x`/`to_y`; arrivals use the first free
+  spawn for now).
 - An exploration movement path that does not wait for a combat round.
 
 ## Proposed Implementation Order
@@ -73,7 +78,7 @@ At first, the mode can come from room metadata or a simple default. If metadata
 is not in the schema yet, start with a conservative server-side rule and promote
 it to persisted data once the behavior is understood.
 
-### 2. Add A Minimal Room Runtime Seam
+### 2. Add A Minimal Room Runtime Seam (done)
 
 Keep the shape small:
 
@@ -85,24 +90,19 @@ flowchart LR
     D --> E["state_update"]
 ```
 
-Possible first step:
+Built as: `RoomRuntime` (a room's `Game`, sockets, and round timer) in an
+`active_rooms` registry, with `player_room` answering "what room is this
+session in?". Rooms load lazily and evict when empty. This went slightly
+past the minimal "replace the runtime in place" idea so that players in
+different rooms can play simultaneously — still one process, one lock.
 
-- Store the current `room_id` next to `Game`.
-- When traversal happens, load a new `LevelData`.
-- Replace or rebuild the runtime for that destination room.
+### 3. Support Door Traversal (done)
 
-This is not the final MMO shape, but it proves traversal without inventing a
-large room orchestration layer too early.
-
-### 3. Support Door Traversal
-
-Add server logic:
-
-- Detect when a player enters a door/portal tile.
-- Query `RoomConnection` by `from_room_id`, `from_x`, and `from_y`.
-- Load the destination room.
-- Place the player at a destination spawn.
-- Broadcast the new state.
+Built as: `load_level` preloads a room's connections; `MoveHandler` emits a
+`PLAYER_ENTERED_DOOR` event when a move lands on a connected tile; the async
+edge validates the destination (capacity, free spawn), transfers the player,
+and sends `room_changed`. Denied traversal leaves the player on the door
+tile with an error message.
 
 The current schema only stores the origin tile. Soon after traversal works, add:
 
@@ -161,17 +161,18 @@ used by combat.
 - NPC autonomous schedules.
 - Complex traps or hazards.
 
-## First Exploration Definition Of Done
+## First Exploration Definition Of Done (achieved)
 
-The first satisfying milestone is:
+The first satisfying milestone was:
 
-- Player starts in the pillared hall.
-- Player can move to a door.
-- Server loads the antechamber.
-- Frontend renders the antechamber correctly.
-- Player can move back.
-- Object markers and inspection still work after the room changes.
-- Existing combat still works.
+- Player starts in the pillared hall. ✔
+- Player can move to a door. ✔
+- Server loads the antechamber. ✔
+- Frontend renders the antechamber correctly. ✔
+- Player can move back. ✔
+- Object markers and inspection still work after the room changes. ✔
+- Existing combat still works. ✔
 
-That is the point where the project stops being only a combat prototype and
-becomes the beginning of an explorable world.
+The project is no longer only a combat prototype — the world is explorable.
+The next step is [Roadmap](ROADMAP.md) Milestone 3: exploration movement
+that does not wait for a combat round.

@@ -5,8 +5,8 @@ by id and store only their placement — stats are loaded from enemy_defs.
 
 DEFAULT_ROOM is a 10x10 pillared hall that drops into the running 10x10
 frontend. Players ENTER through the south door and spawn clustered around it;
-a far door (north) and the south door both link to SECOND_ROOM, so the world
-graph has real edges from day one (walking through them is M3).
+a far door (north) and the south door both link to SECOND_ROOM, and walking
+through them traverses to it.
 
 Terrain is an ASCII grid (one char per tile, see TileType):
     #  wall      .  floor      +  door      O  portal
@@ -79,7 +79,8 @@ SECOND_ROOM = {
         "#.....#",
         "#######",
     ],
-    "spawn_points": [[1, 2]],
+    # Two spawns so a pair can co-locate here (capacity = spawn count).
+    "spawn_points": [[1, 2], [1, 1]],
     "enemy_spawns": [],
     "objects": [],
 }

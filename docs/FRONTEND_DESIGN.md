@@ -9,7 +9,11 @@ That is acceptable while the game proves the exploration loop.
 
 It now owns:
 
-- A grid built from server-provided room width and height.
+- A grid built from server-provided room width and height, rebuilt when the
+  dimensions change.
+- Room transitions: a `room_changed` message swaps in the new room's state,
+  clears per-room UI (inspection panel, armed bomb, waiting banner), and logs
+  the arrival.
 - Room state rendering for name, size, mode, and object count.
 - Object markers on the grid.
 - A small inspection panel that asks the server for object details.
@@ -85,7 +89,7 @@ Also defer Phaser, Pixi, and other rendering engines for the same reason.
 
 Build the playable loop first:
 
-1. Door and portal traversal.
+1. Door and portal traversal. (done)
 2. Exploration movement timing.
 3. Server-owned object effects when needed.
 4. Basic NPC dialogue.

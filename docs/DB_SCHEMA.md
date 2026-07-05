@@ -56,7 +56,7 @@ erDiagram
 | Table | Current role | Notes |
 |---|---|---|
 | `rooms` | Room template data | Terrain, objects, spawns, and enemy placements. This is not live session state. |
-| `room_connections` | Directed world graph edges | Traversal is not implemented yet, but the graph exists. |
+| `room_connections` | Directed world graph edges | Traversal uses these: `load_level` reads a room's outgoing edges into `LevelData.connections`, and stepping onto a connected tile transfers the player. Arrival uses the destination's first free spawn (`to_x`/`to_y` are still future columns). |
 | `enemy_defs` | Reusable enemy catalog | Rooms reference enemy ids from JSON and load stats from this table. |
 
 ## Important Boundary

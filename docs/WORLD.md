@@ -18,23 +18,27 @@ The proposal matches the direction of the project, but it is ahead of the code.
 
 | Topic | Current code | This proposal |
 |---|---|---|
-| Runtime owner | one global `Game` | many room runtimes |
-| Live state | one `WorldState` | one `WorldState` per active room |
-| Locking | one global `asyncio.Lock` | one lock per active room |
-| Room loading | starting room loaded from DB | load rooms on demand |
-| Room traversal | data exists, behavior missing | first-class transition flow |
+| Runtime owner | `RoomRuntime` per active room in an `active_rooms` registry | many room runtimes ✔ (single process) |
+| Live state | one `WorldState` per active room | one `WorldState` per active room ✔ |
+| Locking | one global `asyncio.Lock` | one lock per active room (deferred) |
+| Room loading | on demand via `get_or_load_room`, evict-on-empty | load rooms on demand ✔ |
+| Room traversal | done: door event → detach/attach transfer | first-class transition flow ✔ |
 | Modes | combat only | combat and exploration modes |
 | Client | static HTML/JS | possible React/TypeScript/Vite DOM app later |
 | AI | not in runtime yet | validated generation and NPC action seams |
+
+The registry (`active_rooms` + `player_room` in `backend/main.py`) is the
+small in-process version of `RoomManager` + connection router below — the
+same contract, so scaling later swaps the wiring, not the game rules.
 
 The near-term plan should still stay smaller:
 
 ```mermaid
 flowchart LR
-    A["Current Game"] --> B["room_id in state"]
-    B --> C["door traversal"]
+    A["Current Game"] --> B["room_id in state (done)"]
+    B --> C["door traversal (done)"]
     C --> D["simple exploration actions"]
-    D --> E["later: RoomMode / RoomManager"]
+    D --> E["later: RoomMode / full RoomManager"]
 ```
 
 ## Core Principles
@@ -146,7 +150,9 @@ dictionary.
 
 ## Per-Room Locks
 
-The current global lock is fine while there is one global game.
+The current global lock is fine at this scale, even with several rooms live —
+it also guarantees a room can never be double-loaded, since all registry
+reads and writes happen under it.
 
 Once multiple rooms are active, each room should own its own lock:
 
@@ -162,14 +168,14 @@ problem.
 
 Traversal is the first feature that points toward the room architecture.
 
-Near-term traversal can be simple:
+The near-term version is built, following exactly this shape:
 
-1. Player moves onto a door/portal tile.
-2. Server validates the move.
-3. Server looks up `room_connections`.
-4. Server loads the destination room.
-5. Server places the player at an arrival point.
-6. Server sends a full room state update.
+1. Player moves onto a door/portal tile. ✔
+2. Server validates the move. ✔
+3. Server looks up the connection (preloaded into `LevelData.connections`). ✔
+4. Server loads the destination room if dormant. ✔
+5. Server places the player at the first free arrival spawn. ✔
+6. Server sends the traveler `room_changed` with full room state. ✔
 
 Longer-term traversal can become a formal `Transition` effect:
 
@@ -332,8 +338,9 @@ flowchart TD
   message shape that later becomes an `Action`?
 - Should room mode be stored in the `rooms` table, inferred from content, or
   configured in code until it earns a column?
-- When a player traverses alone, does the old room remain active for other
-  players or does the first version keep one active room globally?
+- ~~When a player traverses alone, does the old room remain active for other
+  players?~~ Answered: yes — the registry keeps every room with players in it
+  live, each broadcasting only to its own players. Empty rooms are evicted.
 - Should object effects open the inventory path immediately, or stay as
   descriptive interactions until traversal and dialogue work?
 - How much NPC memory is needed before dialogue feels coherent?

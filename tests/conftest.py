@@ -3,12 +3,14 @@
 The `session` fixture here is the one every later M1 issue (#20-#24) reuses
 to test models against a real-but-disposable database.
 """
+import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
 import backend.models  # noqa: F401 — register tables on Base.metadata before create_all
 from backend.db import Base
+from backend.level_loader import LevelData
 
 
 @pytest_asyncio.fixture
@@ -36,3 +38,37 @@ async def session():
         yield s
 
     await engine.dispose()
+
+
+@pytest.fixture
+def make_level():
+    """Factory for a synthetic in-memory LevelData — pure-engine tests (door
+    events, attach/detach) need no DB. Default shape: a width x height room
+    with border walls; tiles listed in `connections` or `doors` are passable
+    gaps in the border (doors lead somewhere, plain doors lead nowhere)."""
+    def _make(
+        width: int = 5,
+        height: int = 5,
+        spawn_points: list[tuple[int, int]] | None = None,
+        connections: dict[tuple[int, int], int] | None = None,
+        doors: tuple[tuple[int, int], ...] = (),
+        capacity: int | None = None,
+    ) -> LevelData:
+        spawn_points = spawn_points or [(1, 1), (2, 1)]
+        connections = connections or {}
+        border = (
+            {(x, y) for x in range(width) for y in (0, height - 1)}
+            | {(x, y) for y in range(height) for x in (0, width - 1)}
+        )
+        walls = border - set(connections) - set(doors)
+        return LevelData(
+            room_id=1,
+            room_name="Test Room",
+            width=width,
+            height=height,
+            spawn_points=list(spawn_points),
+            walls=walls,
+            capacity=capacity if capacity is not None else len(spawn_points),
+            connections=dict(connections),
+        )
+    return _make

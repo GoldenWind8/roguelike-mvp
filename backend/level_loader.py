@@ -8,9 +8,10 @@ the edges, never in the hot loop).
 """
 from dataclasses import dataclass, field
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.models import EnemyDef, ObjectType, Room, TileType
+from backend.models import EnemyDef, ObjectType, Room, RoomConnection, TileType
 
 
 @dataclass
@@ -67,6 +68,9 @@ class LevelData:
     enemies: list[EnemySpawn] = field(default_factory=list)
     objects: list[RoomObject] = field(default_factory=list)
     capacity: int = 0
+    # Door/portal tile -> destination room id. Loaded once with the room so
+    # the engine can answer "does this tile lead somewhere?" without the DB.
+    connections: dict[tuple[int, int], int] = field(default_factory=dict)
 
 
 def _object_payload(raw: dict, index: int) -> RoomObject:
@@ -123,6 +127,11 @@ async def load_level(session: AsyncSession, room_id: int) -> LevelData:
         for i, raw in enumerate(room.objects or [])
     ]
 
+    connection_rows = (await session.execute(
+        select(RoomConnection).where(RoomConnection.from_room_id == room_id)
+    )).scalars().all()
+    connections = {(c.from_x, c.from_y): c.to_room_id for c in connection_rows}
+
     return LevelData(
         room_id=room.id,
         room_name=room.name,
@@ -133,4 +142,5 @@ async def load_level(session: AsyncSession, room_id: int) -> LevelData:
         enemies=enemies,
         objects=objects,
         capacity=room.capacity,
+        connections=connections,
     )
