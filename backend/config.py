@@ -10,8 +10,8 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./game.db")
 
 
 # Player defaults.
-PLAYER_MAX_HP = 10
-PLAYER_ATTACK_DAMAGE = 3
+PLAYER_MAX_HP = 100
+PLAYER_ATTACK_DAMAGE = 30
 PLAYER_DEFENSE = 1
 
 # Engine tuning. RNG_SEED drives combat determinism (not level content — levels
