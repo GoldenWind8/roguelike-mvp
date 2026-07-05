@@ -12,24 +12,35 @@ The project currently has:
 
 - One FastAPI process.
 - One WebSocket endpoint.
-- One global `Game`.
-- One in-memory `WorldState`.
+- A room registry: `active_rooms` maps room ids to live `RoomRuntime`s, each
+  owning one `Game`/`WorldState`, its players' sockets, and its round timer.
+  Rooms load lazily from the DB on first entry and are evicted when empty.
+- Door/portal traversal: stepping onto a connected door emits a
+  `PLAYER_ENTERED_DOOR` event; the server transfers the player (hp/id/name
+  preserved) to a free spawn in the destination and sends `room_changed`.
+- Room-scoped broadcasts — players only receive events for their own room.
 - Turn-based combat with movement, attacks, wait, bombs, and enemy turns.
 - Action handlers, effects, and events.
 - SQLAlchemy models for rooms, room connections, and enemy definitions.
 - Seeded room data stored in SQLite.
 - Validation for room layouts, terrain, spawns, objects, enemies, and room
   connections.
-- A loader that turns DB room rows into runtime `LevelData`.
+- A loader that turns DB room rows (including their outgoing connections) into
+  runtime `LevelData`.
 - Server state that includes room dimensions, room identity, and object
   summaries.
-- Browser rendering for variable-size rooms, room metadata, object markers, and
-  first-pass object inspection.
-- Tests covering DB setup, validation, seeding, and loading.
+- Browser rendering for variable-size rooms, room transitions, room metadata,
+  object markers, and first-pass object inspection.
+- Tests covering DB setup, validation, seeding, loading, the room registry,
+  and traversal (including a Hall/Antechamber round trip).
 
 Known current limitations:
 
-- Room connections exist in the DB, but players cannot traverse them.
+- All rooms still run the turn-based combat loop; there is no exploration
+  timing mode yet.
+- Evicted rooms have no memory — enemies respawn from the seed on the next
+  visit (persistence is deliberately deferred).
+- An enemy standing on a door tile blocks traversal until it moves.
 - Objects can be inspected for text, but they cannot be opened, picked up, or
   used yet.
 - NPCs and dialogue are not implemented.
@@ -40,46 +51,18 @@ Known current limitations:
 Goal: a player can move through a small connected world, talk to a basic NPC,
 and enter combat without rewriting the combat engine.
 
+Milestones 1 (room runtime boundary) and 2 (door/portal traversal) are done
+and folded into Current Reality above. The registry went slightly beyond the
+original "one active room" floor: multiple rooms can be live at once, each
+broadcasting only to its own players — the single-process seam that later maps
+onto the [Future Backend](FUTURE_BACKEND.md) routing design.
+
 ```mermaid
 flowchart TD
-    A["Current room state"] --> B["Room runtime boundary"]
-    B --> C["Door/portal traversal"]
-    C --> D["Exploration movement mode"]
+    C["Door/portal traversal (done)"] --> D["Exploration movement mode"]
     D --> E["Basic NPC dialogue"]
     E --> F["Combat-room integration"]
 ```
-
-### Milestone 1: Room Runtime Boundary
-
-Definition of done:
-
-- The current `Game` still runs one room.
-- Room identity is explicit in runtime state.
-- The code has a small place to ask, "what room is this session running?"
-- No multi-worker architecture is introduced.
-
-Likely shape:
-
-- Keep `Game` for now.
-- Add only the smallest room/session seam needed for traversal.
-- Avoid a big `RoomManager` until multiple active rooms truly need it.
-
-### Milestone 2: Door And Portal Traversal
-
-Definition of done:
-
-- A player can step onto a door/portal tile.
-- The server finds the matching `room_connections` row.
-- The destination room loads from the DB.
-- The player appears at a sensible destination spawn.
-- The client receives and renders the new room state.
-
-First version can be simple:
-
-- One player transitions.
-- One active room at a time is acceptable.
-- No cross-process routing.
-- No procedural generation yet.
 
 ### Milestone 3: Exploration Mode
 
@@ -143,8 +126,8 @@ architecture around the proven loop.
 
 For this project, that means:
 
-1. Keep the current combat engine.
-2. Add room traversal in one process.
-3. Add simple exploration interactions.
+1. Keep the current combat engine. (holding)
+2. Add room traversal in one process. (done)
+3. Add simple exploration interactions. (next)
 4. Only then decide what persistence, identity, and scale features have earned
    their complexity.

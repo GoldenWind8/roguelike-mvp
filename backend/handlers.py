@@ -50,11 +50,28 @@ class MoveHandler(ActionHandler):
         new_pos = Position(nx, ny)
         world.move_entity(action.player_id, new_pos)
 
-        return [GameEvent(
+        events = [GameEvent(
             EventType.PLAYER_MOVED,
             {"player_id": action.player_id, "from": old_pos, "to": [nx, ny]},
             world.round,
         )]
+
+        # Stepping onto a connected door/portal is intent to traverse. The
+        # engine only announces it — the async edge owns the actual transfer
+        # (DB load, capacity checks, socket rewiring). Emitting on the step
+        # (not on standing) means a denied traversal doesn't retry every round.
+        to_room_id = world.config.connections.get((nx, ny))
+        if to_room_id is not None:
+            events.append(GameEvent(
+                EventType.PLAYER_ENTERED_DOOR,
+                # name included because by broadcast time the player is no
+                # longer in the old room's state for clients to look up.
+                {"player_id": action.player_id, "name": player.name,
+                 "position": [nx, ny], "to_room_id": to_room_id},
+                world.round,
+            ))
+
+        return events
 
 
 class AttackHandler(ActionHandler):

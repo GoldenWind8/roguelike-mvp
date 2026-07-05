@@ -11,17 +11,26 @@ The app is currently one process:
 
 - FastAPI serves the static frontend.
 - FastAPI owns one WebSocket endpoint at `/ws`.
-- One global `Game` is created at startup.
-- `Game` wraps one in-memory `WorldState`.
-- One `asyncio.Lock` serializes live state mutation.
+- `active_rooms` is a registry of live `RoomRuntime`s. Each runtime owns one
+  room's `Game`/`WorldState`, the WebSockets of the players inside it, and
+  that room's round timer. `player_room` maps each player to their room.
+- Rooms load lazily: the first player to enter a room triggers `load_level`;
+  when the last player leaves, the runtime is evicted (rooms have no memory —
+  the next visit rebuilds from the DB template).
+- One global `asyncio.Lock` still serializes all live state mutation. Helpers
+  never acquire it themselves (asyncio locks are not reentrant) — only the
+  top-level WebSocket handlers and the round-timeout task do.
 - SQLAlchemy loads room definitions from the local SQLite database.
 
 ```mermaid
 flowchart TB
     B["Browser client"] <-- "HTTP: index.html / game.js" --> A["FastAPI app"]
     B <-- "WebSocket: /ws" --> A
-    A --> G["Game"]
-    G --> W["WorldState"]
+    A --> REG["active_rooms registry"]
+    REG --> R1["RoomRuntime: room A"]
+    REG --> R2["RoomRuntime: room B"]
+    R1 --> G1["Game / WorldState"]
+    R2 --> G2["Game / WorldState"]
     A --> L["level_loader.load_level"]
     L --> DB["SQLite via SQLAlchemy"]
     DB --> R["Room / EnemyDef / RoomConnection"]
@@ -36,23 +45,26 @@ At startup, the server:
 
 1. Creates database tables if they do not exist.
 2. Seeds the default rooms if the database is empty.
-3. Loads the starting room from the database.
-4. Builds a `Game(level)`.
-5. Accepts WebSocket joins.
+3. Remembers the default room id.
+4. Accepts WebSocket joins.
+
+No `Game` is built at startup — the first join loads the default room through
+the same `get_or_load_room` path traversal uses.
 
 ```mermaid
 sequenceDiagram
     participant App as FastAPI lifespan
     participant DB as Database
     participant Loader as Level loader
-    participant Game as Game runtime
+    participant Reg as active_rooms
 
     App->>DB: init_db()
     App->>DB: get_or_seed_default_room()
-    App->>Loader: load_level(room.id)
-    Loader->>DB: read room and enemy defs
-    Loader-->>App: LevelData
-    App->>Game: Game(LevelData)
+    Note over App: first join or traversal
+    App->>Reg: get_or_load_room(room_id)
+    Reg->>Loader: load_level(room_id)
+    Loader->>DB: read room, enemy defs, connections
+    Loader-->>Reg: LevelData -> RoomRuntime(Game)
 ```
 
 ## Dependency Layers
@@ -142,6 +154,43 @@ Adding a combat action should usually mean:
 Do not widen `WorldState` or `resolve_round` just because a new action is
 flavorful. Push variety to handlers and effect data.
 
+## Traversal Model
+
+Traversal splits cleanly between the pure engine and the async edge:
+
+1. A MOVE resolves onto a door/portal tile that has a `room_connections`
+   entry (`LevelData.connections`, loaded with the room).
+2. `MoveHandler` appends a `PLAYER_ENTERED_DOOR` event — the engine stays
+   sync and DB-free; it only announces intent.
+3. After the round resolves, `handle_round_events` in `main.py` reacts:
+   validate the destination fully (load it if dormant, check capacity and a
+   free spawn), and only then mutate — detach the player from the old
+   runtime, move their socket, attach them at the destination spawn.
+4. The traveler gets a `room_changed` message; the old room's remaining
+   players see them slip away in the normal `state_update`.
+5. A denied traversal (room full, no free spawn, load failure) changes
+   nothing: the player stays on the door tile and gets an error.
+
+```mermaid
+sequenceDiagram
+    participant P as Player
+    participant Old as Old RoomRuntime
+    participant Edge as handle_round_events
+    participant New as Destination RoomRuntime
+
+    P->>Old: move onto door tile
+    Old->>Old: resolve round, emit PLAYER_ENTERED_DOOR
+    Old->>Edge: round events
+    Edge->>New: get_or_load_room + capacity/spawn checks
+    Edge->>Old: detach player + socket
+    Edge->>New: attach player at free spawn
+    New-->>P: room_changed + full state
+    Old-->>Old: broadcast state (traveler gone), evict if empty
+```
+
+This runs at all three round-resolution sites: action submission, round
+timeout, and the auto-resolve that fires when a pending player disconnects.
+
 ## Validation Pattern
 
 Validation happens twice:
@@ -191,8 +240,13 @@ an enemy dying is session state, not a change to the authored room definition.
 
 These are accepted constraints for the current prototype:
 
-- Only one global game is active.
-- Room connections exist but traversal is not implemented.
+- All rooms run the turn-based combat loop; exploration timing is not
+  implemented yet.
+- Evicted rooms reset completely — enemies respawn from the seed on the next
+  visit.
+- One global lock serializes all rooms (per-room locks are a later
+  optimization; the single lock also guarantees rooms are never double-loaded).
+- An enemy standing on a door tile blocks traversal until it moves.
 - Objects can be inspected for text, but object effects and inventory are not
   implemented yet.
 - Disconnect removes the player.
@@ -207,17 +261,18 @@ make as exploration becomes real.
 The next architectural move should be small:
 
 ```text
-current Game + WorldState
+room registry + traversal (done)
         |
         v
-explicit current room identity
+exploration movement timing (RoomMode seam, Milestone 3)
         |
         v
-load another room on traversal
+basic NPC dialogue
         |
         v
-later, only if needed: RoomSession / RoomManager
+later, only if needed: per-room locks, workers, Redis
 ```
 
 Avoid jumping straight to workers, Redis, gateway routing, or full account
-systems. First prove room traversal and exploration in one process.
+systems. Traversal is proven in one process; next, prove exploration timing
+without forking the rules engine.

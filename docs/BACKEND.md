@@ -12,16 +12,22 @@ The backend is intentionally simple:
 - FastAPI app.
 - Static frontend routes for `/` and `/game.js`.
 - One WebSocket endpoint at `/ws`.
-- One global in-memory `Game`.
-- One `asyncio.Lock` around live game mutation.
-- SQLite database through SQLAlchemy async sessions.
+- A registry of live rooms (`active_rooms`): one `RoomRuntime` per active
+  room, each owning a `Game`, its players' sockets, and its round timer.
+  Rooms load on first entry and are evicted when empty.
+- One global `asyncio.Lock` around all live game mutation (per-room locks are
+  deliberately deferred).
+- SQLite database through SQLAlchemy async sessions — touched only when a
+  room loads, never during rounds.
 - Startup seeding for default room data.
 
 ```mermaid
 flowchart TB
     Client["Browser"] <--> WS["WebSocket /ws"]
     WS --> Main["backend.main"]
-    Main --> Game["Game"]
+    Main --> Reg["active_rooms registry"]
+    Reg --> RT["RoomRuntime per active room"]
+    RT --> Game["Game"]
     Game --> World["WorldState"]
     Main --> DB["SQLAlchemy session"]
     DB --> SQLite["game.db"]
@@ -74,7 +80,13 @@ sequenceDiagram
     Game-->>Server: events and round_resolved
     Server-->>Client: action_locked or error
     Server-->>Client: state_update when round resolves
+    Note over Server,Client: if the move entered a connected door
+    Server-->>Client: room_changed with the destination room's full state
 ```
+
+Broadcasts are room-scoped: a `state_update` only reaches the players in that
+room. A traversing player receives `room_changed` instead of the old room's
+final `state_update`.
 
 The client should remain a renderer and input collector. The server decides what
 is legal.
@@ -83,8 +95,9 @@ is legal.
 
 Use the database for:
 
-- Loading existing rooms.
-- Looking up door/portal connections.
+- Loading existing rooms (done — `get_or_load_room` on first entry).
+- Looking up door/portal connections (done — loaded into
+  `LevelData.connections` with the room, so traversal never queries mid-round).
 - Eventually storing newly generated room templates.
 
 Keep in memory for now:

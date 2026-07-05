@@ -41,6 +41,9 @@ function connect() {
             case "state_update":
                 handleStateUpdate(msg);
                 break;
+            case "room_changed":
+                handleRoomChanged(msg);
+                break;
             case "action_locked":
                 handleActionLocked();
                 break;
@@ -89,6 +92,21 @@ function handleStateUpdate(msg) {
         inspectedObject = null;
     }
     renderAll();
+    if (msg.events) {
+        msg.events.forEach((e) => appendEventFromServer(e));
+    }
+}
+
+function handleRoomChanged(msg) {
+    gameState = msg.state;
+    actionLocked = false;
+    bombArmed = false;
+    waitingFor = [];
+    // Object ids are per-room ("object_1" exists in most rooms) — an id-based
+    // staleness check would keep showing the OLD room's object, so always clear.
+    inspectedObject = null;
+    renderAll();
+    appendEvent("join", "You enter " + ((msg.state.room && msg.state.room.name) || "a new room"));
     if (msg.events) {
         msg.events.forEach((e) => appendEventFromServer(e));
     }
@@ -570,7 +588,10 @@ function appendEventFromServer(event) {
             appendEvent("round", "— Round " + (data.round + 1) + " —");
             break;
         case "player_left":
-            appendEvent("join", getName(data.player_id) + " left the game");
+            appendEvent("join", (data.name || getName(data.player_id)) + " left the game");
+            break;
+        case "player_entered_door":
+            appendEvent("move", (data.name || getName(data.player_id)) + " slips through the door");
             break;
         case "game_over":
             appendEvent("gameover", data.winner_name);

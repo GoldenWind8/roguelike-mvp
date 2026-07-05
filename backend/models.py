@@ -87,7 +87,8 @@ class RoomConnection(Base):
     leads to `to_room`. Modeled as a plain adjacency-list row (the graph is
     small and read-mostly) — the FK lives in a real column, never in JSON.
 
-    Traversal (actually walking through) is M3; here we only store the link."""
+    Traversal is live: load_level reads these into LevelData.connections and
+    stepping onto (from_x, from_y) transfers the player to to_room."""
     __tablename__ = "room_connections"
 
     id: Mapped[int] = mapped_column(primary_key=True)

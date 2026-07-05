@@ -1,3 +1,4 @@
+import itertools
 import random
 
 from backend.actions import Action
@@ -5,6 +6,12 @@ from backend.entities import Enemy, Player, Position
 from backend.config import PLAYER_MAX_HP, PLAYER_DEFENSE
 from backend.events import GameEvent, EventType
 from backend.level_loader import LevelData
+
+
+# Process-unique player ids. Per-world counters would collide once players can
+# leave a room, have it evicted+reloaded (fresh counter), and walk back in.
+# Enemy ids stay per-world — enemies never cross rooms.
+_player_ids = itertools.count(1)
 
 
 class WorldState:
@@ -17,7 +24,6 @@ class WorldState:
         self.walls: set[tuple[int, int]] = set(config.walls)
         self.objects = list(config.objects)
         self.pending_actions: dict[str, Action] = {}
-        self._next_player_num = 1
         self._next_enemy_num = 1
 
         self.grid: list[list[str | None]] = [
@@ -36,8 +42,8 @@ class WorldState:
             )
 
     def add_player(self, name: str) -> Player:
-        player_id = f"player_{self._next_player_num}"
-        self._next_player_num += 1
+        # Keep the "player_" prefix — get_entity dispatches on it.
+        player_id = f"player_{next(_player_ids)}"
 
         spawn = self.config.spawn_points[len(self.players)]
         position = Position(spawn[0], spawn[1])
@@ -80,6 +86,32 @@ class WorldState:
         self.grid[player.position.y][player.position.x] = None
         self.pending_actions.pop(player_id, None)
         del self.players[player_id]
+
+    def detach_player(self, player_id: str) -> Player | None:
+        """Remove a player from this world but keep the live Player object —
+        traversal moves the same entity (id, hp, name) into another world.
+        Unlike remove_player's callers, this emits no PLAYER_LEFT semantics."""
+        player = self.players.get(player_id)
+        if not player:
+            return None
+        self.grid[player.position.y][player.position.x] = None
+        self.pending_actions.pop(player_id, None)
+        del self.players[player_id]
+        return player
+
+    def attach_player(self, player: Player, position: Position):
+        """Place an existing Player (arriving via traversal) into this world."""
+        player.position = position
+        self.players[player.id] = player
+        self.grid[position.y][position.x] = player.id
+
+    def free_spawn(self) -> tuple[int, int] | None:
+        """First unoccupied spawn point, or None if all are blocked (players
+        and enemies both occupy grid cells, so a parked enemy blocks a spawn)."""
+        for x, y in self.config.spawn_points:
+            if not self.is_occupied(x, y):
+                return (x, y)
+        return None
 
     def get_player(self, player_id: str) -> Player | None:
         return self.players.get(player_id)

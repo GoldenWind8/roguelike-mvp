@@ -79,6 +79,31 @@ async def test_game_capacity_from_spawn_points(session):
         game.join("one_too_many")
 
 
+async def test_load_level_includes_connections(session):
+    hall = await seed_default_level(session)
+    ante = (await session.execute(
+        select(Room).where(Room.name == "The Antechamber"))).scalars().one()
+
+    hall_level = await load_level(session, hall.id)
+    assert hall_level.connections == {(4, 0): ante.id, (4, 9): ante.id}
+
+    ante_level = await load_level(session, ante.id)
+    assert ante_level.connections == {(0, 2): hall.id}
+
+
+async def test_load_level_without_connections_has_empty_dict(session):
+    room = Room(
+        name="Dead End", width=3, height=3,
+        terrain=["###", "#.#", "###"],
+        spawn_points=[[1, 1]], enemy_spawns=[], objects=[],
+    )
+    session.add(room)
+    await session.commit()
+
+    level = await load_level(session, room.id)
+    assert level.connections == {}
+
+
 async def test_get_or_seed_is_idempotent(session):
     first = await get_or_seed_default_room(session)
     again = await get_or_seed_default_room(session)

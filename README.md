@@ -13,20 +13,24 @@ ideas stay separate.
 
 - Browser client served by FastAPI.
 - Real-time updates over one WebSocket endpoint.
-- One in-memory `Game` with one `WorldState`.
+- A registry of live rooms: each active room owns its own `Game`/`WorldState`,
+  player sockets, and round timer. Rooms load from the DB on first entry and
+  are evicted when the last player leaves.
+- Door/portal traversal: walk onto a door and the server moves you (hp intact)
+  into the connected room; broadcasts are scoped per room.
 - Turn-based combat on a grid: movement, attacks, waiting, bombs, enemy turns.
 - Server-owned action validation and resolution.
 - SQLAlchemy-backed room definitions using the local SQLite database.
 - Seeded room data with terrain, objects, enemy definitions, spawn points, and
   room connections.
 - Server-broadcast room dimensions and object summaries.
-- Browser rendering for variable-size rooms, room metadata, and first-pass
-  object inspection.
-- Tests covering database setup, room validation, seeding, and room loading.
+- Browser rendering for variable-size rooms, room transitions, room metadata,
+  and first-pass object inspection.
+- Tests covering database setup, room validation, seeding, room loading, the
+  room registry, and traversal.
 
 ## Not Built Yet
 
-- Walking through doors/portals into another room.
 - Exploration mode outside turn-based combat.
 - Object pickup, inventory, or object effects.
 - NPC dialogue.
@@ -75,8 +79,8 @@ enter a name in each, and play.
 
 - [Game Design](docs/GAME_DESIGN.md): the cleaned-up design vision and scope.
 - [Roadmap](docs/ROADMAP.md): Now / Next / Later milestones.
-- [World Exploration Plan](docs/WORLD_EXPLORATION_PLAN.md): the next coding
-  plan after this docs pass.
+- [World Exploration Plan](docs/WORLD_EXPLORATION_PLAN.md): the exploration
+  bridge plan — traversal is done; exploration timing is next.
 - [World Architecture Proposal](docs/WORLD.md): larger room/runtime ideas to
   revisit after the simple exploration loop works.
 - [Frontend Design](docs/FRONTEND_DESIGN.md): current client direction and
