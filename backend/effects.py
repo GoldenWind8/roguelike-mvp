@@ -6,6 +6,8 @@ from backend.entities import Enemy
 
 @dataclass
 class Kill:
+    """Unconditional death, ignores defense.
+    _apply_kill is the single place where death side effects (e.g. grid tile cleanup and is_alive updates) happen."""
     target_id: str
     source_id: str | None = None
 
