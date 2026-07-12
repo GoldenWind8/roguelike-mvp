@@ -37,16 +37,7 @@ def _apply_kill(world: WorldState, effect: Kill) -> list[GameEvent]:
     target = world.get_entity(effect.target_id)
     if not target or not target.is_alive:
         return []
-    target.hp = 0
-    target.is_alive = False
-    world.grid[target.position.y][target.position.x] = None  # free the tile
-    death_type = EventType.ENEMY_DIED if isinstance(target, Enemy) else EventType.PLAYER_DIED
-
-    return [GameEvent(
-        death_type,
-        {"player_id": target.id, "killer_id": effect.source_id},  # may be None
-        world.round,
-    )]
+    return _kill_entity(world, target, effect.source_id)
 
 def _apply_damage(world: WorldState, effect: Damage) -> list[GameEvent]:
     target = world.get_entity(effect.target_id)
@@ -61,7 +52,18 @@ def _apply_damage(world: WorldState, effect: Damage) -> list[GameEvent]:
     )]
     #handles death
     if target.hp <= 0:
-        kill = Kill(target.id, effect.source_id)
-        events.extend(_apply_kill(world, kill))
+        events.extend(_kill_entity(world, target, effect.source_id))
 
     return events
+
+def _kill_entity(world: WorldState, target, source_id: str | None) -> list[GameEvent]:
+    target.hp = 0
+    target.is_alive = False
+    world.grid[target.position.y][target.position.x] = None
+
+    death_type = EventType.ENEMY_DIED if isinstance(target, Enemy) else EventType.PLAYER_DIED
+    return [GameEvent(
+        death_type,
+        {"player_id": target.id, "killer_id": source_id},
+        world.round,
+    )]

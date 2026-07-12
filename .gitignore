@@ -5,3 +5,7 @@ CLAUDE.md
 # local sqlite db
 game.db
 __pycache__/
+
+# VPS credentials — never commit
+vps/secrets.md
+.env
