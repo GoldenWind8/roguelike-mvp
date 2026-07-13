@@ -1,5 +1,8 @@
 # Future Backend
 
+> **ARCHIVED 2026-07-14.** Merged into [Future Ideas](../FUTURE.md) as the
+> scale-out parking lot section.
+
 This document is the parking lot for scale architecture. It is important, but it
 is not the next milestone.
 

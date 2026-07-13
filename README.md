@@ -19,6 +19,9 @@ ideas stay separate.
 - Door/portal traversal: walk onto a door and the server moves you (hp intact)
   into the connected room; broadcasts are scoped per room.
 - Turn-based combat on a grid: movement, attacks, waiting, bombs, enemy turns.
+- Exploration mode: peaceful rooms resolve movement immediately — no rounds,
+  no waiting on other players; combat rooms keep the turn-based loop. The
+  client shows which mode a room is in.
 - Server-owned action validation and resolution.
 - SQLAlchemy-backed room definitions using the local SQLite database.
 - Seeded room data with terrain, objects, enemy definitions, spawn points, and
@@ -31,9 +34,8 @@ ideas stay separate.
 
 ## Not Built Yet
 
-- Exploration mode outside turn-based combat.
+- NPC dialogue (next milestone — see the [Roadmap](docs/ROADMAP.md)).
 - Object pickup, inventory, or object effects.
-- NPC dialogue.
 - Persistent player accounts or inventory.
 - Multi-process workers, Redis routing, or production-scale MMO infrastructure.
 
@@ -77,16 +79,20 @@ enter a name in each, and play.
 
 ## Documentation Map
 
-- [Game Design](docs/GAME_DESIGN.md): the cleaned-up design vision and scope.
-- [Roadmap](docs/ROADMAP.md): Now / Next / Later milestones.
-- [World Exploration Plan](docs/WORLD_EXPLORATION_PLAN.md): the exploration
-  bridge plan — traversal is done; exploration timing is next.
-- [World Architecture Proposal](docs/WORLD.md): larger room/runtime ideas to
-  revisit after the simple exploration loop works.
+Each doc has one job:
+
+- [Game Design](docs/GAME_DESIGN.md): the design vision and scope.
+- [Roadmap](docs/ROADMAP.md): Now / Next / Later milestones — start here to
+  see what's next.
+- [Current Architecture](docs/ARCHITECTURE.md): how the app works today —
+  runtime, backend boundaries, and persistence.
+- [Database Schema](docs/DB_SCHEMA.md): current and planned data model.
 - [Frontend Design](docs/FRONTEND_DESIGN.md): current client direction and
   future React/TypeScript/Vite notes.
-- [Current Architecture](docs/ARCHITECTURE.md): how the app works today.
-- [Backend Notes](docs/BACKEND.md): current runtime, persistence, and boundaries.
-- [Database Schema](docs/DB_SCHEMA.md): current and planned data model.
-- [Future Backend](docs/FUTURE_BACKEND.md): long-term scale architecture, not
-  the next milestone.
+- [NPC And Actor Design](docs/NPCS.md): design source of truth for the NPC
+  dialogue milestone.
+- [Future Ideas](docs/FUTURE.md): everything deferred — future architecture
+  and scale-out, not the next milestone.
+
+Completed or superseded docs live in [docs/archive](docs/archive/) and are
+kept for history only.

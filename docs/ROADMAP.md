@@ -8,49 +8,11 @@ This roadmap keeps three ideas separate:
 
 ## Now: Current Reality
 
-The project currently has:
-
-- One FastAPI process.
-- One WebSocket endpoint.
-- A room registry: `active_rooms` maps room ids to live `RoomRuntime`s, each
-  owning one `RoomEngine`/`RoomState`, its players' sockets, and its round timer.
-  Rooms load lazily from the DB on first entry and are evicted when empty.
-- Door/portal traversal: stepping onto a connected door emits a
-  `PLAYER_ENTERED_DOOR` event; the server transfers the player (hp/id/name
-  preserved) to a free spawn in the destination and sends `room_changed`.
-- Room-scoped broadcasts — players only receive events for their own room.
-- Turn-based combat with movement, attacks, wait, bombs, and enemy turns.
-- Room modes (`backend/modes.py`): combat rooms buffer actions into rounds;
-  exploration rooms resolve valid moves immediately, with no round timers and
-  no waiting on other players. Both modes share the same handlers and
-  validation. Mode is inferred at load time (enemies → combat, peaceful →
-  exploration) and sent to the client, which shows it and hides combat-only
-  controls in exploration rooms.
-- Action handlers, effects, and events.
-- SQLAlchemy models for rooms, room connections, and enemy definitions.
-- Seeded room data stored in SQLite.
-- Validation for room layouts, terrain, spawns, objects, enemies, and room
-  connections.
-- A loader that turns DB room rows (including their outgoing connections) into
-  runtime `RoomTemplate`.
-- Server state that includes room dimensions, room identity, and object
-  summaries.
-- Browser rendering for variable-size rooms, room transitions, room metadata,
-  object markers, and first-pass object inspection.
-- Tests covering DB setup, validation, seeding, loading, the room registry,
-  and traversal (including a Hall/Antechamber round trip).
-
-Known current limitations:
-
-- Room mode is inferred from content (enemies present → combat); there is no
-  authored `mode` column yet to override the inference.
-- Evicted rooms have no memory — enemies respawn from the seed on the next
-  visit (persistence is deliberately deferred).
-- An enemy standing on a door tile blocks traversal until it moves.
-- Objects can be inspected for text, but they cannot be opened, picked up, or
-  used yet.
-- NPCs and dialogue are not implemented.
-- Disconnect removes a player from the live game.
+The current system — room registry, door traversal, turn-based combat,
+exploration mode, and their accepted limitations — is documented in one place:
+[Current Architecture](ARCHITECTURE.md). In one line: multiple rooms can be
+live in one process, combat rooms resolve in rounds, peaceful rooms move at
+exploration speed, and everything is server-authoritative.
 
 ## Next: Exploration MVP
 
@@ -62,7 +24,7 @@ Milestones 1 (room runtime boundary), 2 (door/portal traversal), and 3
 registry went slightly beyond the original "one active room" floor: multiple
 rooms can be live at once, each broadcasting only to its own players — the
 single-process seam that later maps onto the
-[Future Backend](FUTURE_BACKEND.md) routing design.
+[Future Ideas](FUTURE.md) routing design.
 
 ```mermaid
 flowchart TD
@@ -81,6 +43,10 @@ Shipped against its definition of done:
 - The client shows whether the room is exploration or combat. ✔
 
 ### Milestone 4: Basic NPC Dialogue
+
+Design source of truth: [NPC And Actor Design](NPCS.md) — actor axes (no
+NPC/enemy taxonomy), the two-channel dialogue rule, and the follower/party
+deferral.
 
 Definition of done:
 
@@ -105,9 +71,10 @@ The success condition is not "big MMO." It is "the game loop is real."
 
 ## Later: Good Ideas To Defer
 
-These belong in the project, but not before the exploration loop works:
+These belong in the project, but not before the exploration loop works. The
+design thinking for all of them lives in [Future Ideas](FUTURE.md):
 
-- Room runtime architecture from [World Architecture Proposal](WORLD.md).
+- Per-room locks and the fuller room runtime architecture.
 - Persistent player accounts.
 - Inventory that follows players between rooms.
 - Object pickup, opening, destruction, and item effects.

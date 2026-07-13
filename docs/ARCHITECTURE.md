@@ -1,9 +1,10 @@
 # Current Architecture
 
-This document describes how the project works today. For gameplay direction see
+This document is the single source of truth for how the project works today —
+runtime, backend boundaries, and persistence. For gameplay direction see
 [Game Design](GAME_DESIGN.md). For near-term build order see
-[Roadmap](ROADMAP.md) and [World Exploration Plan](WORLD_EXPLORATION_PLAN.md).
-For multi-process backend ideas see [Future Backend](FUTURE_BACKEND.md).
+[Roadmap](ROADMAP.md). For deferred architecture ideas see
+[Future Ideas](FUTURE.md).
 
 ## Current Runtime
 
@@ -101,8 +102,8 @@ shared concept down instead of creating an import cycle.
 
 ## Room Modes
 
-Every room runs one of two timing models (the `RoomMode` seam from
-[World Architecture Proposal](WORLD.md), implemented in `backend/modes.py`):
+Every room runs one of two timing models (the `RoomMode` seam, implemented in
+`backend/modes.py`):
 
 | Mode | Resolution | Allowed actions |
 |---|---|---|
@@ -214,6 +215,36 @@ sequenceDiagram
 This runs at all three round-resolution sites: action submission, round
 timeout, and the auto-resolve that fires when a pending player disconnects.
 
+## WebSocket Message Shape
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server
+    participant RoomEngine
+
+    Client->>Server: join
+    Server->>RoomEngine: engine.join(name)
+    RoomEngine-->>Server: player and events
+    Server-->>Client: join_ack
+    Server-->>Client: state_update
+
+    Client->>Server: action
+    Server->>RoomEngine: submit_action(player_id, data)
+    RoomEngine-->>Server: events and resolved
+    Server-->>Client: action_locked or error
+    Server-->>Client: state_update when round resolves
+    Note over Server,Client: if the move entered a connected door
+    Server-->>Client: room_changed with the destination room's full state
+```
+
+Broadcasts are room-scoped: a `state_update` only reaches the players in that
+room. A traversing player receives `room_changed` instead of the old room's
+final `state_update`.
+
+The client should remain a renderer and input collector. The server decides
+what is legal.
+
 ## Validation Pattern
 
 Validation happens twice:
@@ -258,6 +289,31 @@ The database provides template data:
 
 Do not write live mutations back into the room template. A chest being opened or
 an enemy dying is session state, not a change to the authored room definition.
+
+Keep this boundary bright:
+
+| Kind | Examples | Lives In |
+|---|---|---|
+| Template data | terrain, spawn points, enemy definitions, room objects | database |
+| Live state | player HP, enemy HP, positions, pending actions, current round | memory |
+| Future durable player data | account, inventory, current room, progression | database later |
+
+## Persistence Strategy
+
+The database (SQLite through SQLAlchemy async sessions) is touched only when a
+room loads, never during rounds. It stores room template data: `rooms`,
+`room_connections`, `enemy_defs` — see [Database Schema](DB_SCHEMA.md). This is
+real persistence for rooms, not yet for players.
+
+SQLite is good enough while the project is one process and local development is
+fluid. SQLAlchemy is the useful abstraction: tests get lightweight databases,
+model definitions stay in one place, and a later move to Postgres means less
+rewriting. Postgres earns its place when there is real durable player/generated
+data, more than one process, or production deployment pressure.
+
+Migration policy while local data is disposable: recreate the SQLite database
+from models, keep seed data idempotent, let tests prove the schema and loader.
+Once real data matters, add Alembic and stop dropping tables.
 
 ## Current Limitations
 

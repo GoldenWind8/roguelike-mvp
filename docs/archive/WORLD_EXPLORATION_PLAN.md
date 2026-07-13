@@ -1,5 +1,9 @@
 # World Exploration Plan
 
+> **ARCHIVED 2026-07-14.** This plan is complete through step 4 (exploration
+> mode shipped as Milestone 3). Remaining work is tracked in
+> [Roadmap](../ROADMAP.md) Milestone 4. Kept for the history of the decisions.
+
 This is the practical bridge between the current combat prototype and the next
 coding milestone. It intentionally avoids Redis, multi-worker routing, full
 auth, and autonomous NPC simulation.

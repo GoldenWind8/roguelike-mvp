@@ -1,5 +1,8 @@
 # Backend Notes
 
+> **ARCHIVED 2026-07-14.** Merged into [Current Architecture](../ARCHITECTURE.md),
+> which is now the single source of truth for the running system.
+
 This document covers the backend as it exists today and the boundaries to keep
 while building the next exploration milestone.
 

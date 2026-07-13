@@ -1,5 +1,9 @@
 # World Architecture Proposal
 
+> **ARCHIVED 2026-07-14.** The still-deferred ideas were condensed into
+> [Future Ideas](../FUTURE.md); the shipped parts (RoomMode, registry,
+> traversal) are documented in [Current Architecture](../ARCHITECTURE.md).
+
 This document keeps the larger open-world architecture ideas in one place:
 `RoomMode`, `RoomManager`, per-room locks, traversal, AI seams, and a possible
 future frontend structure.

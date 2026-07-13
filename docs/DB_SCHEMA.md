@@ -5,10 +5,9 @@ tables. It is about durable data shape, not live runtime state.
 
 Related docs:
 
-- [Backend Notes](BACKEND.md): how the backend uses the database today.
-- [World Exploration Plan](WORLD_EXPLORATION_PLAN.md): how room traversal should
-  use the schema next.
-- [Future Backend](FUTURE_BACKEND.md): Postgres, Redis, workers, and scale-out.
+- [Current Architecture](ARCHITECTURE.md): how the backend uses the database
+  today, including the template-data vs. live-state boundary.
+- [Future Ideas](FUTURE.md): Postgres, Redis, workers, and scale-out.
 
 ## Current Schema
 
