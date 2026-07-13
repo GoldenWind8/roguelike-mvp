@@ -10,14 +10,14 @@ from fastapi.responses import FileResponse
 from backend.config import TURN_TIMEOUT
 from backend.db import SessionMaker, init_db
 from backend.events import EventType
-from backend.game import Game
-from backend.level_loader import load_level
-from backend.levels import get_or_seed_default_room
+from backend.room_engine import RoomEngine
+from backend.room_loader import load_room
+from backend.seeds import get_or_seed_default_room
 
 
 @dataclass
 class RoomRuntime:
-    """The unit of ownership for one live room: its game state, the sockets of
+    """The unit of ownership for one live room: its RoomEngine, the sockets of
     the players inside it, and its round timer. Everything that must change
     together lives behind this boundary — broadcasts are scoped to a room,
     never to "the server". (This is the in-process seam that later scales:
@@ -25,7 +25,7 @@ class RoomRuntime:
     the game rules ever noticing. See docs/WORLD.md / FUTURE_BACKEND.md.)
     """
     room_id: int
-    game: Game
+    engine: RoomEngine
     connections: dict[str, WebSocket] = field(default_factory=dict)
     timeout_task: asyncio.Task | None = None
 
@@ -78,8 +78,8 @@ async def get_or_load_room(room_id: int) -> RoomRuntime:
     runtime = active_rooms.get(room_id)
     if runtime is None:
         async with SessionMaker() as session:
-            level = await load_level(session, room_id)
-        runtime = RoomRuntime(room_id=room_id, game=Game(level))
+            template = await load_room(session, room_id)
+        runtime = RoomRuntime(room_id=room_id, engine=RoomEngine(template))
         active_rooms[room_id] = runtime
     return runtime
 
@@ -88,7 +88,7 @@ def maybe_evict(runtime: RoomRuntime) -> None:
     """Caller holds state_lock. Drop an empty room from the registry. Evicted
     rooms have no memory — the next visit rebuilds them from the DB (enemies
     respawn at seed positions). Persistence is deliberately deferred."""
-    if runtime.game.world.players:
+    if runtime.engine.room.players:
         return
     cancel_round_timeout(runtime)
     if active_rooms.get(runtime.room_id) is runtime:
@@ -121,13 +121,18 @@ async def send_to(runtime: RoomRuntime, player_id: str, message: dict):
 async def broadcast_state_and_events(runtime: RoomRuntime, events):
     await broadcast(runtime, {
         "type": "state_update",
-        "state": runtime.game.get_state(),
+        "state": runtime.engine.get_state(),
         "events": [e.to_dict() for e in events],
     })
 
 
 async def broadcast_waiting(runtime: RoomRuntime):
-    pending = runtime.game.world.players_pending()
+    # "Waiting for players to act" only exists in turn-based rooms. In an
+    # exploration room nobody ever submits into pending_actions, so everyone
+    # would look pending forever — never broadcast that.
+    if not runtime.engine.turn_based:
+        return
+    pending = runtime.engine.room.players_pending()
     if pending:
         await broadcast(runtime, {
             "type": "waiting_for",
@@ -156,11 +161,11 @@ async def _round_timeout(runtime: RoomRuntime):
         async with state_lock:
             # Staleness guard: this task may have been sleeping while its room
             # was evicted (and possibly reloaded fresh). A stale timer must
-            # never force-resolve a world it doesn't own.
+            # never force-resolve a room it doesn't own.
             if active_rooms.get(runtime.room_id) is not runtime:
                 return
-            if runtime.game.world.players_pending():
-                events = runtime.game.force_resolve()
+            if runtime.engine.room.players_pending():
+                events = runtime.engine.force_resolve()
                 cancel_round_timeout(runtime)
                 await handle_round_events(runtime, events)
                 await broadcast_state_and_events(runtime, events)
@@ -191,7 +196,7 @@ async def handle_round_events(runtime: RoomRuntime, events) -> None:
 async def _transfer_player(origin: RoomRuntime, player_id: str, to_room_id: int) -> None:
     """Caller holds state_lock. Validate everything, THEN mutate — a failure
     at any check denies the traversal with zero state change."""
-    player = origin.game.world.get_player(player_id)
+    player = origin.engine.room.get_player(player_id)
     if player is None or not player.is_alive:
         # The enemy phase runs after moves — the mover may have died on the
         # doorstep, or already left. Dead players don't traverse.
@@ -205,8 +210,8 @@ async def _transfer_player(origin: RoomRuntime, player_id: str, to_room_id: int)
         await send_to(origin, player_id, {"type": "error", "message": "The way is blocked."})
         return
 
-    if (len(dest.game.world.players) >= dest.game.world.config.capacity
-            or dest.game.world.free_spawn() is None):
+    if (len(dest.engine.room.players) >= dest.engine.room.template.capacity
+            or dest.engine.room.free_spawn() is None):
         if not dest_was_loaded:
             maybe_evict(dest)  # don't keep a room we loaded only to be denied
         await send_to(origin, player_id, {"type": "error", "message": "The way is blocked."})
@@ -214,16 +219,16 @@ async def _transfer_player(origin: RoomRuntime, player_id: str, to_room_id: int)
 
     # All checks passed — now mutate: detach from origin, rewire the socket,
     # attach at the destination.
-    origin.game.detach_player(player_id)
+    origin.engine.detach_player(player_id)
     ws = origin.connections.pop(player_id, None)
-    arrival_events = dest.game.attach_player(player)
+    arrival_events = dest.engine.attach_player(player)
     if ws is not None:
         dest.connections[player_id] = ws
     player_room[player_id] = to_room_id
 
     await send_to(dest, player_id, {
         "type": "room_changed",
-        "state": dest.game.get_state(),
+        "state": dest.engine.get_state(),
         "events": [e.to_dict() for e in arrival_events],
     })
     await broadcast_state_and_events(dest, arrival_events)
@@ -255,7 +260,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 async with state_lock:
                     runtime = await get_or_load_room(default_room_id)
                     try:
-                        player, events = runtime.game.join(data.get("name", "Anonymous"))
+                        player, events = runtime.engine.join(data.get("name", "Anonymous"))
                     except ValueError as e:
                         maybe_evict(runtime)  # don't leak a speculatively loaded room
                         await websocket.send_json({"type": "error", "message": str(e)})
@@ -268,7 +273,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     await send_to(runtime, player_id, {
                         "type": "join_ack",
                         "player_id": player_id,
-                        "state": runtime.game.get_state(),
+                        "state": runtime.engine.get_state(),
                     })
 
                     await broadcast_state_and_events(runtime, events)
@@ -284,7 +289,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         await websocket.send_json({"type": "error", "message": "Not in a room"})
                         continue
 
-                    events, round_resolved = runtime.game.submit_action(player_id, data)
+                    events, resolved = runtime.engine.submit_action(player_id, data)
 
                     has_error = any(e.event_type.value == "invalid_action" for e in events)
                     if has_error:
@@ -292,7 +297,7 @@ async def websocket_endpoint(websocket: WebSocket):
                             "type": "error",
                             "message": events[0].data.get("reason", "Invalid action"),
                         })
-                    elif round_resolved:
+                    elif resolved:
                         cancel_round_timeout(runtime)
                         # Transfers first: travelers' sockets leave this room's
                         # connections, so the state broadcast below reaches
@@ -311,7 +316,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
                 async with state_lock:
                     runtime = runtime_for(player_id)
-                    obj = runtime.game.world.get_object(data.get("object_id")) if runtime else None
+                    obj = runtime.engine.room.get_object(data.get("object_id")) if runtime else None
 
                 if not obj:
                     await websocket.send_json({
@@ -340,7 +345,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     # the last pending player) — that resolution can contain
                     # door events for OTHER players, so this site handles
                     # traversal too.
-                    events, _ = runtime.game.remove_player(player_id)
+                    events, _ = runtime.engine.remove_player(player_id)
                     await handle_round_events(runtime, events)
                     if events:
                         await broadcast_state_and_events(runtime, events)

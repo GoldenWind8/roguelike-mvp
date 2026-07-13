@@ -4,13 +4,13 @@ import copy
 import pytest
 from sqlalchemy import select
 
-from backend.levels import (
+from backend.seeds import (
     DEFAULT_ROOM,
     ENEMY_DEFS,
     SECOND_ROOM,
-    seed_default_level,
+    seed_default_rooms,
 )
-from backend.level_validation import validate_enemy_refs, validate_level
+from backend.room_validation import validate_enemy_refs, validate_room
 from backend.models import EnemyDef, Room, RoomConnection, TileType
 
 _KNOWN_IDS = {d["id"] for d in ENEMY_DEFS}
@@ -19,8 +19,8 @@ _KNOWN_IDS = {d["id"] for d in ENEMY_DEFS}
 # ---- validation: the good cases ----
 
 def test_default_rooms_are_valid():
-    validate_level(DEFAULT_ROOM)   # must not raise
-    validate_level(SECOND_ROOM)
+    validate_room(DEFAULT_ROOM)   # must not raise
+    validate_room(SECOND_ROOM)
     validate_enemy_refs(DEFAULT_ROOM, _KNOWN_IDS)
 
 
@@ -41,57 +41,57 @@ def test_rejects_missing_field():
     data = copy.deepcopy(DEFAULT_ROOM)
     del data["spawn_points"]
     with pytest.raises(ValueError, match="spawn_points"):
-        validate_level(data)
+        validate_room(data)
 
 
 def test_rejects_wrong_row_width():
     bad = _broken(terrain=DEFAULT_ROOM["terrain"][:-1] + ["#####"])
     with pytest.raises(ValueError, match="chars wide"):
-        validate_level(bad)
+        validate_room(bad)
 
 
 def test_rejects_wrong_row_count():
     with pytest.raises(ValueError, match="rows"):
-        validate_level(_broken(terrain=DEFAULT_ROOM["terrain"][:5]))
+        validate_room(_broken(terrain=DEFAULT_ROOM["terrain"][:5]))
 
 
 def test_rejects_unknown_tile():
     rows = list(DEFAULT_ROOM["terrain"])
     rows[1] = "#..X.....#"
     with pytest.raises(ValueError, match="unknown tile"):
-        validate_level(_broken(terrain=rows))
+        validate_room(_broken(terrain=rows))
 
 
 def test_rejects_spawn_on_wall():
     with pytest.raises(ValueError, match="not walkable"):
-        validate_level(_broken(spawn_points=[[0, 0]]))   # (0,0) is a wall
+        validate_room(_broken(spawn_points=[[0, 0]]))   # (0,0) is a wall
 
 
 def test_rejects_spawn_far_from_entry():
     # (1,5) is valid open floor but nowhere near a door/portal.
     with pytest.raises(ValueError, match="entry"):
-        validate_level(_broken(spawn_points=[[1, 5]]))
+        validate_room(_broken(spawn_points=[[1, 5]]))
 
 
 def test_rejects_enemy_without_id():
     bad = _broken(enemy_spawns=[{"x": 4, "y": 3}])
     with pytest.raises(ValueError, match="enemy_id"):
-        validate_level(bad)
+        validate_room(bad)
 
 
 def test_rejects_out_of_bounds_enemy():
     with pytest.raises(ValueError, match="out of bounds"):
-        validate_level(_broken(enemy_spawns=[{"enemy_id": 1, "x": 99, "y": 99}]))
+        validate_room(_broken(enemy_spawns=[{"enemy_id": 1, "x": 99, "y": 99}]))
 
 
 def test_rejects_overlap():
     with pytest.raises(ValueError, match="overlaps"):
-        validate_level(_broken(spawn_points=[[4, 8], [4, 8]]))
+        validate_room(_broken(spawn_points=[[4, 8], [4, 8]]))
 
 
 def test_rejects_chest_without_loot():
     with pytest.raises(ValueError, match="loot"):
-        validate_level(_broken(objects=[{"type": "chest", "x": 1, "y": 1}]))
+        validate_room(_broken(objects=[{"type": "chest", "x": 1, "y": 1}]))
 
 
 def test_rejects_unknown_enemy_ref():
@@ -106,14 +106,14 @@ def test_rejects_sealed_off_tile():
     rows[7] = "#...#....#"   # wall at (4,7)
     rows[8] = "#..#.#...#"   # walls at (3,8) and (5,8)
     with pytest.raises(ValueError, match="walled off"):
-        validate_level(_broken(terrain=rows, spawn_points=[[4, 8]],
+        validate_room(_broken(terrain=rows, spawn_points=[[4, 8]],
                                enemy_spawns=[], objects=[]))
 
 
 # ---- persistence: store + read back, normalized enemies, graph link ----
 
 async def test_seed_round_trip(session):
-    await seed_default_level(session)
+    await seed_default_rooms(session)
 
     room = (await session.execute(
         select(Room).where(Room.name == "The Pillared Hall"))).scalar_one()
@@ -127,7 +127,7 @@ async def test_seed_round_trip(session):
 
 async def test_enemy_stats_loaded_from_db(session):
     """The room stores only {enemy_id,x,y}; the stats come from enemy_defs."""
-    room = await seed_default_level(session)
+    room = await seed_default_rooms(session)
 
     placement = room.enemy_spawns[0]              # {"enemy_id": 1, "x": 4, "y": 3}
     assert set(placement) == {"enemy_id", "x", "y"}   # no stats duplicated in the room
@@ -139,7 +139,7 @@ async def test_enemy_stats_loaded_from_db(session):
 
 
 async def test_door_links_to_second_room(session):
-    default = await seed_default_level(session)
+    default = await seed_default_rooms(session)
 
     conn = (await session.execute(
         select(RoomConnection).where(

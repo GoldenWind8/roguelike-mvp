@@ -249,6 +249,7 @@
         opacity: 0.3;
         pointer-events: none;
     }
+    #controls.exploration .combat-only { display: none; }
     #controls .row {
         display: flex;
         gap: 4px;
@@ -323,7 +324,7 @@
                         <div class="ctrl-btn" onclick="sendMove(0,1)">&darr;</div>
                         <div class="ctrl-btn" onclick="sendMove(1,0)">&rarr;</div>
                     </div>
-                    <div class="row">
+                    <div class="row combat-only">
                         <div class="ctrl-btn wait-btn" onclick="sendWait()">Wait (skip)</div>
                         <div class="ctrl-btn bomb-btn" onclick="toggleBomb()">💣 Bomb (B)</div>
                     </div>

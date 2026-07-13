@@ -120,7 +120,7 @@ Good AI responsibilities:
 
 Bad AI responsibilities:
 
-- Directly changing `WorldState`.
+- Directly changing `RoomState`.
 - Deciding combat outcomes.
 - Inventing new effect semantics at runtime.
 - Bypassing validation because the prose sounds plausible.

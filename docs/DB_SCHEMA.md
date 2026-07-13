@@ -56,7 +56,7 @@ erDiagram
 | Table | Current role | Notes |
 |---|---|---|
 | `rooms` | Room template data | Terrain, objects, spawns, and enemy placements. This is not live session state. |
-| `room_connections` | Directed world graph edges | Traversal uses these: `load_level` reads a room's outgoing edges into `LevelData.connections`, and stepping onto a connected tile transfers the player. Arrival uses the destination's first free spawn (`to_x`/`to_y` are still future columns). |
+| `room_connections` | Directed world graph edges | Traversal uses these: `load_room` reads a room's outgoing edges into `RoomTemplate.connections`, and stepping onto a connected tile transfers the player. Arrival uses the destination's first free spawn (`to_x`/`to_y` are still future columns). |
 | `enemy_defs` | Reusable enemy catalog | Rooms reference enemy ids from JSON and load stats from this table. |
 
 ## Important Boundary
@@ -109,7 +109,7 @@ to generate, while the server still rejects malformed content.
 The database does not enforce it as a foreign key.
 
 The app validates it with known enemy ids before storing seed room data, and
-`load_level` fails if a room references an unknown enemy.
+`load_room` fails if a room references an unknown enemy.
 
 If this becomes painful, promote enemy spawns to a real join table:
 

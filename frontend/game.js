@@ -161,11 +161,15 @@ function renderAll() {
     updateControls();
 }
 
+function isExploration() {
+    return Boolean(gameState && gameState.room && gameState.room.mode === "exploration");
+}
+
 function getRoomSize() {
     const room = gameState && gameState.room ? gameState.room : {};
     const grid = gameState && Array.isArray(gameState.grid) ? gameState.grid : [];
-    const width = gameState?.width || room.width || (grid[0] ? grid[0].length : 10);
-    const height = gameState?.height || room.height || grid.length || 10;
+    const width = room.width || (grid[0] ? grid[0].length : 10);
+    const height = room.height || grid.length || 10;
     return { width, height };
 }
 
@@ -320,7 +324,7 @@ function renderRoomInfo() {
     const size = getRoomSize();
     const objects = Array.isArray(gameState.objects) ? gameState.objects : [];
     const rows = [
-        ["Name", room.name || gameState.room_name || "Unknown"],
+        ["Name", room.name || "Unknown"],
         ["Size", size.width + " x " + size.height],
         ["Mode", room.mode || gameState.phase || "unknown"],
         ["Objects", String(objects.length)],
@@ -418,6 +422,12 @@ function renderPhaseBanner() {
         return;
     }
 
+    if (isExploration()) {
+        banner.textContent = "🧭 Exploration — move freely";
+        banner.className = "phase-action";
+        return;
+    }
+
     if (bombArmed && !actionLocked) {
         banner.textContent = "💣 Bomb armed — click a target tile. Blast hits EVERYONE in radius, including you! (B or Esc to cancel)";
         banner.className = "phase-action";
@@ -445,6 +455,15 @@ function updateControls() {
         controls.classList.add("locked");
     } else {
         controls.classList.remove("locked");
+    }
+
+    // Exploration hides the combat-only buttons (wait/bomb) and swaps the help.
+    controls.classList.toggle("exploration", isExploration());
+    const help = document.getElementById("help-text");
+    if (help) {
+        help.textContent = isExploration()
+            ? "Arrow keys/WASD to move · Click objects to inspect · Moves happen instantly"
+            : "Arrow keys/WASD to move · Click adjacent enemy to attack · B then click a tile to bomb · All players act simultaneously";
     }
 }
 
@@ -484,7 +503,7 @@ function sendAttack(targetId) {
 
 function sendWait() {
     if (!ws || !myPlayerId || !gameState || actionLocked) return;
-    if (!gameState.started) return;
+    if (!gameState.started || isExploration()) return;
     ws.send(JSON.stringify({
         type: "action",
         action_type: "wait",
@@ -509,7 +528,7 @@ function sendInspectObject(objectId) {
 }
 
 function toggleBomb() {
-    if (actionLocked || !gameState || !gameState.started) return;
+    if (actionLocked || !gameState || !gameState.started || isExploration()) return;
     bombArmed = !bombArmed;
     renderPhaseBanner();
 }
@@ -532,7 +551,7 @@ function handleCellClick(x, y) {
         return;
     }
 
-    if (actionLocked || !gameState.started) return;
+    if (actionLocked || !gameState.started || isExploration()) return;
     const me = gameState.players[myPlayerId];
     if (!me || !me.is_alive) return;
 
@@ -566,11 +585,11 @@ function appendEventFromServer(event) {
         case "player_attacked":
             appendEvent("attack", getName(data.attacker_id) + " attacks " + getName(data.target_id) + " for " + data.damage + " dmg");
             break;
-        case "player_damaged":
-            appendEvent("damage", getName(data.player_id) + " has " + data.hp_remaining + " HP left");
+        case "entity_damaged":
+            appendEvent("damage", getName(data.target_id) + " has " + data.hp_remaining + " HP left");
             break;
         case "player_died":
-            appendEvent("death", getName(data.player_id) + " was slain by " + getName(data.killer_id) + "!");
+            appendEvent("death", getName(data.target_id) + " was slain by " + getName(data.killer_id) + "!");
             break;
         case "enemy_moved":
             appendEvent("enemy", data.name + " moves to (" + data.to[0] + "," + data.to[1] + ")");
@@ -579,7 +598,7 @@ function appendEventFromServer(event) {
             appendEvent("enemy", data.attacker_name + " attacks " + getName(data.target_id) + " for " + data.damage + " dmg");
             break;
         case "enemy_died":
-            appendEvent("death", getName(data.player_id) + " was slain!");
+            appendEvent("death", getName(data.target_id) + " was slain!");
             break;
         case "bomb_thrown":
             appendEvent("attack", getName(data.player_id) + " hurls a bomb at (" + data.tile[0] + "," + data.tile[1] + ")");

@@ -6,7 +6,9 @@ class EventType(Enum):
     PLAYER_JOINED = "player_joined"
     PLAYER_MOVED = "player_moved"
     PLAYER_ATTACKED = "player_attacked"
-    PLAYER_DAMAGED = "player_damaged"
+    # Damage lands on players AND enemies through the same effect path, so the
+    # event is entity-scoped, not player-scoped (its data key is `target_id`).
+    ENTITY_DAMAGED = "entity_damaged"
     PLAYER_DIED = "player_died"
     ENEMY_MOVED = "enemy_moved"
     ENEMY_ATTACKED = "enemy_attacked"
@@ -23,11 +25,11 @@ class EventType(Enum):
 class GameEvent:
     event_type: EventType
     data: dict
-    tick: int
+    round: int
 
     def to_dict(self) -> dict:
         return {
             "event_type": self.event_type.value,
             "data": self.data,
-            "tick": self.tick,
+            "round": self.round,
         }

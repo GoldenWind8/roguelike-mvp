@@ -12,9 +12,9 @@ The app is currently one process:
 - FastAPI serves the static frontend.
 - FastAPI owns one WebSocket endpoint at `/ws`.
 - `active_rooms` is a registry of live `RoomRuntime`s. Each runtime owns one
-  room's `Game`/`WorldState`, the WebSockets of the players inside it, and
+  room's `RoomEngine`/`RoomState`, the WebSockets of the players inside it, and
   that room's round timer. `player_room` maps each player to their room.
-- Rooms load lazily: the first player to enter a room triggers `load_level`;
+- Rooms load lazily: the first player to enter a room triggers `load_room`;
   when the last player leaves, the runtime is evicted (rooms have no memory —
   the next visit rebuilds from the DB template).
 - One global `asyncio.Lock` still serializes all live state mutation. Helpers
@@ -29,9 +29,9 @@ flowchart TB
     A --> REG["active_rooms registry"]
     REG --> R1["RoomRuntime: room A"]
     REG --> R2["RoomRuntime: room B"]
-    R1 --> G1["Game / WorldState"]
-    R2 --> G2["Game / WorldState"]
-    A --> L["level_loader.load_level"]
+    R1 --> G1["RoomEngine / RoomState"]
+    R2 --> G2["RoomEngine / RoomState"]
+    A --> L["room_loader.load_room"]
     L --> DB["SQLite via SQLAlchemy"]
     DB --> R["Room / EnemyDef / RoomConnection"]
 ```
@@ -48,23 +48,23 @@ At startup, the server:
 3. Remembers the default room id.
 4. Accepts WebSocket joins.
 
-No `Game` is built at startup — the first join loads the default room through
+No `RoomEngine` is built at startup — the first join loads the default room through
 the same `get_or_load_room` path traversal uses.
 
 ```mermaid
 sequenceDiagram
     participant App as FastAPI lifespan
     participant DB as Database
-    participant Loader as Level loader
+    participant Loader as Room loader
     participant Reg as active_rooms
 
     App->>DB: init_db()
     App->>DB: get_or_seed_default_room()
     Note over App: first join or traversal
     App->>Reg: get_or_load_room(room_id)
-    Reg->>Loader: load_level(room_id)
+    Reg->>Loader: load_room(room_id)
     Loader->>DB: read room, enemy defs, connections
-    Loader-->>Reg: LevelData -> RoomRuntime(Game)
+    Loader-->>Reg: RoomTemplate -> RoomRuntime(RoomEngine)
 ```
 
 ## Dependency Layers
@@ -75,7 +75,7 @@ The combat engine has a useful one-way dependency shape:
 config / entities / actions / events
               |
               v
-world.py      WorldState, source of truth
+room_state.py RoomState, source of truth
               |
               v
 effects.py    atomic mutations
@@ -87,7 +87,10 @@ handlers.py   one handler per action type
 systems.py    round resolution and enemy phase
               |
               v
-game.py       round lifecycle
+modes.py      RoomMode: WHEN actions resolve (buffered vs immediate)
+              |
+              v
+room_engine.py round lifecycle
               |
               v
 main.py       WebSocket and FastAPI boundary
@@ -95,6 +98,26 @@ main.py       WebSocket and FastAPI boundary
 
 Rule of thumb: if a lower layer needs something from a higher layer, move the
 shared concept down instead of creating an import cycle.
+
+## Room Modes
+
+Every room runs one of two timing models (the `RoomMode` seam from
+[World Architecture Proposal](WORLD.md), implemented in `backend/modes.py`):
+
+| Mode | Resolution | Allowed actions |
+|---|---|---|
+| `combat` (`TurnBasedMode`) | buffer actions, resolve when all players submit or the timeout fires | move, attack, bomb, wait |
+| `exploration` (`ExplorationMode`) | validate and resolve immediately, per action | move |
+
+The mode decides *when* an action resolves, never *how*: both modes validate
+and resolve through the same `HANDLERS`, so movement rules, door traversal,
+effects, and events are one rules engine. Exploration rooms have no rounds,
+no round timers, no `waiting_for` broadcasts, and no enemy phase.
+
+A room's mode is currently inferred at load time in `load_room` — a room
+with enemy spawns is `combat`, a peaceful room is `exploration` — and is sent
+to the client in `state.room.mode`. Promote the inference to a real `rooms`
+column once authored content needs to override it.
 
 ## Combat Model
 
@@ -104,9 +127,9 @@ resolves, mutates state, and broadcasts the result.
 ```mermaid
 flowchart LR
     C["Client action"] --> M["main.py"]
-    M --> G["Game.submit_action"]
+    M --> G["RoomEngine.submit_action"]
     G --> V["validate_player_action"]
-    V --> P["WorldState.pending_actions"]
+    V --> P["RoomState.pending_actions"]
     P --> R{"All players acted or timeout?"}
     R -- "no" --> W["waiting_for"]
     R -- "yes" --> S["systems.resolve_round"]
@@ -151,7 +174,7 @@ Adding a combat action should usually mean:
 4. Register the handler.
 5. Reuse existing effects where possible.
 
-Do not widen `WorldState` or `resolve_round` just because a new action is
+Do not widen `RoomState` or `resolve_round` just because a new action is
 flavorful. Push variety to handlers and effect data.
 
 ## Traversal Model
@@ -159,7 +182,7 @@ flavorful. Push variety to handlers and effect data.
 Traversal splits cleanly between the pure engine and the async edge:
 
 1. A MOVE resolves onto a door/portal tile that has a `room_connections`
-   entry (`LevelData.connections`, loaded with the room).
+   entry (`RoomTemplate.connections`, loaded with the room).
 2. `MoveHandler` appends a `PLAYER_ENTERED_DOOR` event — the engine stays
    sync and DB-free; it only announces intent.
 3. After the round resolves, `handle_round_events` in `main.py` reacts:
@@ -207,10 +230,10 @@ Room definitions live in the database. Live combat state lives in memory.
 
 ```mermaid
 flowchart LR
-    R["Room row"] --> LD["load_level"]
+    R["Room row"] --> LD["load_room"]
     ED["EnemyDef rows"] --> LD
-    LD --> L["LevelData"]
-    L --> W["WorldState"]
+    LD --> L["RoomTemplate"]
+    L --> W["RoomState"]
     W --> S["state_update"]
 ```
 
@@ -224,7 +247,7 @@ The database provides template data:
 - Enemy placements.
 - Room connections.
 
-`WorldState` owns live runtime state:
+`RoomState` owns live runtime state:
 
 - Player positions and HP.
 - Enemy positions and HP.
@@ -240,8 +263,10 @@ an enemy dying is session state, not a change to the authored room definition.
 
 These are accepted constraints for the current prototype:
 
-- All rooms run the turn-based combat loop; exploration timing is not
-  implemented yet.
+- Room mode is inferred from content (enemies → combat); there is no authored
+  `mode` column to override it yet.
+- Exploration rooms only accept movement — examining stays client-initiated
+  (`inspect_object`), and dialogue does not exist yet.
 - Evicted rooms reset completely — enemies respawn from the seed on the next
   visit.
 - One global lock serializes all rooms (per-room locks are a later
@@ -264,15 +289,15 @@ The next architectural move should be small:
 room registry + traversal (done)
         |
         v
-exploration movement timing (RoomMode seam, Milestone 3)
+exploration movement timing (RoomMode seam, done)
         |
         v
-basic NPC dialogue
+basic NPC dialogue (Milestone 4)
         |
         v
 later, only if needed: per-room locks, workers, Redis
 ```
 
 Avoid jumping straight to workers, Redis, gateway routing, or full account
-systems. Traversal is proven in one process; next, prove exploration timing
-without forking the rules engine.
+systems. Traversal and exploration timing are proven in one process without
+forking the rules engine; next, add a hand-authored NPC and a dialogue panel.

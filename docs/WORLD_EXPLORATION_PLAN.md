@@ -46,9 +46,9 @@ Already available:
 - Seeded default room and antechamber.
 - Door tiles in terrain.
 - Validation for door/portal connection origins.
-- `load_level(session, room_id)` for turning a DB room (including its
+- `load_room(session, room_id)` for turning a DB room (including its
   outgoing connections) into runtime data.
-- `Game(level)` for running combat from `LevelData`.
+- `RoomEngine(template)` for running combat from `RoomTemplate`.
 - Server state includes room identity, width, height, and object summaries.
 - **Door traversal (steps 2-3 below, done):** a room registry of live
   `RoomRuntime`s, `PLAYER_ENTERED_DOOR` domain events, player transfer with
@@ -56,27 +56,30 @@ Already available:
 - The browser renders variable-size room grids, room transitions, and room
   metadata.
 - The browser can inspect visible room objects through the server.
+- **Room modes (steps 1 and 4 below, done):** `backend/modes.py` holds the
+  `RoomMode` seam — combat rooms buffer actions into rounds, exploration
+  rooms resolve valid moves immediately through the same handlers. Mode is
+  inferred at load time (enemies → combat) and shown by the client.
 
 Missing:
 
 - Destination arrival coordinates (`to_x`/`to_y`; arrivals use the first free
   spawn for now).
-- An exploration movement path that does not wait for a combat round.
+- An authored `mode` column to override the content-based inference.
 
 ## Proposed Implementation Order
 
-### 1. Represent Room Mode
+### 1. Represent Room Mode (done)
 
-Add a room mode concept before adding many actions:
+Built as: `RoomTemplate.mode` ("exploration" or "combat"), inferred in
+`load_room` with the conservative server-side rule — a room with enemy
+spawns is combat, a peaceful room is exploration. Promote to a persisted
+`rooms` column once authored content needs to override the inference.
 
 ```text
 exploration: immediate movement and interaction
 combat: turn-based action submission
 ```
-
-At first, the mode can come from room metadata or a simple default. If metadata
-is not in the schema yet, start with a conservative server-side rule and promote
-it to persisted data once the behavior is understood.
 
 ### 2. Add A Minimal Room Runtime Seam (done)
 
@@ -84,13 +87,13 @@ Keep the shape small:
 
 ```mermaid
 flowchart LR
-    A["Room row"] --> B["load_level"]
-    B --> C["LevelData"]
-    C --> D["Game / Room runtime"]
+    A["Room row"] --> B["load_room"]
+    B --> C["RoomTemplate"]
+    C --> D["RoomEngine / Room runtime"]
     D --> E["state_update"]
 ```
 
-Built as: `RoomRuntime` (a room's `Game`, sockets, and round timer) in an
+Built as: `RoomRuntime` (a room's `RoomEngine`, sockets, and round timer) in an
 `active_rooms` registry, with `player_room` answering "what room is this
 session in?". Rooms load lazily and evict when empty. This went slightly
 past the minimal "replace the runtime in place" idea so that players in
@@ -98,7 +101,7 @@ different rooms can play simultaneously — still one process, one lock.
 
 ### 3. Support Door Traversal (done)
 
-Built as: `load_level` preloads a room's connections; `MoveHandler` emits a
+Built as: `load_room` preloads a room's connections; `MoveHandler` emits a
 `PLAYER_ENTERED_DOOR` event when a move lands on a connected tile; the async
 edge validates the destination (capacity, free spawn), transfers the player,
 and sends `room_changed`. Denied traversal leaves the player on the door
@@ -112,19 +115,15 @@ The current schema only stores the origin tile. Soon after traversal works, add:
 
 Until then, using the first destination spawn is acceptable.
 
-### 4. Add Exploration Movement
+### 4. Add Exploration Movement (done)
 
-Exploration movement should not wait for every player to submit a turn.
-
-Keep the same validation instincts:
-
-- Is the player alive/present?
-- Is the target in bounds?
-- Is the tile passable?
-- Is the tile occupied?
-- Does the tile trigger traversal?
-
-The difference is timing: apply movement immediately in exploration rooms.
+Built as: the `RoomMode` seam in `backend/modes.py`. `RoomEngine.submit_action`
+delegates to the room's mode — `TurnBasedMode` keeps the existing buffering
+loop, `ExplorationMode` validates through the same handler and resolves the
+move immediately, so nobody waits for anybody. Door traversal still works
+(the `PLAYER_ENTERED_DOOR` event path is shared); non-move actions are
+rejected in exploration rooms; `waiting_for` and round timers never fire
+there.
 
 ### 5. Add Basic NPC Dialogue
 
@@ -173,6 +172,7 @@ The first satisfying milestone was:
 - Object markers and inspection still work after the room changes. ✔
 - Existing combat still works. ✔
 
-The project is no longer only a combat prototype — the world is explorable.
-The next step is [Roadmap](ROADMAP.md) Milestone 3: exploration movement
-that does not wait for a combat round.
+The project is no longer only a combat prototype — the world is explorable,
+and peaceful rooms now move at exploration speed (Milestone 3, done). The
+next step is [Roadmap](ROADMAP.md) Milestone 4: basic hand-authored NPC
+dialogue.

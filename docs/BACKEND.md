@@ -13,7 +13,7 @@ The backend is intentionally simple:
 - Static frontend routes for `/` and `/game.js`.
 - One WebSocket endpoint at `/ws`.
 - A registry of live rooms (`active_rooms`): one `RoomRuntime` per active
-  room, each owning a `Game`, its players' sockets, and its round timer.
+  room, each owning a `RoomEngine`, its players' sockets, and its round timer.
   Rooms load on first entry and are evicted when empty.
 - One global `asyncio.Lock` around all live game mutation (per-room locks are
   deliberately deferred).
@@ -27,8 +27,8 @@ flowchart TB
     WS --> Main["backend.main"]
     Main --> Reg["active_rooms registry"]
     Reg --> RT["RoomRuntime per active room"]
-    RT --> Game["Game"]
-    Game --> World["WorldState"]
+    RT --> RoomEngine["RoomEngine"]
+    RoomEngine --> World["RoomState"]
     Main --> DB["SQLAlchemy session"]
     DB --> SQLite["game.db"]
 ```
@@ -67,17 +67,17 @@ Current high-level flow:
 sequenceDiagram
     participant Client
     participant Server
-    participant Game
+    participant RoomEngine
 
     Client->>Server: join
-    Server->>Game: game.join(name)
-    Game-->>Server: player and events
+    Server->>RoomEngine: engine.join(name)
+    RoomEngine-->>Server: player and events
     Server-->>Client: join_ack
     Server-->>Client: state_update
 
     Client->>Server: action
-    Server->>Game: submit_action(player_id, data)
-    Game-->>Server: events and round_resolved
+    Server->>RoomEngine: submit_action(player_id, data)
+    RoomEngine-->>Server: events and resolved
     Server-->>Client: action_locked or error
     Server-->>Client: state_update when round resolves
     Note over Server,Client: if the move entered a connected door
@@ -97,7 +97,7 @@ Use the database for:
 
 - Loading existing rooms (done — `get_or_load_room` on first entry).
 - Looking up door/portal connections (done — loaded into
-  `LevelData.connections` with the room, so traversal never queries mid-round).
+  `RoomTemplate.connections` with the room, so traversal never queries mid-round).
 - Eventually storing newly generated room templates.
 
 Keep in memory for now:

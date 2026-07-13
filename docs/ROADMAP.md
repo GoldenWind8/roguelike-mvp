@@ -13,20 +13,26 @@ The project currently has:
 - One FastAPI process.
 - One WebSocket endpoint.
 - A room registry: `active_rooms` maps room ids to live `RoomRuntime`s, each
-  owning one `Game`/`WorldState`, its players' sockets, and its round timer.
+  owning one `RoomEngine`/`RoomState`, its players' sockets, and its round timer.
   Rooms load lazily from the DB on first entry and are evicted when empty.
 - Door/portal traversal: stepping onto a connected door emits a
   `PLAYER_ENTERED_DOOR` event; the server transfers the player (hp/id/name
   preserved) to a free spawn in the destination and sends `room_changed`.
 - Room-scoped broadcasts — players only receive events for their own room.
 - Turn-based combat with movement, attacks, wait, bombs, and enemy turns.
+- Room modes (`backend/modes.py`): combat rooms buffer actions into rounds;
+  exploration rooms resolve valid moves immediately, with no round timers and
+  no waiting on other players. Both modes share the same handlers and
+  validation. Mode is inferred at load time (enemies → combat, peaceful →
+  exploration) and sent to the client, which shows it and hides combat-only
+  controls in exploration rooms.
 - Action handlers, effects, and events.
 - SQLAlchemy models for rooms, room connections, and enemy definitions.
 - Seeded room data stored in SQLite.
 - Validation for room layouts, terrain, spawns, objects, enemies, and room
   connections.
 - A loader that turns DB room rows (including their outgoing connections) into
-  runtime `LevelData`.
+  runtime `RoomTemplate`.
 - Server state that includes room dimensions, room identity, and object
   summaries.
 - Browser rendering for variable-size rooms, room transitions, room metadata,
@@ -36,8 +42,8 @@ The project currently has:
 
 Known current limitations:
 
-- All rooms still run the turn-based combat loop; there is no exploration
-  timing mode yet.
+- Room mode is inferred from content (enemies present → combat); there is no
+  authored `mode` column yet to override the inference.
 - Evicted rooms have no memory — enemies respawn from the seed on the next
   visit (persistence is deliberately deferred).
 - An enemy standing on a door tile blocks traversal until it moves.
@@ -51,30 +57,28 @@ Known current limitations:
 Goal: a player can move through a small connected world, talk to a basic NPC,
 and enter combat without rewriting the combat engine.
 
-Milestones 1 (room runtime boundary) and 2 (door/portal traversal) are done
-and folded into Current Reality above. The registry went slightly beyond the
-original "one active room" floor: multiple rooms can be live at once, each
-broadcasting only to its own players — the single-process seam that later maps
-onto the [Future Backend](FUTURE_BACKEND.md) routing design.
+Milestones 1 (room runtime boundary), 2 (door/portal traversal), and 3
+(exploration mode) are done and folded into Current Reality above. The
+registry went slightly beyond the original "one active room" floor: multiple
+rooms can be live at once, each broadcasting only to its own players — the
+single-process seam that later maps onto the
+[Future Backend](FUTURE_BACKEND.md) routing design.
 
 ```mermaid
 flowchart TD
-    C["Door/portal traversal (done)"] --> D["Exploration movement mode"]
-    D --> E["Basic NPC dialogue"]
+    D["Exploration movement mode (done)"] --> E["Basic NPC dialogue"]
     E --> F["Combat-room integration"]
 ```
 
-### Milestone 3: Exploration Mode
+### Milestone 3: Exploration Mode (done)
 
-Definition of done:
+Shipped against its definition of done:
 
-- Non-combat rooms allow immediate movement without waiting for all players.
-- Combat rooms still use the existing turn-based loop.
-- The server owns movement validation in both modes.
-- The client can show whether the room is exploration or combat.
-
-Senior-dev habit: do not duplicate movement rules. Share the grid and position
-model; let the room mode decide timing and allowed actions.
+- Non-combat rooms allow immediate movement without waiting for all players. ✔
+- Combat rooms still use the existing turn-based loop. ✔
+- The server owns movement validation in both modes (one shared handler
+  path — the mode only chooses timing and allowed actions). ✔
+- The client shows whether the room is exploration or combat. ✔
 
 ### Milestone 4: Basic NPC Dialogue
 
@@ -128,6 +132,7 @@ For this project, that means:
 
 1. Keep the current combat engine. (holding)
 2. Add room traversal in one process. (done)
-3. Add simple exploration interactions. (next)
-4. Only then decide what persistence, identity, and scale features have earned
+3. Add exploration movement timing. (done)
+4. Add simple exploration interactions — NPC dialogue next.
+5. Only then decide what persistence, identity, and scale features have earned
    their complexity.

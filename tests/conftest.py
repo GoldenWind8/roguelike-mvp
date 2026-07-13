@@ -10,7 +10,7 @@ from sqlalchemy.pool import StaticPool
 
 import backend.models  # noqa: F401 — register tables on Base.metadata before create_all
 from backend.db import Base
-from backend.level_loader import LevelData
+from backend.room_loader import RoomTemplate
 
 
 @pytest_asyncio.fixture
@@ -41,8 +41,8 @@ async def session():
 
 
 @pytest.fixture
-def make_level():
-    """Factory for a synthetic in-memory LevelData — pure-engine tests (door
+def make_template():
+    """Factory for a synthetic in-memory RoomTemplate — pure-engine tests (door
     events, attach/detach) need no DB. Default shape: a width x height room
     with border walls; tiles listed in `connections` or `doors` are passable
     gaps in the border (doors lead somewhere, plain doors lead nowhere)."""
@@ -53,7 +53,8 @@ def make_level():
         connections: dict[tuple[int, int], int] | None = None,
         doors: tuple[tuple[int, int], ...] = (),
         capacity: int | None = None,
-    ) -> LevelData:
+        mode: str = "combat",
+    ) -> RoomTemplate:
         spawn_points = spawn_points or [(1, 1), (2, 1)]
         connections = connections or {}
         border = (
@@ -61,7 +62,7 @@ def make_level():
             | {(x, y) for y in range(height) for x in (0, width - 1)}
         )
         walls = border - set(connections) - set(doors)
-        return LevelData(
+        return RoomTemplate(
             room_id=1,
             room_name="Test Room",
             width=width,
@@ -70,5 +71,6 @@ def make_level():
             walls=walls,
             capacity=capacity if capacity is not None else len(spawn_points),
             connections=dict(connections),
+            mode=mode,
         )
     return _make

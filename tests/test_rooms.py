@@ -14,7 +14,7 @@ from sqlalchemy.pool import StaticPool
 import backend.main as main
 from backend.db import Base
 from backend.entities import Position
-from backend.levels import seed_default_level
+from backend.seeds import seed_default_rooms
 from backend.models import Room
 
 
@@ -32,7 +32,7 @@ async def world_db(monkeypatch):
     maker = async_sessionmaker(bind=engine, expire_on_commit=False)
 
     async with maker() as session:
-        hall = await seed_default_level(session)
+        hall = await seed_default_rooms(session)
         ante = (await session.execute(
             select(Room).where(Room.name == "The Antechamber"))).scalars().one()
 
@@ -51,13 +51,13 @@ async def world_db(monkeypatch):
 async def join_room(room_id: int, name: str):
     """The join flow minus the websocket: runtime + registry bookkeeping."""
     runtime = await main.get_or_load_room(room_id)
-    player, _ = runtime.game.join(name)
+    player, _ = runtime.engine.join(name)
     main.player_room[player.id] = room_id
     return runtime, player
 
 
 def submit_move(runtime, player_id, direction):
-    return runtime.game.submit_action(
+    return runtime.engine.submit_action(
         player_id, {"action_type": "move", "direction": direction})
 
 
@@ -96,13 +96,13 @@ async def test_traversal_round_trip(world_db):
     player.hp = 5  # battle-worn — must survive both crossings
 
     # Walk to just below the south door, then step through it.
-    runtime.game.world.move_entity(player.id, Position(4, 8))
+    runtime.engine.room.move_entity(player.id, Position(4, 8))
     await step_through_door(runtime, player.id, [0, 1])
 
     assert main.player_room[player.id] == ante.id
     assert hall.id not in main.active_rooms          # sole player left -> evicted
     ante_runtime = main.active_rooms[ante.id]
-    arrived = ante_runtime.game.world.get_player(player.id)
+    arrived = ante_runtime.engine.room.get_player(player.id)
     assert arrived is player and arrived.hp == 5
     assert (arrived.position.x, arrived.position.y) == (1, 2)  # first free spawn
 
@@ -111,7 +111,7 @@ async def test_traversal_round_trip(world_db):
 
     assert main.player_room[player.id] == hall.id
     assert ante.id not in main.active_rooms
-    back = main.active_rooms[hall.id].game.world.get_player(player.id)
+    back = main.active_rooms[hall.id].engine.room.get_player(player.id)
     assert back is player and back.hp == 5
     assert (back.position.x, back.position.y) == (3, 8)  # hall's first spawn
 
@@ -122,14 +122,14 @@ async def test_traversal_denied_when_destination_full(world_db):
     await join_room(ante.id, "Resident2")  # antechamber capacity is 2 -> full
 
     runtime, player = await join_room(hall.id, "Hero")
-    runtime.game.world.move_entity(player.id, Position(4, 8))
+    runtime.engine.room.move_entity(player.id, Position(4, 8))
     await step_through_door(runtime, player.id, [0, 1])
 
     # Denied: still in the hall, standing on the door tile, nothing corrupted.
     assert main.player_room[player.id] == hall.id
-    assert runtime.game.world.get_player(player.id) is player
+    assert runtime.engine.room.get_player(player.id) is player
     assert (player.position.x, player.position.y) == (4, 9)
-    assert len(main.active_rooms[ante.id].game.world.players) == 2
+    assert len(main.active_rooms[ante.id].engine.room.players) == 2
 
 
 async def test_two_players_one_slot_exactly_one_transfers(world_db):
@@ -140,20 +140,20 @@ async def test_two_players_one_slot_exactly_one_transfers(world_db):
     _, p2 = await join_room(hall.id, "Second")
     # p1 spawned at (3,8); park them below the south door. p2 spawned at
     # (4,8); park them below the north door.
-    runtime.game.world.move_entity(p2.id, Position(4, 1))
-    runtime.game.world.move_entity(p1.id, Position(4, 8))
+    runtime.engine.room.move_entity(p2.id, Position(4, 1))
+    runtime.engine.room.move_entity(p1.id, Position(4, 8))
 
     submit_move(runtime, p1.id, [0, 1])                 # onto (4, 9)
     events, resolved = submit_move(runtime, p2.id, [0, -1])  # onto (4, 0)
     assert resolved
     await main.handle_round_events(runtime, events)
 
-    ante_players = main.active_rooms[ante.id].game.world.players
+    ante_players = main.active_rooms[ante.id].engine.room.players
     transferred = [p for p in (p1, p2) if p.id in ante_players]
     assert len(transferred) == 1                        # capacity enforced
     stayed = p2 if transferred == [p1] else p1
     assert main.player_room[stayed.id] == hall.id
-    assert runtime.game.world.get_player(stayed.id) is stayed
+    assert runtime.engine.room.get_player(stayed.id) is stayed
 
 
 async def test_transfer_to_unloadable_room_is_denied_cleanly(world_db):
@@ -163,7 +163,7 @@ async def test_transfer_to_unloadable_room_is_denied_cleanly(world_db):
     await main._transfer_player(runtime, player.id, 9999)  # no such room
 
     assert main.player_room[player.id] == hall.id
-    assert runtime.game.world.get_player(player.id) is player
+    assert runtime.engine.room.get_player(player.id) is player
     assert 9999 not in main.active_rooms
 
 
@@ -175,22 +175,22 @@ async def test_dead_player_is_not_transferred(world_db):
     await main._transfer_player(runtime, player.id, ante.id)
 
     assert main.player_room[player.id] == hall.id
-    assert runtime.game.world.get_player(player.id) is player
+    assert runtime.engine.room.get_player(player.id) is player
     assert ante.id not in main.active_rooms  # never even loaded
 
 
 async def test_room_state_resets_after_eviction(world_db):
     hall, _ = world_db
     runtime, player = await join_room(hall.id, "Hero")
-    goblin = next(e for e in runtime.game.world.enemies.values() if e.name == "Goblin")
+    goblin = next(e for e in runtime.engine.room.enemies.values() if e.name == "Goblin")
     goblin.hp = 1
 
-    runtime.game.remove_player(player.id)
+    runtime.engine.remove_player(player.id)
     main.player_room.pop(player.id)
     main.maybe_evict(runtime)
     assert hall.id not in main.active_rooms
 
     fresh = await main.get_or_load_room(hall.id)
-    fresh_goblin = next(e for e in fresh.game.world.enemies.values() if e.name == "Goblin")
+    fresh_goblin = next(e for e in fresh.engine.room.enemies.values() if e.name == "Goblin")
     assert fresh is not runtime
     assert fresh_goblin.hp == 6  # rooms have no memory — reseeded from the DB

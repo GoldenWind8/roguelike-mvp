@@ -13,7 +13,7 @@ ideas stay separate.
 
 - Browser client served by FastAPI.
 - Real-time updates over one WebSocket endpoint.
-- A registry of live rooms: each active room owns its own `Game`/`WorldState`,
+- A registry of live rooms: each active room owns its own `RoomEngine`/`RoomState`,
   player sockets, and round timer. Rooms load from the DB on first entry and
   are evicted when the last player leaves.
 - Door/portal traversal: walk onto a door and the server moves you (hp intact)

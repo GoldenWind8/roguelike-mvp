@@ -33,7 +33,7 @@ def _as_xy(value, what: str) -> tuple[int, int]:
     return value[0], value[1]
 
 
-def validate_level(data: dict) -> None:
+def validate_room(data: dict) -> None:
     """Raise ValueError if `data` is not a storable level. Returns None on success."""
     for field in _REQUIRED:
         if field not in data:

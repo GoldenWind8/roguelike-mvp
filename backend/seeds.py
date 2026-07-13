@@ -13,10 +13,10 @@ Terrain is an ASCII grid (one char per tile, see TileType):
 """
 from sqlalchemy import select
 
-from backend.level_validation import (
+from backend.room_validation import (
     validate_connection,
     validate_enemy_refs,
-    validate_level,
+    validate_room,
 )
 from backend.models import EnemyDef, Room, RoomConnection
 
@@ -95,7 +95,7 @@ _CONNECTIONS = [
 ]
 
 
-async def seed_default_level(session) -> Room:
+async def seed_default_rooms(session) -> Room:
     """Validate, insert, and link the enemy catalog + default + second room.
     Returns the default Room (the one the game starts in)."""
     rooms = {"default": DEFAULT_ROOM, "second": SECOND_ROOM}
@@ -103,7 +103,7 @@ async def seed_default_level(session) -> Room:
 
     # Validate everything before touching the DB — fail fast, fail loud.
     for data in rooms.values():
-        validate_level(data)
+        validate_room(data)
         validate_enemy_refs(data, known_enemy_ids)
     for from_key, _to, fx, fy in _CONNECTIONS:
         validate_connection(rooms[from_key], {"from_x": fx, "from_y": fy})
@@ -138,4 +138,4 @@ async def get_or_seed_default_room(session) -> Room:
     first boot if the rooms table is empty (Decision A — zero-touch startup)."""
     existing = (await session.execute(
         select(Room).where(Room.name == DEFAULT_ROOM["name"]))).scalars().first()
-    return existing or await seed_default_level(session)
+    return existing or await seed_default_rooms(session)

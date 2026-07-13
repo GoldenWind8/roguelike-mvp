@@ -1,7 +1,7 @@
-"""Factory/mapper: a stored `Room` row -> a runtime `LevelData`.
+"""Factory/mapper: a stored `Room` row -> a runtime `RoomTemplate`.
 
 This is the seam between the persistence model (ORM `Room`/`EnemyDef`, which
-know about the DB) and the domain model (`LevelData`/`WorldState`, which know
+know about the DB) and the domain model (`RoomTemplate`/`RoomState`, which know
 about gameplay and nothing about the DB). It is the ONLY place that reads the
 DB to build a world — combat then runs purely from memory (BACKEND.md: DB at
 the edges, never in the hot loop).
@@ -55,9 +55,9 @@ class RoomObject:
 
 
 @dataclass
-class LevelData:
+class RoomTemplate:
     """In-memory view of a room. Pure runtime data with no DB awareness —
-    WorldState is constructed from this. (Replaces the old hardcoded
+    RoomState is constructed from this. (Replaces the old hardcoded
     config.LevelConfig.)"""
     room_id: int
     room_name: str
@@ -71,6 +71,10 @@ class LevelData:
     # Door/portal tile -> destination room id. Loaded once with the room so
     # the engine can answer "does this tile lead somewhere?" without the DB.
     connections: dict[tuple[int, int], int] = field(default_factory=dict)
+    # Timing model for the room: "combat" (turn-based rounds) or "exploration"
+    # (immediate resolution). See backend/modes.py. Defaults to combat — the
+    # conservative choice for anything built without going through load_room.
+    mode: str = "combat"
 
 
 def _object_payload(raw: dict, index: int) -> RoomObject:
@@ -98,8 +102,8 @@ def _object_payload(raw: dict, index: int) -> RoomObject:
     )
 
 
-async def load_level(session: AsyncSession, room_id: int) -> LevelData:
-    """Read a room (+ resolve its enemy stats) into a ready-to-play LevelData."""
+async def load_room(session: AsyncSession, room_id: int) -> RoomTemplate:
+    """Read a room (+ resolve its enemy stats) into a ready-to-play RoomTemplate."""
     room = await session.get(Room, room_id)
     if room is None:
         raise ValueError(f"no room with id {room_id}")
@@ -132,7 +136,7 @@ async def load_level(session: AsyncSession, room_id: int) -> LevelData:
     )).scalars().all()
     connections = {(c.from_x, c.from_y): c.to_room_id for c in connection_rows}
 
-    return LevelData(
+    return RoomTemplate(
         room_id=room.id,
         room_name=room.name,
         width=room.width,
@@ -143,4 +147,9 @@ async def load_level(session: AsyncSession, room_id: int) -> LevelData:
         objects=objects,
         capacity=room.capacity,
         connections=connections,
+        # Mode is inferred from content for now (WORLD_EXPLORATION_PLAN step 1:
+        # "start with a conservative server-side rule"): a room with enemies is
+        # a combat room; a peaceful room is explorable. Promote this to a real
+        # `rooms` column once authored content needs to override the inference.
+        mode="combat" if enemies else "exploration",
     )

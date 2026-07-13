@@ -45,7 +45,7 @@ flowchart TB
 | Tier | Data | Access Pattern | Likely Tool |
 |---|---|---|---|
 | Durable source of truth | rooms, generated items, players, inventory, event log | low-frequency writes, read-many, must survive restart | Postgres |
-| Live room state | active `WorldState` for one room | frequent mutation, deterministic, short-lived | worker memory |
+| Live room state | active `RoomState` for one room | frequent mutation, deterministic, short-lived | worker memory |
 | Coordination | room-to-worker routing, presence, pub/sub | high-frequency, ephemeral, shared across workers | Redis |
 
 ## Postgres
@@ -68,7 +68,7 @@ memory and persist important outcomes at the edges.
 ## Worker Memory
 
 An active room should be owned by exactly one worker at a time. That worker keeps
-the room's live `WorldState` in memory and resolves actions locally.
+the room's live `RoomState` in memory and resolves actions locally.
 
 This preserves the current good property:
 
@@ -108,7 +108,7 @@ crash:
 
 ```mermaid
 flowchart LR
-    A["Room template"] --> C["Rebuild WorldState"]
+    A["Room template"] --> C["Rebuild RoomState"]
     B["Event log"] --> C
     C --> D["Active room in memory"]
 ```

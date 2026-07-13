@@ -19,11 +19,11 @@ The proposal matches the direction of the project, but it is ahead of the code.
 | Topic | Current code | This proposal |
 |---|---|---|
 | Runtime owner | `RoomRuntime` per active room in an `active_rooms` registry | many room runtimes ✔ (single process) |
-| Live state | one `WorldState` per active room | one `WorldState` per active room ✔ |
+| Live state | one `RoomState` per active room | one `RoomState` per active room ✔ |
 | Locking | one global `asyncio.Lock` | one lock per active room (deferred) |
 | Room loading | on demand via `get_or_load_room`, evict-on-empty | load rooms on demand ✔ |
 | Room traversal | done: door event → detach/attach transfer | first-class transition flow ✔ |
-| Modes | combat only | combat and exploration modes |
+| Modes | done: `TurnBasedMode` / `ExplorationMode` in `backend/modes.py` | combat and exploration modes ✔ |
 | Client | static HTML/JS | possible React/TypeScript/Vite DOM app later |
 | AI | not in runtime yet | validated generation and NPC action seams |
 
@@ -35,10 +35,10 @@ The near-term plan should still stay smaller:
 
 ```mermaid
 flowchart LR
-    A["Current Game"] --> B["room_id in state (done)"]
+    A["Current RoomEngine"] --> B["room_id in state (done)"]
     B --> C["door traversal (done)"]
-    C --> D["simple exploration actions"]
-    D --> E["later: RoomMode / full RoomManager"]
+    C --> D["exploration timing via RoomMode (done)"]
+    D --> E["later: full RoomManager"]
 ```
 
 ## Core Principles
@@ -58,7 +58,7 @@ flowchart LR
 
 ## Proposed Runtime Shape
 
-Eventually, today's `Game` can become a room runtime rather than the whole
+Eventually, today's `RoomEngine` can become a room runtime rather than the whole
 application.
 
 ```mermaid
@@ -67,28 +67,30 @@ flowchart TB
     Router --> Manager["RoomManager"]
     Manager --> R1["RoomRuntime: room A"]
     Manager --> R2["RoomRuntime: room B"]
-    R1 --> W1["WorldState"]
-    R2 --> W2["WorldState"]
+    R1 --> W1["RoomState"]
+    R2 --> W2["RoomState"]
     R1 --> M1["RoomMode"]
     R2 --> M2["RoomMode"]
 ```
 
 Suggested concepts:
 
-- `RoomRuntime`: owns one active room's `WorldState`, lock, connections, timers,
+- `RoomRuntime`: owns one active room's `RoomState`, lock, connections, timers,
   and broadcast behavior.
 - `RoomMode`: decides how submitted actions are accepted and resolved.
 - `RoomManager`: loads, caches, and evicts active room runtimes.
 - Connection router: maps `player_id -> room_id` inside the current process.
 
 Do not introduce all of this before one-room traversal works. The first
-implementation can keep `Game` and add only explicit room identity.
+implementation can keep `RoomEngine` and add only explicit room identity.
 
 ## RoomMode
 
-`RoomMode` is the main abstraction in this proposal. It should exist only when
-the code truly needs both immediate exploration actions and batched combat
-actions.
+`RoomMode` is the main abstraction in this proposal. It now exists
+(`backend/modes.py`) — Milestone 3 was the moment the code truly needed both
+immediate exploration actions and batched combat actions. The built version
+matches the sketch below, minus `RoomRuntime` coupling: `RoomEngine` delegates
+`submit_action` to its mode.
 
 Conceptual interface:
 
@@ -172,7 +174,7 @@ The near-term version is built, following exactly this shape:
 
 1. Player moves onto a door/portal tile. ✔
 2. Server validates the move. ✔
-3. Server looks up the connection (preloaded into `LevelData.connections`). ✔
+3. Server looks up the connection (preloaded into `RoomTemplate.connections`). ✔
 4. Server loads the destination room if dormant. ✔
 5. Server places the player at the first free arrival spawn. ✔
 6. Server sends the traveler `room_changed` with full room state. ✔
@@ -334,10 +336,13 @@ flowchart TD
 
 ## Open Questions
 
-- Should the first exploration movement reuse `Action`, or have a smaller
-  message shape that later becomes an `Action`?
-- Should room mode be stored in the `rooms` table, inferred from content, or
-  configured in code until it earns a column?
+- ~~Should the first exploration movement reuse `Action`, or have a smaller
+  message shape that later becomes an `Action`?~~ Answered: it reuses
+  `Action` — same parse, same handler validation, only the timing differs.
+- ~~Should room mode be stored in the `rooms` table, inferred from content, or
+  configured in code until it earns a column?~~ Answered for now: inferred
+  from content in `load_room` (enemies → combat). It earns a column when
+  authored content needs to override the inference.
 - ~~When a player traverses alone, does the old room remain active for other
   players?~~ Answered: yes — the registry keeps every room with players in it
   live, each broadcasting only to its own players. Empty rooms are evicted.
@@ -350,5 +355,5 @@ flowchart TD
 Keep this document as the ambitious architecture target. Build from
 [World Exploration Plan](WORLD_EXPLORATION_PLAN.md) first.
 
-The correct next move is still small: use current room identity for traversal,
-then add simple exploration movement and dialogue.
+The correct next move is still small: traversal and exploration timing are
+built; next comes hand-authored NPC dialogue.

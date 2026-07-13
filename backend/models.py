@@ -62,7 +62,7 @@ class EnemyDef(Base):
 class Room(Base):
     """A level as data. `terrain`/`objects`/`spawn_points`/`enemy_spawns` are
     JSON because their shape varies — which means *we* validate them on the way
-    in (the DB won't); see level_validation.validate_level."""
+    in (the DB won't); see room_validation.validate_room."""
     __tablename__ = "rooms"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -87,7 +87,7 @@ class RoomConnection(Base):
     leads to `to_room`. Modeled as a plain adjacency-list row (the graph is
     small and read-mostly) — the FK lives in a real column, never in JSON.
 
-    Traversal is live: load_level reads these into LevelData.connections and
+    Traversal is live: load_room reads these into RoomTemplate.connections and
     stepping onto (from_x, from_y) transfers the player to to_room."""
     __tablename__ = "room_connections"
 

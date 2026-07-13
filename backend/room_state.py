@@ -5,33 +5,33 @@ from backend.actions import Action
 from backend.entities import Enemy, Player, Position
 from backend.config import PLAYER_MAX_HP, PLAYER_DEFENSE
 from backend.events import GameEvent, EventType
-from backend.level_loader import LevelData
+from backend.room_loader import RoomTemplate
 
 
-# Process-unique player ids. Per-world counters would collide once players can
+# Process-unique player ids. Per-room counters would collide once players can
 # leave a room, have it evicted+reloaded (fresh counter), and walk back in.
-# Enemy ids stay per-world — enemies never cross rooms.
+# Enemy ids stay per-room — enemies never cross rooms.
 _player_ids = itertools.count(1)
 
 
-class WorldState:
-    def __init__(self, config: LevelData, seed: int):
-        self.config = config
+class RoomState:
+    def __init__(self, template: RoomTemplate, seed: int):
+        self.template = template
         self.rng = random.Random(seed)  #TODO consider removing seed
         self.round = 0
         self.players: dict[str, Player] = {}
         self.enemies: dict[str, Enemy] = {}
-        self.walls: set[tuple[int, int]] = set(config.walls)
-        self.objects = list(config.objects)
+        self.walls: set[tuple[int, int]] = set(template.walls)
+        self.objects = list(template.objects)
         self.pending_actions: dict[str, Action] = {}
         self._next_enemy_num = 1
 
         self.grid: list[list[str | None]] = [
-            [None for _ in range(config.width)]
-            for _ in range(config.height)
+            [None for _ in range(template.width)]
+            for _ in range(template.height)
         ]
 
-        for enemy_def in config.enemies:
+        for enemy_def in template.enemies:
             pos = enemy_def.position
             self.add_enemy(
                 name=enemy_def.name,
@@ -45,7 +45,7 @@ class WorldState:
         # Keep the "player_" prefix — get_entity dispatches on it.
         player_id = f"player_{next(_player_ids)}"
 
-        spawn = self.config.spawn_points[len(self.players)]
+        spawn = self.template.spawn_points[len(self.players)]
         position = Position(spawn[0], spawn[1])
 
         player = Player(
@@ -88,8 +88,8 @@ class WorldState:
         del self.players[player_id]
 
     def detach_player(self, player_id: str) -> Player | None:
-        """Remove a player from this world but keep the live Player object —
-        traversal moves the same entity (id, hp, name) into another world.
+        """Remove a player from this room but keep the live Player object —
+        traversal moves the same entity (id, hp, name) into another room.
         Unlike remove_player's callers, this emits no PLAYER_LEFT semantics."""
         player = self.players.get(player_id)
         if not player:
@@ -100,7 +100,7 @@ class WorldState:
         return player
 
     def attach_player(self, player: Player, position: Position):
-        """Place an existing Player (arriving via traversal) into this world."""
+        """Place an existing Player (arriving via traversal) into this room."""
         player.position = position
         self.players[player.id] = player
         self.grid[position.y][position.x] = player.id
@@ -108,7 +108,7 @@ class WorldState:
     def free_spawn(self) -> tuple[int, int] | None:
         """First unoccupied spawn point, or None if all are blocked (players
         and enemies both occupy grid cells, so a parked enemy blocks a spawn)."""
-        for x, y in self.config.spawn_points:
+        for x, y in self.template.spawn_points:
             if not self.is_occupied(x, y):
                 return (x, y)
         return None
@@ -130,7 +130,7 @@ class WorldState:
         return None
 
     def is_valid_position(self, x: int, y: int) -> bool:
-        if x < 0 or x >= self.config.width or y < 0 or y >= self.config.height:
+        if x < 0 or x >= self.template.width or y < 0 or y >= self.template.height:
             return False
         return (x, y) not in self.walls
 
@@ -159,16 +159,12 @@ class WorldState:
     def to_dict(self) -> dict:
         return {
             "room": {
-                "id": self.config.room_id,
-                "name": self.config.room_name,
-                "width": self.config.width,
-                "height": self.config.height,
-                "mode": "combat",
+                "id": self.template.room_id,
+                "name": self.template.room_name,
+                "width": self.template.width,
+                "height": self.template.height,
+                "mode": self.template.mode,
             },
-            "room_id": self.config.room_id,
-            "room_name": self.config.room_name,
-            "width": self.config.width,
-            "height": self.config.height,
             "round": self.round,
             "grid": self.grid,
             "walls": list(self.walls),
