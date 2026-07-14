@@ -1,6 +1,7 @@
 .claude
 .venv
 .idea
+.DS_Store
 CLAUDE.md
 # local sqlite db
 game.db

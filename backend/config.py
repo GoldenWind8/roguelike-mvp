@@ -54,6 +54,14 @@ DIALOGUE_MODEL = os.getenv("DIALOGUE_MODEL", "auto")
 # Hard timeout on every LLM call — timeout/rate-limit/down all degrade to a
 # canned line, the request is dropped, never queued.
 DIALOGUE_TIMEOUT = float(os.getenv("DIALOGUE_TIMEOUT", "8.0"))
+# Completion token budget. The grid routes to REASONING models (e.g.
+# gpt-oss-120b) whose hidden reasoning_content shares this budget with the
+# visible answer — too small and the model spends it all thinking and returns
+# EMPTY content (finish_reason "length"), which then degrades to a canned line
+# and never proposes an effect. 512 leaves comfortable room for reasoning + the
+# JSON envelope across all grid models (measured); raise it if empty-completion
+# warnings recur.
+DIALOGUE_MAX_TOKENS = int(os.getenv("DIALOGUE_MAX_TOKENS", "512"))
 # Bounded dialogue memory: how many transcript entries an NPC keeps (one
 # entry = one speaker line). Persisted with the NPC row.
 NPC_TRANSCRIPT_LIMIT = 30

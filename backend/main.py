@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse
 from backend.config import NPC_TRANSCRIPT_LIMIT, TALK_TEXT_LIMIT, TURN_TIMEOUT
 from backend.db import SessionMaker, init_db
 from backend.dialogue import build_provider
+from backend.dialogue_effects import process_proposals
 from backend.entities import NPC
 from backend.events import EventType
 from backend.npc_store import load_npcs, save_npcs
@@ -328,17 +329,26 @@ async def handle_talk(websocket: WebSocket, player_id: str, data: dict) -> None:
             await websocket.send_json({"type": "error", "message": f"{npc.name} is no longer listening."})
             return
         npc.transcript.append({"speaker": player_name, "text": text})
-        npc.transcript.append({"speaker": "npc", "text": reply})
+        npc.transcript.append({"speaker": "npc", "text": reply.text})
         del npc.transcript[:-NPC_TRANSCRIPT_LIMIT]
 
-    # Text channel only (M4): prose to the talking player, no state change,
-    # no broadcast — dialogue is one-on-one.
+        # Effect channel: the engine validates the LLM's raw proposals and
+        # applies the accepted ones through the same apply_effect path combat
+        # uses (invalid/unknown ones are dropped and logged inside). Runs under
+        # the lock — pure CPU, no I/O — and its events are world-visible, so
+        # they broadcast to the whole room, unlike the 1:1 dialogue text below.
+        effect_events = process_proposals(runtime.engine.room, npc, reply.proposals)
+        if effect_events:
+            await broadcast_state_and_events(runtime, effect_events)
+
+    # Text channel: prose to the talking player only, always shown regardless
+    # of whether any proposal was accepted — dialogue is one-on-one.
     await websocket.send_json({
         "type": "npc_dialogue",
         "npc_id": npc.id,
         "name": npc.name,
         "player_text": text,
-        "text": reply,
+        "text": reply.text,
     })
 
 

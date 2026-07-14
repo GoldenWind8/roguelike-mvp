@@ -14,6 +14,9 @@ class EventType(Enum):
     ENEMY_ATTACKED = "enemy_attacked"
     ENEMY_DIED = "enemy_died"
     NPC_DIED = "npc_died"
+    # A living actor's disposition toward players changed (e.g. a validated
+    # set_disposition dialogue effect). World-visible: broadcast like any event.
+    DISPOSITION_CHANGED = "disposition_changed"
     ROUND_STARTED = "round_started"
     INVALID_ACTION = "invalid_action"
     PLAYER_LEFT = "player_left"

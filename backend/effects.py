@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 from backend.room_state import RoomState
 from backend.events import GameEvent, EventType
-from backend.entities import NPC, Player
+from backend.entities import NPC, Player, Disposition
 
 @dataclass
 class Kill:
@@ -20,7 +20,20 @@ class Damage:
     amount: int
     source_id: str | None = None
 
-Effect = Damage | Kill
+@dataclass
+class SetDisposition:
+    """Set an actor's disposition toward players. A TRUSTED engine effect: it
+    only enters the union after a validator has turned an untrusted proposal
+    into one (backend/dialogue_effects.py) — AI proposes, the engine disposes.
+
+    Scope: writes the field and emits an event, nothing else. It deliberately
+    does NOT switch room mode or start combat when flipping to hostile — that
+    escalation is Milestone 7 (ROADMAP.md), which reads this same field."""
+    target_id: str
+    disposition: Disposition
+    source_id: str | None = None
+
+Effect = Damage | Kill | SetDisposition
 
 def compute_damage(base_amount: int, target) -> int:
     """Damage a target actually takes: base amount minus defense, min 1."""
@@ -31,7 +44,24 @@ def apply_effect(room: RoomState, effect: Effect) -> list[GameEvent]:
         return _apply_damage(room, effect)
     if isinstance(effect, Kill):
         return _apply_kill(room, effect)
+    if isinstance(effect, SetDisposition):
+        return _apply_set_disposition(room, effect)
     return []
+
+def _apply_set_disposition(room: RoomState, effect: SetDisposition) -> list[GameEvent]:
+    target = room.get_entity(effect.target_id)
+    if not target or not target.is_alive:
+        return []
+    target.disposition = effect.disposition
+    return [GameEvent(
+        EventType.DISPOSITION_CHANGED,
+        {
+            "target_id": target.id,
+            "disposition": effect.disposition.value,
+            "source_id": effect.source_id,
+        },
+        room.round,
+    )]
 
 def _apply_kill(room: RoomState, effect: Kill) -> list[GameEvent]:
     target = room.get_entity(effect.target_id)

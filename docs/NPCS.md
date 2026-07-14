@@ -18,15 +18,21 @@ class in memory, separate tables at rest) and pulled individual persistence
 forward — NPCs and players are instance rows, room resets stop destroying
 individuals, and party membership persists (Decisions 8–10).
 
-**Implemented 2026-07-14** (build-order steps 1–2): `Actor` base class, the
+**Implemented 2026-07-14** (build-order steps 1–3): `Actor` base class, the
 `npcs` table + eviction-saves-individuals, the persona gate
-(`persona.validate_persona`), and M4 text-only LLM dialogue
+(`persona.validate_persona`), M4 text-only LLM dialogue
 (`dialogue.GridProvider` with `CannedProvider` fallback, talk outside the
-room lock). Not yet: the `players` table — persisting player rows is useless
-until the open identity question (how a returning connection claims its row)
-is answered, so it waits for that decision rather than shipping dead schema.
-Next per the build order: dialogue effects (closed vocabulary,
-`set_disposition` first).
+room lock), and M5 dialogue effects — the effect channel is live. A reply is
+now a `DialogueReply(text, proposals)`; `dialogue_effects.py` is the closed
+vocabulary + validator (one entry, `set_disposition`), and accepted proposals
+apply through the same `effects.apply_effect` path combat uses (`SetDisposition`
+→ `disposition_changed` event). Invalid proposals are dropped and logged; the
+text always shows. Not yet: the `players` table — persisting player rows is
+useless until the open identity question (how a returning connection claims
+its row) is answered, so it waits for that decision rather than shipping dead
+schema. Next per the build order: party effects (`join_party`/`leave_party`,
+persistent membership, the follower `Brain` seam) and escalation (disposition
+flip → live room mode switch).
 
 ## Core Model: Axes, Not Taxonomy
 
@@ -290,7 +296,9 @@ flowchart TD
   the seam arrives with party effects, not before).
 - A generalized relationship system or factions (the party map is the only
   per-player datum until then).
-- The effect channel in M4 itself (text-only first; effects are the next
-  slice).
+- A per-NPC effect allowlist (deferred with M5): `set_disposition` is the NPC
+  changing its own attitude — universally in-context, so a capability field
+  would be surface for zero payoff. Revisit at the second effect (`join_party`),
+  where some NPCs must be forbidden from granting it.
 - On-the-fly persona generation (the schema gate must earn trust on
   hand-authored personas first).
