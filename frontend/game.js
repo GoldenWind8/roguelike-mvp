@@ -26,6 +26,17 @@ const OBJECT_ICONS = {
 };
 const NPC_COLOR = "#c9a0ff";
 const NPC_ICON = "☺";
+// An NPC recolors with its disposition toward players, so a set_disposition
+// dialogue effect is visible at a glance: hostile reads like a threat (the
+// enemy hue), friendly warms to ally-green, neutral stays the default lavender.
+const NPC_DISPOSITION_COLORS = {
+    hostile: ENEMY_COLOR,
+    friendly: "#4ecca3",
+    neutral: NPC_COLOR,
+};
+function npcColor(npc) {
+    return NPC_DISPOSITION_COLORS[npc && npc.disposition] || NPC_COLOR;
+}
 
 function connect() {
     const protocol = location.protocol === "https:" ? "wss:" : "ws:";
@@ -297,17 +308,18 @@ function renderGrid() {
         } else if (npc) {
             cell.classList.add("cell-npc");
             cell.title = "Talk to " + npc.name;
+            const color = npcColor(npc);
 
             const iconEl = document.createElement("div");
             iconEl.className = "entity-icon";
             iconEl.textContent = NPC_ICON;
-            iconEl.style.color = NPC_COLOR;
+            iconEl.style.color = color;
             cell.appendChild(iconEl);
 
             const nameEl = document.createElement("div");
             nameEl.className = "entity-name";
             nameEl.textContent = npc.name;
-            nameEl.style.color = NPC_COLOR;
+            nameEl.style.color = color;
             cell.appendChild(nameEl);
 
             addHpBar(cell, npc.hp, npc.max_hp);
@@ -441,7 +453,7 @@ function renderEntities() {
         Object.values(gameState.npcs).forEach((n) => {
             const li = document.createElement("li");
             li.innerHTML = `
-                <span style="color:${NPC_COLOR}">${NPC_ICON} ${n.name}</span>
+                <span style="color:${npcColor(n)}">${NPC_ICON} ${n.name}</span>
                 <span>${n.disposition || ""}</span>
                 <span>${n.hp}/${n.max_hp} HP</span>
             `;
@@ -721,6 +733,9 @@ function appendEventFromServer(event) {
             break;
         case "npc_died":
             appendEvent("death", getName(data.target_id) + " was slain!");
+            break;
+        case "disposition_changed":
+            appendEvent("npc", getName(data.target_id) + " now regards you as " + data.disposition);
             break;
         case "bomb_thrown":
             appendEvent("attack", getName(data.player_id) + " hurls a bomb at (" + data.tile[0] + "," + data.tile[1] + ")");

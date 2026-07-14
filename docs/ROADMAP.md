@@ -20,8 +20,9 @@ Goal: what an NPC agrees to can actually happen — recruit a follower, or
 talk your way into (and out of) a fight.
 
 Milestones 1 (room runtime boundary), 2 (door/portal traversal), 3
-(exploration mode), and 4 (NPC dialogue + individual persistence) are done
-and folded into Current Reality above. The old "combat-room integration"
+(exploration mode), 4 (NPC dialogue + individual persistence), and 5
+(dialogue effects — the validated closed-vocabulary channel) are done and
+folded into Current Reality above. The old "combat-room integration"
 milestone dissolved: its static half (combat and exploration rooms
 coexisting, traversal between them) shipped with M3–M4, and its dynamic half
 (a room *switching* modes live) is exactly the escalation feature, now
@@ -65,7 +66,7 @@ Shipped against its definition of done:
 Beyond the floor: NPCs persist as individuals (eviction saves their row),
 and dialogue memory survives restarts as a bounded transcript.
 
-### Milestone 5: Dialogue Effects
+### Milestone 5: Dialogue Effects (done)
 
 Design source of truth: NPCS.md "Dialogue: Two Channels". The LLM's reply
 gains a second, structured channel: effect proposals drawn from a **closed
@@ -73,17 +74,28 @@ vocabulary**, validated by the engine in context, applied through the same
 `apply_effect` path combat uses. AI proposes, the engine disposes — prompt
 injection can only propose what the validator refuses.
 
-Definition of done:
+Shipped against its definition of done:
 
-- The dialogue provider can return `(text, effect proposals)` instead of
-  text alone; canned replies simply never propose.
+- The dialogue provider returns `(text, effect proposals)` instead of text
+  alone (`DialogueReply`); canned replies never propose. ✔ (`GridProvider`
+  parses a `{"say", "effects"}` JSON envelope; a non-JSON completion degrades
+  to text-only, never to canned — a real reply is never discarded.)
 - `set_disposition` works end to end: a validated proposal flips the NPC's
-  disposition field and emits a normal event players can see.
+  disposition field and emits a `disposition_changed` event players see. ✔
+  (trusted engine effect `SetDisposition` in the `effects.py` union)
 - Invalid/unknown/out-of-context proposals are dropped silently; the text
-  still shows. Rejections are logged for tuning.
-- The persona document tells the LLM what it is allowed to propose.
+  still shows. Rejections are logged for tuning. ✔ (`dialogue_effects.py` —
+  the pure, websocket-free validate→apply seam)
+- The persona document tells the LLM what it is allowed to propose. ✔ (the
+  closed vocabulary + JSON envelope live in `build_prompt`'s system framing;
+  a per-NPC allowlist was deliberately deferred until a second effect makes
+  per-NPC capability meaningful — M6's `join_party`)
 
-Smallest slice on purpose: one effect proves the whole pipe (parse →
+Scope held tight: flipping to hostile only writes the field + emits the event
+(the NPC recolors, a line logs). It does NOT switch room mode or start a
+fight — that escalation is Milestone 7, which reads this same field.
+
+Smallest slice on purpose: one effect proved the whole pipe (parse →
 validate → apply → event). Every later effect is vocabulary, not machinery.
 
 ### Milestone 6: Party Members

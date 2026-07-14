@@ -219,11 +219,13 @@ def test_npc_takes_damage_and_dies_as_npc(make_template):
 async def test_canned_provider_is_deterministic_rotation():
     npc = make_npc()
     provider = CannedProvider()
-    assert await provider.reply(npc, "Hero", "hi") == "First line."
+    # A DialogueReply now: text rotates, and canned lines NEVER propose effects.
+    first = await provider.reply(npc, "Hero", "hi")
+    assert first.text == "First line." and first.proposals == []
     npc.transcript += [{"speaker": "Hero", "text": "hi"}, {"speaker": "npc", "text": "First line."}]
-    assert await provider.reply(npc, "Hero", "hi again") == "Second line."
+    assert (await provider.reply(npc, "Hero", "hi again")).text == "Second line."
     npc.transcript += [{"speaker": "Hero", "text": "x"}, {"speaker": "npc", "text": "Second line."}]
-    assert await provider.reply(npc, "Hero", "and again") == "First line."
+    assert (await provider.reply(npc, "Hero", "and again")).text == "First line."
 
 
 def grid_with(handler) -> GridProvider:
@@ -231,22 +233,45 @@ def grid_with(handler) -> GridProvider:
     return GridProvider(fallback=CannedProvider(), client=client)
 
 
-async def test_grid_provider_returns_completion():
+def _completion(content):
+    return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
+
+
+async def test_grid_provider_bare_prose_is_text_only():
+    # A completion that isn't a JSON envelope is still a real reply — show the
+    # prose, propose nothing. Crucially NOT the canned line: parse-failure must
+    # degrade to TEXT, never discard a genuine LLM response.
     def ok(request):
         assert request.url.path == "/v1/chat/completions"
-        return httpx.Response(200, json={"choices": [{"message": {"content": "  Mind the dust.  "}}]})
-    assert await grid_with(ok).reply(make_npc(), "Hero", "hi") == "Mind the dust."
+        return _completion("  Mind the dust.  ")
+    reply = await grid_with(ok).reply(make_npc(), "Hero", "hi")
+    assert reply.text == "Mind the dust." and reply.proposals == []
+
+
+async def test_grid_provider_parses_effect_envelope():
+    envelope = '{"say": "You will regret that.", "effects": [{"effect": "set_disposition", "disposition": "hostile"}]}'
+    reply = await grid_with(lambda r: _completion(envelope)).reply(make_npc(), "Hero", "you fool")
+    assert reply.text == "You will regret that."
+    # Proposals pass through RAW and unvalidated — the engine is the gate.
+    assert reply.proposals == [{"effect": "set_disposition", "disposition": "hostile"}]
+
+
+async def test_grid_provider_strips_markdown_code_fence():
+    fenced = '```json\n{"say": "Fine.", "effects": []}\n```'
+    reply = await grid_with(lambda r: _completion(fenced)).reply(make_npc(), "Hero", "hi")
+    assert reply.text == "Fine." and reply.proposals == []
 
 
 @pytest.mark.parametrize("failure", [
     lambda request: httpx.Response(429, json={"error": "rate limited"}),
     lambda request: httpx.Response(500),
-    lambda request: httpx.Response(200, json={"choices": [{"message": {"content": ""}}]}),
+    lambda request: _completion(""),
     lambda request: (_ for _ in ()).throw(httpx.ConnectTimeout("slow")),
 ])
 async def test_grid_provider_degrades_to_canned(failure):
+    # Provider FAILURE (not a mere non-JSON body) → canned line, no proposals.
     reply = await grid_with(failure).reply(make_npc(), "Hero", "hi")
-    assert reply == "First line."               # canned, never an exception
+    assert reply.text == "First line." and reply.proposals == []
 
 
 def test_prompt_layout_is_stable_prefix_with_untrusted_block():
