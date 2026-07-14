@@ -130,19 +130,19 @@ pass validation before the server uses it.
 
 ## NPCs
 
-Near-term NPCs should be simple:
-
 - NPCs exist in rooms.
 - A player can talk to one NPC at a time.
-- The NPC has a description, personality, memory summary, and dialogue context.
+- The NPC has a description, personality, memory (embeddings stored in db), and dialogue context.
 - Dialogue may reveal lore, hints, relationships, or simple goals.
 
-Later NPCs may:
+NPCs may:
 
 - Move between rooms.
-- Become friendly to a player.
-- Follow a player through room transitions.
+- Become friendly or hostile to a player.
+- Join a player's party and Follow a player through room transitions .
 - Die and lose the friendship/follower state.
+
+Later:
 - Interact with other NPCs or players when the server chooses to spend AI calls.
 
 Do not start with autonomous background NPC simulation. It is expensive, harder

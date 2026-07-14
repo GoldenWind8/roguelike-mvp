@@ -57,11 +57,9 @@ Why this matters concretely:
 3. **Disposition ships as a three-value enum from day one**
    (`hostile | neutral | friendly`), even while v1 uses only one value —
    it is the hook escalation and factions grab onto.
-4. **No taxonomy.** The v1 NPC shares the actor shape (id, name, position,
+4. **Taxonomy Undecided** The v1 NPC shares the actor shape (id, name, position,
    hp, is_alive) plus disposition and dialogue fields. `Player`/`Enemy` are
-   not refactored yet; the dataclasses merge when escalation ships a feature
-   through the unification (avoid "rewriting combat to make the names
-   prettier").
+   not refactored yet; What should we do?
 5. **Dialogue has two channels** (below). Text never mutates state; effects
    may, through validation.
 6. **The LLM is the M4 dialogue source — because M4 is text-only.** The
@@ -73,9 +71,8 @@ Why this matters concretely:
    is not designer ergonomics — it is the validation gate for
    machine-generated NPCs (see "Personas As Data").
 8. **Party effects enter the closed vocabulary now, room-scoped.**
-   `join_party`/`leave_party` are dialogue effects in v1; membership
-   dissolves with the room. Durable cross-room followers stay gated on
-   persistence and traversal (see "Followers").
+   `join_party`/`leave_party` are dialogue effects in v1;
+9. Npcs are similar to players and have their room + location set in their db. They arnt part of room design.
 
 ## Dialogue: Two Channels
 
@@ -93,7 +90,7 @@ The word *directly* defines the architecture:
 
 ```mermaid
 flowchart LR
-    P["player text"] --> D["dialogue layer (later: LLM)"]
+    P["player text"] --> D["dialogue layer (LLM)"]
     D --> T["response text"] --> P
     D --> E["effect proposals (closed vocabulary)"]
     E --> V{"engine validation"}
@@ -137,7 +134,8 @@ A `DialogueProvider` protocol with two implementations shipped together:
 - `GridProvider` — the real call.
 
 This is not speculative abstraction; both implementations are real on day
-one, which satisfies the "abstract at the second behavior" rule.
+one, which satisfies the "abstract at the second behavior" rule. 
+We may have other providers in future such as Claude, Gemini etc.
 
 ### Degrade to canned, never freeze
 
@@ -148,12 +146,8 @@ never affect the sim: talk requests run outside the room lock (rule above)
 and re-enter through the validated path when the response arrives. Rounds
 keep resolving meanwhile.
 
-### Memory: transcript, not database
-
-Multi-turn coherence comes from a bounded in-process per-NPC transcript
-(last N exchanges) replayed into the prompt. No memory database, no
-reflection jobs — durable NPC memory dies with room resets anyway, so it
-sits behind the same persistence gate as followers.
+### Memory: db embeddings
+To be decided
 
 ### Prompt layout (stable prefix)
 
@@ -163,15 +157,6 @@ timestamps or random IDs; player text always sits in a clearly delimited
 untrusted block, instructed to be read as in-world speech only. Costs
 nothing, makes prompts diffable, and becomes an automatic discount on any
 provider that caches prefixes.
-
-### Deliberately Skipped (from the Animus review)
-
-| Feature | Why skipped | Revisit when |
-|---|---|---|
-| Streamed dialogue deltas | New frame type + client work, for short lines | Responses feel hung often enough that players notice |
-| Memory store (SQLite/FTS5) + reflection | Transcript suffices; room resets erase memory anyway | The persistence era |
-| Budgets, request metrics surface | A log line with token usage per call is enough at this scale | A real player base |
-| Game-agnostic engine boundary | One game; an abstraction that forbids our own nouns has no second customer | An actual second game |
 
 ## Personas As Data (JSON Schema)
 
@@ -232,9 +217,7 @@ extensible.
 
 Enemies are fungible — a thousand Goblins reference `enemy_defs` row 1. NPCs
 are individuals — Gorrik's personality, dialogue context, and (later) memory
-of specific players belong to one instance in one room. At rest, NPCs want
-instance rows (identity + placement + dialogue data), not a widening of the
-def catalog. Same actor concept in memory; different shape at rest.
+of old dialgoue belong to that npc in some persistent form. We need to decide how to handle this in db and how to abstract enemies + npcs to actor.
 
 ## Build Order
 
@@ -253,11 +236,8 @@ flowchart TD
 - The `Brain` interface (current enemy AI is one hardcoded brain; abstract
   at the second behavior — the follower brain is that second behavior, so
   the seam arrives with party effects, not before).
-- The `Player`/`Enemy`/NPC dataclass merge (do it when escalation ships).
 - A generalized relationship system or factions (the party map is the only
   per-player datum until then).
-- NPC traversal or any player-owned persistence (parties stay room-scoped
-  until these exist).
 - The effect channel in M4 itself (text-only first; effects are the next
   slice).
 - On-the-fly persona generation (the schema gate must earn trust on
