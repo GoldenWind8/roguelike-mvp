@@ -145,6 +145,27 @@ def validate_enemy_refs(data: dict, known_ids) -> None:
             raise ValueError(f"enemy_id {e['enemy_id']} is not a known enemy definition")
 
 
+def validate_npc_placement(room: dict, x: int, y: int) -> None:
+    """An NPC must stand on a plain floor tile: walls are unwalkable, and
+    NPCs occupy their tile (NPCS.md Decision 2) so parking one on a door or
+    portal would block the room's entry. Overlap with spawns/enemies/objects
+    is checked at seed time only — at runtime individuals move freely."""
+    if not (0 <= y < room["height"] and 0 <= x < room["width"]):
+        raise ValueError(f"NPC at ({x}, {y}) is out of bounds for room '{room['name']}'")
+    tile = TileType(room["terrain"][y][x])
+    if tile is not TileType.FLOOR:
+        raise ValueError(f"NPC at ({x}, {y}) in '{room['name']}' must be on floor, not {tile.name}")
+    for i, p in enumerate(room.get("spawn_points", [])):
+        if (p[0], p[1]) == (x, y):
+            raise ValueError(f"NPC at ({x}, {y}) overlaps spawn point {i}")
+    for e in room.get("enemy_spawns", []):
+        if (e["x"], e["y"]) == (x, y):
+            raise ValueError(f"NPC at ({x}, {y}) overlaps enemy_id {e['enemy_id']}")
+    for o in room.get("objects", []):
+        if (o["x"], o["y"]) == (x, y):
+            raise ValueError(f"NPC at ({x}, {y}) overlaps object '{o['type']}'")
+
+
 def validate_connection(from_room: dict, conn: dict) -> None:
     """A connection must originate on an actual door/portal tile of from_room."""
     x, y = conn["from_x"], conn["from_y"]

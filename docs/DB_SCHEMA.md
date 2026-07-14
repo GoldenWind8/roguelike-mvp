@@ -11,14 +11,32 @@ Related docs:
 
 ## Current Schema
 
-The current database stores room templates, directed room connections, and
-reusable enemy definitions.
+The current database stores room templates, directed room connections,
+reusable enemy definitions, and NPC instance rows (the first individual
+state — see NPCS.md Decisions 9–10).
 
 ```mermaid
 erDiagram
     ROOMS ||--o{ ROOM_CONNECTIONS : "from_room_id"
     ROOMS ||--o{ ROOM_CONNECTIONS : "to_room_id"
     ENEMY_DEFS }o..o{ ROOMS : "soft ref via enemy_spawns"
+    NPCS }o--|| ROOMS : "room_id (location, not ownership)"
+
+    NPCS {
+        int id PK
+        int room_id FK "where it is, not room design data"
+        string name
+        int x
+        int y
+        int hp
+        int max_hp
+        int defense
+        int attack_damage
+        bool is_alive
+        string disposition "hostile | neutral | friendly"
+        json persona "validated against the persona schema"
+        json memory "bounded dialogue transcript"
+    }
 
     ROOMS {
         int id PK
@@ -56,23 +74,38 @@ erDiagram
 |---|---|---|
 | `rooms` | Room template data | Terrain, objects, spawns, and enemy placements. This is not live session state. |
 | `room_connections` | Directed world graph edges | Traversal uses these: `load_room` reads a room's outgoing edges into `RoomTemplate.connections`, and stepping onto a connected tile transfers the player. Arrival uses the destination's first free spawn (`to_x`/`to_y` are still future columns). |
-| `enemy_defs` | Reusable enemy catalog | Rooms reference enemy ids from JSON and load stats from this table. |
+| `enemy_defs` | Reusable enemy catalog | Rooms reference enemy ids from JSON and load stats from this table. Planned: runtime-appendable by LLM world generation, gated by schema/bounds validation (stat ranges; effect lists drawn from the closed vocabulary). |
+| `npcs` | NPC instance rows (individuals) | One row per NPC that exists in the world; play edits it (hp, position, disposition, memory) and it survives room resets and restarts. Loaded/saved by `npc_store.py`; eviction is "save individuals, unload". Full stats are columns because an individual's wounds and buffs are instance state. `persona` is validated by `persona.validate_persona` on insert *and* load. `party_owner_id` arrives with the party-effects slice. |
 
 ## Important Boundary
 
-`rooms` is authored/generated template data. It should not be edited because
-something happened during play.
+Durable data now splits three ways, per NPCS.md's "a row exists to
+remember something":
+
+- **Template data** (`rooms`, `room_connections`, `enemy_defs`): authored or
+  generated definitions. Never edited because something happened during
+  play. Generation (human or LLM) may *append* — a new room, a new enemy
+  def — through validation, but play never mutates.
+- **Individual state** (`npcs` — current; `players` — planned): instance rows
+  that *are* edited by play (hp, position, room, party membership) and survive
+  room resets and restarts.
+- **Ephemeral state** (fungible enemy hp/positions, round counters): lives
+  only in memory and is deliberately forgotten on room reset — enemy
+  respawn is a feature, not a persistence gap.
 
 Examples:
 
-- Enemy died: live/session state.
-- Chest opened: live/session state.
-- Player moved: live/session state.
+- Fungible enemy died: ephemeral — respawns on next room load.
+- Player moved or took damage: individual state — persists.
+- NPC joined a party: individual state — persists.
+- Chest opened: ephemeral today; becomes individual state when
+  `object_instances` exists.
 - Room terrain generated and accepted: template data.
-- New door connection generated and accepted: template data.
+- LLM invents a new enemy type: template data (append to `enemy_defs`
+  through the validation gate).
 
-This boundary prevents one player's session from accidentally corrupting the
-canonical room definition for everyone.
+This boundary prevents one player's session from corrupting canonical
+definitions, while letting individuals accumulate history.
 
 ## JSON Columns
 
@@ -125,25 +158,32 @@ These are likely to matter for exploration.
 
 ```mermaid
 erDiagram
-    ROOMS ||--o{ ROOM_NPCS : "room_id"
+    NPCS }o--|| ROOMS : "room_id (location, not ownership)"
     ROOMS ||--o{ ROOM_CONNECTIONS : "from/to"
     PLAYERS }o--|| ROOMS : "current_room_id"
+    NPCS }o--o| PLAYERS : "party_owner_id"
     PLAYERS ||--o{ PLAYER_INVENTORY : "player_id"
     ITEMS ||--o{ PLAYER_INVENTORY : "item_id"
 
-    ROOM_NPCS {
+    NPCS {
         int id PK
-        int room_id FK
+        int room_id FK "where it is, not who owns it"
         string name
         int x
         int y
-        json profile
+        int hp
+        string disposition
+        json persona "schema-validated document"
+        int party_owner_id FK "null unless recruited"
     }
 
     PLAYERS {
         int id PK
         string name
         int current_room_id FK
+        int x
+        int y
+        int hp
         datetime created_at
     }
 
@@ -168,9 +208,9 @@ erDiagram
 |---|---|
 | `room_connections.to_x`, `to_y` | Place players at a specific destination tile after traversal. |
 | `room_connections.kind` | Distinguish door, portal, path, stairs, etc. |
-| `room_npcs` | Store basic NPCs for dialogue and room presence. |
+| `npcs` | **Done** (see Current Tables) except `party_owner_id`, which lands with the party-effects slice because it needs an owner to point at. |
+| `players` | Individual player state that survives disconnect and restart; also gives inventory/progression a stable owner. Open question: identity — how a returning connection claims its row. |
 | `items` | Store generated or hand-authored item definitions. |
-| `players` | Give inventory/progression a stable owner. |
 | `player_inventory` | Let items follow players between rooms. |
 
 Do not add all of these at once. Add the smallest table/column needed by the

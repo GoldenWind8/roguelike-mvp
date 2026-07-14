@@ -7,6 +7,8 @@ let bombArmed = false;
 let renderedGridWidth = 0;
 let renderedGridHeight = 0;
 let inspectedObject = null;
+let dialogueNpcId = null;
+let dialoguePending = false;
 
 const PLAYER_COLORS = ["#4ecca3", "#7ec8e3", "#ffd700", "#c490e4"];
 const PLAYER_ICONS = ["⚔", "♠", "♦", "♣"];
@@ -22,6 +24,8 @@ const OBJECT_ICONS = {
     chest: "C",
     fire_barrel: "B",
 };
+const NPC_COLOR = "#c9a0ff";
+const NPC_ICON = "☺";
 
 function connect() {
     const protocol = location.protocol === "https:" ? "wss:" : "ws:";
@@ -53,8 +57,15 @@ function connect() {
             case "object_inspection":
                 handleObjectInspection(msg);
                 break;
+            case "npc_dialogue":
+                handleNpcDialogue(msg);
+                break;
             case "error":
                 appendEvent("error", msg.message);
+                if (dialoguePending) {
+                    dialoguePending = false;
+                    removePendingLine();
+                }
                 break;
         }
     };
@@ -91,6 +102,8 @@ function handleStateUpdate(msg) {
     if (inspectedObject && !getObjectById(inspectedObject.id)) {
         inspectedObject = null;
     }
+    const npc = dialogueNpcId && gameState.npcs ? gameState.npcs[dialogueNpcId] : null;
+    if (dialogueNpcId && (!npc || !npc.is_alive)) closeDialogue();
     renderAll();
     if (msg.events) {
         msg.events.forEach((e) => appendEventFromServer(e));
@@ -105,6 +118,7 @@ function handleRoomChanged(msg) {
     // Object ids are per-room ("object_1" exists in most rooms) — an id-based
     // staleness check would keep showing the OLD room's object, so always clear.
     inspectedObject = null;
+    closeDialogue();
     renderAll();
     appendEvent("join", "You enter " + ((msg.state.room && msg.state.room.name) || "a new room"));
     if (msg.events) {
@@ -246,6 +260,7 @@ function renderGrid() {
 
         const player = gameState.players[occupantId];
         const enemy = gameState.enemies ? gameState.enemies[occupantId] : null;
+        const npc = gameState.npcs ? gameState.npcs[occupantId] : null;
 
         if (player) {
             const idx = playerIndex[occupantId] || 0;
@@ -279,6 +294,23 @@ function renderGrid() {
             cell.appendChild(nameEl);
 
             addHpBar(cell, enemy.hp, enemy.max_hp);
+        } else if (npc) {
+            cell.classList.add("cell-npc");
+            cell.title = "Talk to " + npc.name;
+
+            const iconEl = document.createElement("div");
+            iconEl.className = "entity-icon";
+            iconEl.textContent = NPC_ICON;
+            iconEl.style.color = NPC_COLOR;
+            cell.appendChild(iconEl);
+
+            const nameEl = document.createElement("div");
+            nameEl.className = "entity-name";
+            nameEl.textContent = npc.name;
+            nameEl.style.color = NPC_COLOR;
+            cell.appendChild(nameEl);
+
+            addHpBar(cell, npc.hp, npc.max_hp);
         }
     });
 }
@@ -401,6 +433,19 @@ function renderEntities() {
                 <span>${e.hp}/${e.max_hp} HP</span>
             `;
             if (!e.is_alive) li.classList.add("entity-dead");
+            list.appendChild(li);
+        });
+    }
+
+    if (gameState.npcs) {
+        Object.values(gameState.npcs).forEach((n) => {
+            const li = document.createElement("li");
+            li.innerHTML = `
+                <span style="color:${NPC_COLOR}">${NPC_ICON} ${n.name}</span>
+                <span>${n.disposition || ""}</span>
+                <span>${n.hp}/${n.max_hp} HP</span>
+            `;
+            if (!n.is_alive) li.classList.add("entity-dead");
             list.appendChild(li);
         });
     }
@@ -551,6 +596,20 @@ function handleCellClick(x, y) {
         return;
     }
 
+    // Talking is a request, not an action — allowed in both modes, even while
+    // the round is locked. Same targeting rule as attack: walk adjacent first.
+    const clickedId = getGridOccupant(x, y);
+    const npc = clickedId && gameState.npcs ? gameState.npcs[clickedId] : null;
+    if (npc && npc.is_alive) {
+        const self = gameState.players[myPlayerId];
+        if (self && Math.abs(self.position[0] - x) + Math.abs(self.position[1] - y) === 1) {
+            openDialogue(npc);
+        } else {
+            appendEvent("error", "Move next to " + npc.name + " to talk.");
+        }
+        return;
+    }
+
     if (actionLocked || !gameState.started || isExploration()) return;
     const me = gameState.players[myPlayerId];
     if (!me || !me.is_alive) return;
@@ -569,7 +628,67 @@ function getName(id) {
     if (!gameState) return id;
     if (gameState.players[id]) return gameState.players[id].name;
     if (gameState.enemies && gameState.enemies[id]) return gameState.enemies[id].name;
+    if (gameState.npcs && gameState.npcs[id]) return gameState.npcs[id].name;
     return id;
+}
+
+// --- NPC dialogue ---
+
+function openDialogue(npc) {
+    const panel = document.getElementById("dialogue-panel");
+    if (dialogueNpcId !== npc.id) {
+        document.getElementById("dialogue-log").innerHTML = "";
+        dialoguePending = false;
+    }
+    dialogueNpcId = npc.id;
+    document.getElementById("dialogue-title").textContent = npc.name;
+    document.getElementById("dialogue-role").textContent = npc.role || "";
+    panel.hidden = false;
+    document.getElementById("dialogue-input").focus();
+}
+
+function closeDialogue() {
+    dialogueNpcId = null;
+    dialoguePending = false;
+    const panel = document.getElementById("dialogue-panel");
+    if (panel) panel.hidden = true;
+}
+
+function sendTalk() {
+    if (!ws || !myPlayerId || !dialogueNpcId || dialoguePending) return;
+    const input = document.getElementById("dialogue-input");
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = "";
+    appendDialogueLine("line-player", "You: " + text);
+    appendDialogueLine("line-pending", "...");
+    dialoguePending = true;
+    ws.send(JSON.stringify({ type: "talk", npc_id: dialogueNpcId, text }));
+}
+
+function handleNpcDialogue(msg) {
+    dialoguePending = false;
+    removePendingLine();
+    // Reply for a conversation we've already closed/switched — log it instead.
+    if (msg.npc_id !== dialogueNpcId) {
+        appendEvent("join", msg.name + ": " + msg.text);
+        return;
+    }
+    appendDialogueLine("line-npc", msg.name + ": " + msg.text);
+}
+
+function appendDialogueLine(cls, text) {
+    const log = document.getElementById("dialogue-log");
+    const div = document.createElement("div");
+    div.className = cls;
+    div.textContent = text;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+}
+
+function removePendingLine() {
+    const pending = document.querySelector("#dialogue-log .line-pending");
+    if (pending) pending.remove();
 }
 
 function appendEventFromServer(event) {
@@ -598,6 +717,9 @@ function appendEventFromServer(event) {
             appendEvent("enemy", data.attacker_name + " attacks " + getName(data.target_id) + " for " + data.damage + " dmg");
             break;
         case "enemy_died":
+            appendEvent("death", getName(data.target_id) + " was slain!");
+            break;
+        case "npc_died":
             appendEvent("death", getName(data.target_id) + " was slain!");
             break;
         case "bomb_thrown":
@@ -629,6 +751,10 @@ function appendEvent(type, message) {
     log.appendChild(div);
     log.scrollTop = log.scrollHeight;
 }
+
+document.getElementById("dialogue-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") sendTalk();
+});
 
 document.addEventListener("keydown", (e) => {
     if (document.activeElement && document.activeElement.tagName === "INPUT") return;

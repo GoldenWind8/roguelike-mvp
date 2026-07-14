@@ -136,10 +136,10 @@ class BombHandler(ActionHandler):
             {"player_id": player.id, "tile": [tx, ty], "radius": BOMB_RADIUS},
             room.round,
         )]
-        # Friendly fire is intentional: the blast hits every living entity in
-        # radius, including the thrower and allies. Defense/clamp math lives in
-        # apply_effect, so the handler only emits intent.
-        for entity in [*room.living_players(), *room.living_enemies()]:
+        # Friendly fire is intentional: the blast hits every living actor in
+        # radius, including the thrower, allies, and NPCs. Defense/clamp math
+        # lives in apply_effect, so the handler only emits intent.
+        for entity in room.living_actors():
             if _manhattan(center, entity.position) <= BOMB_RADIUS:
                 events.extend(apply_effect(room, Damage(entity.id, BOMB_DAMAGE, source_id=player.id)))
         return events

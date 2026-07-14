@@ -59,6 +59,35 @@ class EnemyDef(Base):
     on_death: Mapped[list] = mapped_column(JSON, default=list)   # list[effect]
 
 
+class NPCRow(Base):
+    """An individual (NPCS.md Decision 9): one row per NPC that exists in the
+    world. `room_id` is where the NPC *is*, not room design data — rooms never
+    list NPCs, so room load has two occupant sources: design spawns (fungible,
+    reseeded) and these rows (individuals, whose state survives).
+
+    Play EDITS these rows (hp, position, disposition) — unlike the template
+    tables above, which play never mutates. `persona` is validated against the
+    persona schema before insert/load (persona.validate_persona); `memory` is
+    the bounded dialogue transcript, per-instance state like everything else
+    here. party_owner_id arrives with the party-effects slice, not before.
+    """
+    __tablename__ = "npcs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    room_id: Mapped[int] = mapped_column(ForeignKey("rooms.id"))
+    name: Mapped[str] = mapped_column(String)
+    x: Mapped[int] = mapped_column(Integer)
+    y: Mapped[int] = mapped_column(Integer)
+    hp: Mapped[int] = mapped_column(Integer)
+    max_hp: Mapped[int] = mapped_column(Integer)
+    defense: Mapped[int] = mapped_column(Integer, default=0)
+    attack_damage: Mapped[int] = mapped_column(Integer, default=0)
+    is_alive: Mapped[bool] = mapped_column(default=True)
+    disposition: Mapped[str] = mapped_column(String, default="neutral")
+    persona: Mapped[dict] = mapped_column(JSON, default=dict)
+    memory: Mapped[list] = mapped_column(JSON, default=list)   # bounded transcript
+
+
 class Room(Base):
     """A level as data. `terrain`/`objects`/`spawn_points`/`enemy_spawns` are
     JSON because their shape varies — which means *we* validate them on the way

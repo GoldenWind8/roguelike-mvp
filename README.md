@@ -27,14 +27,20 @@ ideas stay separate.
 - Seeded room data with terrain, objects, enemy definitions, spawn points, and
   room connections.
 - Server-broadcast room dimensions and object summaries.
+- NPC dialogue: NPCs are persistent individuals (their own DB rows — hp,
+  position, disposition, and a bounded dialogue memory survive room resets
+  and restarts). Talking is a one-on-one panel; replies come from an LLM
+  (AI Power Grid) with hand-authored canned lines as the always-available
+  fallback. Text-only: dialogue cannot mutate game state.
 - Browser rendering for variable-size rooms, room transitions, room metadata,
   and first-pass object inspection.
 - Tests covering database setup, room validation, seeding, room loading, the
-  room registry, and traversal.
+  room registry, traversal, NPC persistence, and the dialogue provider seam.
 
 ## Not Built Yet
 
-- NPC dialogue (next milestone — see the [Roadmap](docs/ROADMAP.md)).
+- Dialogue effects (the closed vocabulary that lets an NPC's "yes" change
+  the world — next milestone, see the [Roadmap](docs/ROADMAP.md)).
 - Object pickup, inventory, or object effects.
 - Persistent player accounts or inventory.
 - Multi-process workers, Redis routing, or production-scale MMO infrastructure.

@@ -2,7 +2,7 @@ import itertools
 import random
 
 from backend.actions import Action
-from backend.entities import Enemy, Player, Position
+from backend.entities import Actor, Enemy, NPC, Player, Position
 from backend.config import PLAYER_MAX_HP, PLAYER_DEFENSE
 from backend.events import GameEvent, EventType
 from backend.room_loader import RoomTemplate
@@ -21,6 +21,9 @@ class RoomState:
         self.round = 0
         self.players: dict[str, Player] = {}
         self.enemies: dict[str, Enemy] = {}
+        # Individuals (NPCS.md Decision 9): loaded from instance rows, never
+        # from the template — the two occupant sources of a room.
+        self.npcs: dict[str, NPC] = {}
         self.walls: set[tuple[int, int]] = set(template.walls)
         self.objects = list(template.objects)
         self.pending_actions: dict[str, Action] = {}
@@ -79,6 +82,15 @@ class RoomState:
         self.grid[position.y][position.x] = enemy_id
         return enemy
 
+    def add_npc(self, npc: NPC) -> NPC:
+        """Place a loaded individual. NPCs occupy their tile (NPCS.md
+        Decision 2) — dead ones don't, matching how _kill_entity clears the
+        grid for any actor."""
+        self.npcs[npc.id] = npc
+        if npc.is_alive:
+            self.grid[npc.position.y][npc.position.x] = npc.id
+        return npc
+
     def remove_player(self, player_id: str):
         player = self.players.get(player_id)
         if not player:
@@ -116,11 +128,13 @@ class RoomState:
     def get_player(self, player_id: str) -> Player | None:
         return self.players.get(player_id)
 
-    def get_entity(self, entity_id: str) -> Player | Enemy | None:
+    def get_entity(self, entity_id: str) -> Actor | None:
         if entity_id.startswith("player_"):
             return self.players.get(entity_id)
         elif entity_id.startswith("enemy_"):
             return self.enemies.get(entity_id)
+        elif entity_id.startswith("npc_"):
+            return self.npcs.get(entity_id)
         return None
 
     def get_object(self, object_id: str):
@@ -151,6 +165,14 @@ class RoomState:
     def living_enemies(self) -> list[Enemy]:
         return [e for e in self.enemies.values() if e.is_alive]
 
+    def living_npcs(self) -> list[NPC]:
+        return [n for n in self.npcs.values() if n.is_alive]
+
+    def living_actors(self) -> list[Actor]:
+        """Everything that can take damage — area effects target this, so
+        they never silently skip a category of actor."""
+        return [*self.living_players(), *self.living_enemies(), *self.living_npcs()]
+
     def players_pending(self) -> list[str]:
         living_ids = {p.id for p in self.living_players()}
         submitted_ids = set(self.pending_actions.keys())
@@ -171,5 +193,6 @@ class RoomState:
             "objects": [obj.to_summary_dict() for obj in self.objects],
             "players": {pid: p.to_dict() for pid, p in self.players.items()},
             "enemies": {eid: e.to_dict() for eid, e in self.enemies.items()},
+            "npcs": {nid: n.to_dict() for nid, n in self.npcs.items()},
             "pending_player_ids": self.players_pending(),
         }

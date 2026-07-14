@@ -13,12 +13,14 @@ Terrain is an ASCII grid (one char per tile, see TileType):
 """
 from sqlalchemy import select
 
+from backend.persona import validate_persona
 from backend.room_validation import (
     validate_connection,
     validate_enemy_refs,
+    validate_npc_placement,
     validate_room,
 )
-from backend.models import EnemyDef, Room, RoomConnection
+from backend.models import EnemyDef, NPCRow, Room, RoomConnection
 
 
 # Reusable enemy catalog. Stable, explicit ids so rooms can reference them.
@@ -86,6 +88,43 @@ SECOND_ROOM = {
 }
 
 
+# The first individual (NPCS.md Decision 9): seeded ONCE as an instance row
+# in the Antechamber, then owned by play — reseeding never resurrects or
+# moves him, unlike the fungible enemies above. The persona document is the
+# format a generator will emit later; it passes the same validation gate.
+GORRIK_PERSONA = {
+    "id": "gorrik-antechamber",
+    "name": "Gorrik",
+    "role": "caretaker of the antechamber",
+    "persona": (
+        "A stooped, gravel-voiced old caretaker who has swept the antechamber "
+        "since before anyone can remember. Gruff and economical with words, "
+        "secretly glad of any company. Speaks in short, dry sentences and "
+        "refers to the dungeon's monsters as 'the tenants'."
+    ),
+    "drives": [
+        "keep the antechamber tidy",
+        "learn news from travelers",
+        "avoid the tenants' notice",
+    ],
+    "disposition": "neutral",
+    "canned": [
+        "Mind the dust. I just swept there.",
+        "Hmph. Travelers. Always tracking blood through my hall.",
+        "The tenants next door are restless today. Step lightly.",
+        "Ask me no favors. I sweep, that is all.",
+    ],
+    "party_policy": "Will not leave his hall for strangers; decades of habit outweigh any offer.",
+}
+
+# (room_key, x, y, hp, defense) — placement is validated against the room
+# like every other seeded thing. Stats are modest: he is a caretaker, not a
+# combatant, but he IS an actor and can be hurt.
+NPC_SEEDS = [
+    ("second", GORRIK_PERSONA, 5, 2, 20, 1),
+]
+
+
 # Edges of the world graph: (from_room_key, to_room_key, from_x, from_y).
 # Resolved to real room ids at seed time once the rows have been flushed.
 _CONNECTIONS = [
@@ -107,6 +146,9 @@ async def seed_default_rooms(session) -> Room:
         validate_enemy_refs(data, known_enemy_ids)
     for from_key, _to, fx, fy in _CONNECTIONS:
         validate_connection(rooms[from_key], {"from_x": fx, "from_y": fy})
+    for room_key, persona, x, y, _hp, _defense in NPC_SEEDS:
+        validate_persona(persona)
+        validate_npc_placement(rooms[room_key], x, y)
 
     session.add_all(EnemyDef(**d) for d in ENEMY_DEFS)
 
@@ -129,8 +171,42 @@ async def seed_default_rooms(session) -> Room:
             to_room_id=models[to_key].id,
             from_x=fx, from_y=fy,
         ))
+
+    for room_key, persona, x, y, hp, defense in NPC_SEEDS:
+        session.add(_npc_row(persona, models[room_key].id, x, y, hp, defense))
+
     await session.commit()
     return models["default"]
+
+
+def _npc_row(persona: dict, room_id: int, x: int, y: int, hp: int, defense: int) -> NPCRow:
+    return NPCRow(
+        room_id=room_id,
+        name=persona["name"],
+        x=x, y=y,
+        hp=hp, max_hp=hp,
+        defense=defense, attack_damage=0,
+        disposition=persona["disposition"],
+        persona=persona,
+        memory=[],
+    )
+
+
+async def seed_npcs_if_missing(session) -> None:
+    """Backfill for databases seeded before the npcs table existed. Runs only
+    when the table has NEVER held a row — an empty-because-everyone-died table
+    still has rows (is_alive=False), and individuals must stay dead."""
+    existing = (await session.execute(select(NPCRow))).scalars().first()
+    if existing is not None:
+        return
+    key_to_name = {"default": DEFAULT_ROOM["name"], "second": SECOND_ROOM["name"]}
+    for room_key, persona, x, y, hp, defense in NPC_SEEDS:
+        validate_persona(persona)
+        room = (await session.execute(
+            select(Room).where(Room.name == key_to_name[room_key]))).scalars().first()
+        if room is not None:
+            session.add(_npc_row(persona, room.id, x, y, hp, defense))
+    await session.commit()
 
 
 async def get_or_seed_default_room(session) -> Room:
@@ -138,4 +214,7 @@ async def get_or_seed_default_room(session) -> Room:
     first boot if the rooms table is empty (Decision A — zero-touch startup)."""
     existing = (await session.execute(
         select(Room).where(Room.name == DEFAULT_ROOM["name"]))).scalars().first()
-    return existing or await seed_default_rooms(session)
+    if existing is None:
+        return await seed_default_rooms(session)
+    await seed_npcs_if_missing(session)
+    return existing

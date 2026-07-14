@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 from backend.room_state import RoomState
 from backend.events import GameEvent, EventType
-from backend.entities import Enemy
+from backend.entities import NPC, Player
 
 @dataclass
 class Kill:
@@ -63,7 +63,14 @@ def _kill_entity(room: RoomState, target, source_id: str | None) -> list[GameEve
     target.is_alive = False
     room.grid[target.position.y][target.position.x] = None
 
-    death_type = EventType.ENEMY_DIED if isinstance(target, Enemy) else EventType.PLAYER_DIED
+    # Dispatch on actor type, not on a flag: the event name must never lie
+    # about what died (an NPC is an individual — its death persists).
+    if isinstance(target, Player):
+        death_type = EventType.PLAYER_DIED
+    elif isinstance(target, NPC):
+        death_type = EventType.NPC_DIED
+    else:
+        death_type = EventType.ENEMY_DIED
     return [GameEvent(
         death_type,
         {"target_id": target.id, "killer_id": source_id},

@@ -1,0 +1,72 @@
+"""Mapper between `npcs` rows (at rest) and NPC entities (in memory).
+
+The individual-persistence twin of room_loader: that module maps template
+data (read-only at play time), this one maps instance state (play edits it).
+Load on room entry, save on eviction/shutdown — the DB stays at the edges,
+never in the hot loop.
+
+Eviction saving is what kills room reset for individuals (NPCS.md Decision
+10): fungible enemies are still deliberately forgotten, NPCs are not.
+"""
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.config import NPC_TRANSCRIPT_LIMIT
+from backend.entities import NPC, Disposition, Position
+from backend.models import NPCRow
+from backend.persona import validate_persona
+
+
+def _entity_id(db_id: int) -> str:
+    # "npc_" prefix — get_entity dispatches on it, like player_/enemy_. The
+    # numeric part is the DB id, so the runtime id is stable across loads.
+    return f"npc_{db_id}"
+
+
+async def load_npcs(session: AsyncSession, room_id: int) -> list[NPC]:
+    """All individuals currently in a room, personas re-validated on the way
+    in (the gate runs on load as well as insert, so a row edited by hand or a
+    future generator can't smuggle a malformed persona into the world)."""
+    rows = (await session.execute(
+        select(NPCRow).where(NPCRow.room_id == room_id)
+    )).scalars().all()
+
+    npcs = []
+    for row in rows:
+        validate_persona(row.persona)
+        npcs.append(NPC(
+            id=_entity_id(row.id),
+            db_id=row.id,
+            name=row.name,
+            position=Position(row.x, row.y),
+            hp=row.hp,
+            max_hp=row.max_hp,
+            defense=row.defense,
+            attack_damage=row.attack_damage,
+            is_alive=row.is_alive,
+            disposition=Disposition(row.disposition),
+            persona=row.persona,
+            transcript=list(row.memory or [])[-NPC_TRANSCRIPT_LIMIT:],
+        ))
+    return npcs
+
+
+async def save_npcs(session: AsyncSession, npcs: list[NPC]) -> None:
+    """Write live NPC state back to rows. Commits as one unit of work —
+    either the whole room's individuals persist or none do."""
+    for npc in npcs:
+        row = await session.get(NPCRow, npc.db_id)
+        if row is None:
+            # The row vanished under us (hand-deleted db?). Losing one NPC
+            # must not abort saving the rest.
+            continue
+        row.x = npc.position.x
+        row.y = npc.position.y
+        row.hp = npc.hp
+        row.max_hp = npc.max_hp
+        row.defense = npc.defense
+        row.attack_damage = npc.attack_damage
+        row.is_alive = npc.is_alive
+        row.disposition = npc.disposition.value
+        row.memory = list(npc.transcript)[-NPC_TRANSCRIPT_LIMIT:]
+    await session.commit()

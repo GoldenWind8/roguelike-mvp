@@ -13,6 +13,7 @@ class EventType(Enum):
     ENEMY_MOVED = "enemy_moved"
     ENEMY_ATTACKED = "enemy_attacked"
     ENEMY_DIED = "enemy_died"
+    NPC_DIED = "npc_died"
     ROUND_STARTED = "round_started"
     INVALID_ACTION = "invalid_action"
     PLAYER_LEFT = "player_left"

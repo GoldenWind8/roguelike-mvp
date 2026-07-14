@@ -82,7 +82,7 @@ async def test_eviction_cancels_timeout(world_db):
     main.start_round_timeout(runtime)
     task = runtime.timeout_task
 
-    main.maybe_evict(runtime)  # no players -> evicts
+    await main.maybe_evict(runtime)  # no players -> evicts
 
     assert hall.id not in main.active_rooms
     assert runtime.timeout_task is None
@@ -187,7 +187,7 @@ async def test_room_state_resets_after_eviction(world_db):
 
     runtime.engine.remove_player(player.id)
     main.player_room.pop(player.id)
-    main.maybe_evict(runtime)
+    await main.maybe_evict(runtime)
     assert hall.id not in main.active_rooms
 
     fresh = await main.get_or_load_room(hall.id)

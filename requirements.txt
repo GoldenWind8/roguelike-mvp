@@ -3,6 +3,7 @@ uvicorn[standard]>=0.34.0
 sqlalchemy[asyncio]
 asyncpg
 aiosqlite
+httpx  # async client for the NPC dialogue provider (AI Power Grid)
 
 # test
 pytest

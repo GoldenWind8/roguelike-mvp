@@ -7,9 +7,12 @@ from pathlib import Path
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 
-from backend.config import TURN_TIMEOUT
+from backend.config import NPC_TRANSCRIPT_LIMIT, TALK_TEXT_LIMIT, TURN_TIMEOUT
 from backend.db import SessionMaker, init_db
+from backend.dialogue import build_provider
+from backend.entities import NPC
 from backend.events import EventType
+from backend.npc_store import load_npcs, save_npcs
 from backend.room_engine import RoomEngine
 from backend.room_loader import load_room
 from backend.seeds import get_or_seed_default_room
@@ -40,6 +43,12 @@ async def lifespan(app: FastAPI):
         room = await get_or_seed_default_room(session)
         default_room_id = room.id
     yield
+    # Shutdown: rooms still live (players connected) never went through
+    # eviction, so their individuals must be saved here or a restart would
+    # be the one remaining way to destroy an NPC's state.
+    async with state_lock:
+        for runtime in active_rooms.values():
+            await _save_individuals(runtime)
 
 
 app = FastAPI(lifespan=lifespan)
@@ -52,6 +61,13 @@ active_rooms: dict[int, RoomRuntime] = {}
 player_room: dict[str, int] = {}
 state_lock = asyncio.Lock()
 default_room_id: int | None = None
+
+# Dialogue source — LLM with canned fallback when a key is configured,
+# canned-only otherwise. One instance per process (it owns an HTTP client).
+dialogue_provider = build_provider()
+# Players with an LLM call in flight: one talk at a time per player, so a
+# spamming client can't fan out provider calls (the grid caps 30 req/min/IP).
+talking_players: set[str] = set()
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
@@ -79,17 +95,38 @@ async def get_or_load_room(room_id: int) -> RoomRuntime:
     if runtime is None:
         async with SessionMaker() as session:
             template = await load_room(session, room_id)
+            npcs = await load_npcs(session, room_id)
         runtime = RoomRuntime(room_id=room_id, engine=RoomEngine(template))
+        # Two occupant sources (NPCS.md Decision 9): the template reseeds
+        # fungible enemies above; individuals arrive from their own rows.
+        for npc in npcs:
+            runtime.engine.room.add_npc(npc)
         active_rooms[room_id] = runtime
     return runtime
 
 
-def maybe_evict(runtime: RoomRuntime) -> None:
-    """Caller holds state_lock. Drop an empty room from the registry. Evicted
-    rooms have no memory — the next visit rebuilds them from the DB (enemies
-    respawn at seed positions). Persistence is deliberately deferred."""
+async def _save_individuals(runtime: RoomRuntime) -> None:
+    npcs = list(runtime.engine.room.npcs.values())
+    if not npcs:
+        return
+    try:
+        async with SessionMaker() as session:
+            await save_npcs(session, npcs)
+    except Exception:
+        # A failed save must not take the room registry down with it — the
+        # in-memory state is still authoritative until the next save point.
+        logging.exception("failed to save NPCs for room %s", runtime.room_id)
+
+
+async def maybe_evict(runtime: RoomRuntime) -> None:
+    """Caller holds state_lock. Drop an empty room from the registry.
+    Eviction is "save individuals, unload" (NPCS.md Decision 10): NPC rows
+    are written back first; fungible enemy state is deliberately forgotten —
+    the next visit reseeds enemies from the template (respawn is a feature)
+    and reloads individuals from their rows."""
     if runtime.engine.room.players:
         return
+    await _save_individuals(runtime)
     cancel_round_timeout(runtime)
     if active_rooms.get(runtime.room_id) is runtime:
         del active_rooms[runtime.room_id]
@@ -190,7 +227,7 @@ async def handle_round_events(runtime: RoomRuntime, events) -> None:
             event.data["player_id"],
             event.data["to_room_id"],
         )
-    maybe_evict(runtime)
+    await maybe_evict(runtime)
 
 
 async def _transfer_player(origin: RoomRuntime, player_id: str, to_room_id: int) -> None:
@@ -213,7 +250,7 @@ async def _transfer_player(origin: RoomRuntime, player_id: str, to_room_id: int)
     if (len(dest.engine.room.players) >= dest.engine.room.template.capacity
             or dest.engine.room.free_spawn() is None):
         if not dest_was_loaded:
-            maybe_evict(dest)  # don't keep a room we loaded only to be denied
+            await maybe_evict(dest)  # don't keep a room we loaded only to be denied
         await send_to(origin, player_id, {"type": "error", "message": "The way is blocked."})
         return
 
@@ -233,6 +270,76 @@ async def _transfer_player(origin: RoomRuntime, player_id: str, to_room_id: int)
     })
     await broadcast_state_and_events(dest, arrival_events)
     await broadcast_waiting(dest)
+
+
+# --- NPC dialogue -----------------------------------------------------------------
+
+
+async def handle_talk(websocket: WebSocket, player_id: str, data: dict) -> None:
+    """Talking is a request, not an action (NPCS.md Decision 1): it lives
+    outside the action economy in BOTH modes, never consumes a turn, never
+    pauses the round timer — so it works mid-combat and cannot stall a round.
+
+    Lock discipline: validate under state_lock, run the provider OUTSIDE it
+    (never generate dialogue while holding the room lock — rounds keep
+    resolving during a slow LLM call), then re-validate on re-entry: the
+    room may have evicted or the NPC died while we awaited. Resolution-time
+    state is authoritative, same as combat validation.
+    """
+    text = str(data.get("text", ""))[:TALK_TEXT_LIMIT].strip()
+    npc_id = data.get("npc_id")
+
+    async with state_lock:
+        runtime = runtime_for(player_id)
+        room = runtime.engine.room if runtime else None
+        player = room.get_player(player_id) if room else None
+        npc = room.get_entity(npc_id) if room and isinstance(npc_id, str) else None
+
+        if not text or not player or not player.is_alive:
+            reason = "Say something." if not text else "The dead do not speak."
+            await websocket.send_json({"type": "error", "message": reason})
+            return
+        if not isinstance(npc, NPC) or not npc.is_alive:
+            await websocket.send_json({"type": "error", "message": "There is nobody there to talk to."})
+            return
+        distance = abs(player.position.x - npc.position.x) + abs(player.position.y - npc.position.y)
+        if distance != 1:
+            # Same targeting rule as attack: walk adjacent, then interact.
+            await websocket.send_json({"type": "error", "message": f"You are too far from {npc.name}."})
+            return
+        if player_id in talking_players:
+            await websocket.send_json({"type": "error", "message": "You are already mid-sentence."})
+            return
+        talking_players.add(player_id)
+        player_name = player.name
+
+    try:
+        reply = await dialogue_provider.reply(npc, player_name, text)
+    finally:
+        talking_players.discard(player_id)
+
+    async with state_lock:
+        # Re-entry through the validated path: only touch the NPC if it is
+        # still the live object in a still-live room.
+        current = active_rooms.get(runtime.room_id)
+        if (current is not runtime
+                or runtime.engine.room.npcs.get(npc.id) is not npc
+                or not npc.is_alive):
+            await websocket.send_json({"type": "error", "message": f"{npc.name} is no longer listening."})
+            return
+        npc.transcript.append({"speaker": player_name, "text": text})
+        npc.transcript.append({"speaker": "npc", "text": reply})
+        del npc.transcript[:-NPC_TRANSCRIPT_LIMIT]
+
+    # Text channel only (M4): prose to the talking player, no state change,
+    # no broadcast — dialogue is one-on-one.
+    await websocket.send_json({
+        "type": "npc_dialogue",
+        "npc_id": npc.id,
+        "name": npc.name,
+        "player_text": text,
+        "text": reply,
+    })
 
 
 # --- websocket endpoint ---------------------------------------------------------
@@ -262,7 +369,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     try:
                         player, events = runtime.engine.join(data.get("name", "Anonymous"))
                     except ValueError as e:
-                        maybe_evict(runtime)  # don't leak a speculatively loaded room
+                        await maybe_evict(runtime)  # don't leak a speculatively loaded room
                         await websocket.send_json({"type": "error", "message": str(e)})
                         continue
 
@@ -309,6 +416,12 @@ async def websocket_endpoint(websocket: WebSocket):
                         start_round_timeout(runtime)
                         await broadcast_waiting(runtime)
 
+            elif msg_type == "talk":
+                if not player_id:
+                    await websocket.send_json({"type": "error", "message": "Join first"})
+                    continue
+                await handle_talk(websocket, player_id, data)
+
             elif msg_type == "inspect_object":
                 if not player_id:
                     await websocket.send_json({"type": "error", "message": "Join first"})
@@ -349,4 +462,4 @@ async def websocket_endpoint(websocket: WebSocket):
                     await handle_round_events(runtime, events)
                     if events:
                         await broadcast_state_and_events(runtime, events)
-                    maybe_evict(runtime)
+                    await maybe_evict(runtime)

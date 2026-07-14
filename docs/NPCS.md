@@ -11,9 +11,22 @@ Design, agreed. Milestone 4 implements the smallest slice of it.
 
 Revised 2026-07-14 after reviewing an external LLM-NPC engine design
 (Animus/Duskfell): LLM is the M4 dialogue source (text-only), personas are
-schema-validated JSON, and party effects are pulled into scope as
-room-scoped. Its heavyweight machinery is deliberately skipped — see
-"Deliberately Skipped" below.
+schema-validated JSON, and party effects are pulled into scope.
+
+Revised again 2026-07-14: resolved the taxonomy (Decision 4: `Actor` base
+class in memory, separate tables at rest) and pulled individual persistence
+forward — NPCs and players are instance rows, room resets stop destroying
+individuals, and party membership persists (Decisions 8–10).
+
+**Implemented 2026-07-14** (build-order steps 1–2): `Actor` base class, the
+`npcs` table + eviction-saves-individuals, the persona gate
+(`persona.validate_persona`), and M4 text-only LLM dialogue
+(`dialogue.GridProvider` with `CannedProvider` fallback, talk outside the
+room lock). Not yet: the `players` table — persisting player rows is useless
+until the open identity question (how a returning connection claims its row)
+is answered, so it waits for that decision rather than shipping dead schema.
+Next per the build order: dialogue effects (closed vocabulary,
+`set_disposition` first).
 
 ## Core Model: Axes, Not Taxonomy
 
@@ -57,9 +70,15 @@ Why this matters concretely:
 3. **Disposition ships as a three-value enum from day one**
    (`hostile | neutral | friendly`), even while v1 uses only one value —
    it is the hook escalation and factions grab onto.
-4. **Taxonomy Undecided** The v1 NPC shares the actor shape (id, name, position,
-   hp, is_alive) plus disposition and dialogue fields. `Player`/`Enemy` are
-   not refactored yet; What should we do?
+4. **Shared shape in memory, separate tables at rest.** An `Actor` base
+   dataclass carries the common shape (id, name, position, hp, defense,
+   attack_damage, is_alive, disposition); `Player`/`Enemy`/`NPC` are thin
+   subclasses adding only their extras (socket, enemy def ref, persona).
+   Combat and occupancy code target `Actor` and stop caring what they hit.
+   The unification does **not** extend to the DB: players and NPCs change
+   for different reasons (account state vs. world state), so they get
+   separate tables (see DB_SCHEMA.md). Persistence, not escalation, turned
+   out to be the feature that forced the merge.
 5. **Dialogue has two channels** (below). Text never mutates state; effects
    may, through validation.
 6. **The LLM is the M4 dialogue source — because M4 is text-only.** The
@@ -70,9 +89,20 @@ Why this matters concretely:
 7. **Personas are JSON documents validated against a schema.** The schema
    is not designer ergonomics — it is the validation gate for
    machine-generated NPCs (see "Personas As Data").
-8. **Party effects enter the closed vocabulary now, room-scoped.**
-   `join_party`/`leave_party` are dialogue effects in v1;
-9. Npcs are similar to players and have their room + location set in their db. They arnt part of room design.
+8. **Party effects enter the closed vocabulary now, and membership
+   persists.** `join_party`/`leave_party` are dialogue effects in v1;
+   membership lives on the NPC row (`party_owner_id`) and survives room
+   resets and restarts. Followers remain room-bound until NPC traversal
+   exists (see "Followers").
+9. **NPCs are instance rows, not room design data.** Like players, an
+   NPC's room + position live in its own DB row (`npcs` table); `rooms`
+   never lists NPCs. Room load therefore has two occupant sources: design
+   spawns (fungible enemies, reseeded every load) and instance rows
+   (individuals, whose state survives).
+10. **Room resets stop destroying individuals.** Eviction becomes
+   "save individual rows, unload" instead of "forget". Fungible enemy
+   state is still deliberately forgotten — respawn is a feature, not a
+   persistence gap.
 
 ## Dialogue: Two Channels
 
@@ -146,8 +176,13 @@ never affect the sim: talk requests run outside the room lock (rule above)
 and re-enter through the validated path when the response arrives. Rounds
 keep resolving meanwhile.
 
-### Memory: db embeddings
-To be decided
+### Memory
+
+Mechanism to be decided (bounded transcript column vs. embeddings — start
+with the transcript; embeddings only when "recall something relevant from
+long ago" is a real need). Decision 9 gives memory a home either way: it is
+per-NPC instance state, keyed to the NPC row, and survives resets like the
+rest of the row.
 
 ### Prompt layout (stable prefix)
 
@@ -184,16 +219,15 @@ gate is how we know the gate works before pointing a generator at it.
   `leave_party` are entries in the closed vocabulary, validated by engine
   rules (disposition threshold, party-size cap). Declining is just text.
 
-**v1 parties are room-scoped** (Decision 8). Membership is a server-owned
-map (npc → player) — the first per-player relationship datum, kept as party
+**v1 membership persists** (Decisions 8–10). It is a column on the NPC row
+(`party_owner_id`) — the first per-player relationship datum, kept as party
 state rather than a generalized relationship system. The NPC fights
-alongside its player in that room; membership dissolves when the room
-resets or the player leaves. That is honest about what we have: parley →
-recruit → win this fight is a complete feature loop today, and persistence
-later upgrades the *duration* of membership without touching its shape.
+alongside its player in that room, and membership survives room resets and
+server restarts. What it cannot do yet is *travel*: the follower stays in
+its room until NPC traversal exists, so the loop today is parley → recruit
+→ win fights in that room → your ally is still there when you return.
 
-Three pieces of machinery are genuinely missing and gate the **durable,
-cross-room** version:
+Two pieces of machinery still gate the **cross-room** version:
 
 1. **Per-player relationships.** v1 disposition is global (toward players as
    a class); party membership is disposition toward one player. The enum
@@ -202,12 +236,10 @@ cross-room** version:
 2. **NPC traversal.** Only players cross rooms today. A follower must ride
    through doors with its player (detach/attach points the way; sockets,
    capacity, and spawn rules need answers).
-3. **Ownership of state.** Rooms reset on eviction, so a room-owned follower
-   would be vaporized and reseeded. A durable party member is
-   **player-owned** state that must survive room resets — the same
-   persistence era as inventory. Durable followers are gated on
-   persistence, not on the actor model; room-scoped parties (Decision 8)
-   are what ships meanwhile.
+
+The third gate this section used to list — ownership of state — is resolved
+by Decision 9: an NPC is an instance row, not room-owned state, so resets
+can no longer vaporize a follower.
 
 v1 requirements that keep the door open (all already decided): NPCs are
 unique individuals, disposition is data, the effect vocabulary is closed and
@@ -215,19 +247,39 @@ extensible.
 
 ## Storage Note: Fungible vs. Individual
 
-Enemies are fungible — a thousand Goblins reference `enemy_defs` row 1. NPCs
-are individuals — Gorrik's personality, dialogue context, and (later) memory
-of old dialgoue belong to that npc in some persistent form. We need to decide how to handle this in db and how to abstract enemies + npcs to actor.
+The line that decides where anything lives at rest: **a row exists to
+remember something.**
+
+- **Enemies are fungible** — a thousand Goblins reference one `enemy_defs`
+  row (flyweight). Their mid-fight hp/position is deliberately forgotten on
+  room reset: respawn is a feature. No instance rows. The *catalog* itself
+  is runtime-appendable — LLM world generation may insert new defs, gated
+  by the same kind of schema/bounds validation as personas (stat ranges;
+  `on_spawn`/`on_death` drawn from the closed effect vocabulary).
+- **NPCs are individuals** — Gorrik's persona, disposition, party
+  membership, and (later) dialogue memory are worth remembering, so each
+  NPC is a row in `npcs` (room, position, hp, disposition, persona JSON)
+  that survives resets and restarts.
+- **Players are individuals with a different lifecycle** — account state,
+  not world state, so a separate `players` table. This forces the first
+  identity decision: how a returning connection claims its row (open).
+- **Promotion path:** recruiting an enemy turns a fungible thing into an
+  individual — it becomes an NPC row. Individuality is acquired, not
+  hardcoded.
+
+Same actor concept in memory (Decision 4); different shapes at rest. Table
+details live in DB_SCHEMA.md.
 
 ## Build Order
 
 ```mermaid
 flowchart TD
-    A["M4: one NPC, text-only LLM dialogue<br/>(provider seam + canned fallback, no effect channel)"]
+    S["individual persistence: Actor base class,<br/>players + npcs tables, eviction saves individuals<br/>(kills room reset for individuals)"]
+    S --> A["M4: one NPC, text-only LLM dialogue<br/>(provider seam + canned fallback, no effect channel)"]
     A --> B["dialogue effects: closed vocabulary, set_disposition first"]
     B --> C["escalation: disposition flip -> room mode switch (FUTURE.md)"]
-    B --> P["party effects: join_party/leave_party,<br/>room-scoped membership, follower brain"]
-    C --> D["much later: persistence + NPC traversal -> durable followers,<br/>relationships, generated personas"]
+    B --> P["party effects: join_party/leave_party,<br/>persistent membership, follower brain"]
+    C --> D["much later: NPC traversal -> cross-room followers,<br/>relationships, generated personas + enemy defs"]
     P --> D
 ```
 

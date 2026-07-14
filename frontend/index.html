@@ -114,6 +114,7 @@
     .cell-player { cursor: pointer; }
     .cell-enemy { cursor: pointer; }
     .cell-object { cursor: pointer; }
+    .cell-npc { cursor: pointer; }
     .cell-me { box-shadow: inset 0 0 0 2px #ffd700; }
 
     .entity-icon {
@@ -209,6 +210,46 @@
         padding: 2px 0;
         border-top: 1px solid #0a0a1a;
     }
+
+    #dialogue-title { color: #c9a0ff; font-size: 13px; margin-bottom: 2px; }
+    #dialogue-role { font-size: 11px; color: #8f9bb3; margin-bottom: 8px; }
+    #dialogue-log {
+        height: 140px;
+        overflow-y: auto;
+        font-size: 12px;
+        line-height: 1.5;
+        margin-bottom: 8px;
+        border-top: 1px solid #0a0a1a;
+        padding-top: 6px;
+    }
+    #dialogue-log .line-player { color: #7ec8e3; }
+    #dialogue-log .line-npc { color: #c9a0ff; }
+    #dialogue-log .line-pending { color: #666; font-style: italic; }
+    #dialogue-input-row { display: flex; gap: 6px; }
+    #dialogue-input {
+        flex: 1;
+        background: #1a1a2e;
+        border: 1px solid #0f3460;
+        color: #e0e0e0;
+        padding: 6px 8px;
+        font-size: 12px;
+        font-family: inherit;
+        border-radius: 4px;
+        min-width: 0;
+    }
+    #dialogue-input:focus { outline: none; border-color: #c9a0ff; }
+    #dialogue-send, #dialogue-close {
+        background: #0f3460;
+        color: #e0e0e0;
+        border: none;
+        padding: 6px 10px;
+        font-size: 12px;
+        font-family: inherit;
+        cursor: pointer;
+        border-radius: 4px;
+    }
+    #dialogue-send:hover, #dialogue-close:hover { background: #1a3a6e; }
+    #dialogue-panel h3 { display: flex; justify-content: space-between; align-items: center; }
 
     #entities-list {
         list-style: none;
@@ -341,6 +382,16 @@
                     <div id="inspection-title"></div>
                     <div id="inspection-description"></div>
                     <ul id="inspection-details"></ul>
+                </div>
+                <div class="panel" id="dialogue-panel" hidden>
+                    <h3>Dialogue <button id="dialogue-close" onclick="closeDialogue()">&times;</button></h3>
+                    <div id="dialogue-title"></div>
+                    <div id="dialogue-role"></div>
+                    <div id="dialogue-log"></div>
+                    <div id="dialogue-input-row">
+                        <input type="text" id="dialogue-input" placeholder="Say something..." maxlength="300">
+                        <button id="dialogue-send" onclick="sendTalk()">Say</button>
+                    </div>
                 </div>
                 <div class="panel">
                     <h3>Entities</h3>
