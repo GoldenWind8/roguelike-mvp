@@ -34,6 +34,21 @@
     .status-connected { color: #4ecca3; }
     .status-disconnected { color: #e94560; }
 
+    /* DEV affordance — deliberately plain and off in the corner. */
+    #dev-reset {
+        position: fixed;
+        top: 12px;
+        right: 12px;
+        font-size: 11px;
+        padding: 4px 8px;
+        background: #2a2a3a;
+        color: #9a9ab0;
+        border: 1px solid #44445a;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    #dev-reset:hover { background: #3a3a4a; color: #cfcfe0; }
+
     #join-screen {
         display: flex;
         flex-direction: column;
@@ -76,7 +91,6 @@
     .phase-action { color: #4ecca3; }
     .phase-locked { color: #7ec8e3; }
     .phase-waiting { color: #e94560; }
-    .phase-gameover { color: #ffd700; }
 
     #main-area {
         display: flex;
@@ -277,7 +291,6 @@
     .event-round { color: #b8b8b8; }
     .event-enemy { color: #ff6b35; }
     .event-npc { color: #c9a0ff; }
-    .event-gameover { color: #ffd700; font-weight: bold; }
     .event-error { color: #e94560; }
 
     #controls {
@@ -344,6 +357,7 @@
 <body>
     <h1>ROGUELIKE MMO</h1>
     <div id="connection-status" class="status-disconnected">Disconnected</div>
+    <button id="dev-reset" onclick="devReset()" title="DEV: wipe individual state and reseed the world to its starting state (boots everyone)">🔄 Reseed world (dev)</button>
 
     <div id="join-screen">
         <input type="text" id="player-name" placeholder="Enter your name" maxlength="12" autofocus>

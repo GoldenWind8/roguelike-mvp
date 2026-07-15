@@ -36,6 +36,7 @@ erDiagram
         string disposition "hostile | neutral | friendly"
         json persona "validated against the persona schema"
         json memory "bounded dialogue transcript"
+        string party_owner_id "runtime player id this NPC follows, or NULL"
     }
 
     ROOMS {
@@ -75,7 +76,7 @@ erDiagram
 | `rooms` | Room template data | Terrain, objects, spawns, and enemy placements. This is not live session state. |
 | `room_connections` | Directed world graph edges | Traversal uses these: `load_room` reads a room's outgoing edges into `RoomTemplate.connections`, and stepping onto a connected tile transfers the player. Arrival uses the destination's first free spawn (`to_x`/`to_y` are still future columns). |
 | `enemy_defs` | Reusable enemy catalog | Rooms reference enemy ids from JSON and load stats from this table. Planned: runtime-appendable by LLM world generation, gated by schema/bounds validation (stat ranges; effect lists drawn from the closed vocabulary). |
-| `npcs` | NPC instance rows (individuals) | One row per NPC that exists in the world; play edits it (hp, position, disposition, memory) and it survives room resets and restarts. Loaded/saved by `npc_store.py`; eviction is "save individuals, unload". Full stats are columns because an individual's wounds and buffs are instance state. `persona` is validated by `persona.validate_persona` on insert *and* load. `party_owner_id` arrives with the party-effects slice. |
+| `npcs` | NPC instance rows (individuals) | One row per NPC that exists in the world; play edits it (hp, position, disposition, memory, party membership) and it survives room resets and restarts. Loaded/saved by `npc_store.py`; eviction is "save individuals, unload". Full stats are columns because an individual's wounds and buffs are instance state. `persona` is validated by `persona.validate_persona` on insert *and* load. `party_owner_id` (M6) is a nullable String holding the runtime id of the player this NPC follows — NOT a FK, because player ids aren't a persisted table yet; rebinding a returning player to its follower waits for the identity decision. |
 
 ## Important Boundary
 
@@ -208,7 +209,7 @@ erDiagram
 |---|---|
 | `room_connections.to_x`, `to_y` | Place players at a specific destination tile after traversal. |
 | `room_connections.kind` | Distinguish door, portal, path, stairs, etc. |
-| `npcs` | **Done** (see Current Tables) except `party_owner_id`, which lands with the party-effects slice because it needs an owner to point at. |
+| `npcs` | **Done**, now including `party_owner_id` (M6). It stays a nullable String rather than a real FK until the `players` table gives it a row to reference. |
 | `players` | Individual player state that survives disconnect and restart; also gives inventory/progression a stable owner. Open question: identity — how a returning connection claims its row. |
 | `items` | Store generated or hand-authored item definitions. |
 | `player_inventory` | Let items follow players between rooms. |

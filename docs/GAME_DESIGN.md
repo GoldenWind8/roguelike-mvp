@@ -40,6 +40,12 @@ flowchart LR
     I --> A
 ```
 
+**There is no end state.** This is an open-ended, infinitely (and eventually
+procedurally) generated world, not a match — there is no win screen and no
+game-over. Clearing a room of hostiles is progress, not victory (the room
+simply becomes peaceable again). A death is a setback to recover from, not a
+terminal loss. The loop above never terminates; it only grows.
+
 ## World Model
 
 The world is divided into rooms because the browser grid can only show so much

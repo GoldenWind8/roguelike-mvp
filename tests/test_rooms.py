@@ -90,6 +90,37 @@ async def test_eviction_cancels_timeout(world_db):
     assert task.cancelled()
 
 
+class _FakeWS:
+    def __init__(self):
+        self.sent = []
+
+    async def send_json(self, msg):
+        self.sent.append(msg)
+
+
+async def test_dev_reset_discards_live_rooms_and_restores_seeds(world_db):
+    hall, _ante = world_db
+    runtime, player = await join_room(hall.id, "Hero")
+    ws = _FakeWS()
+    runtime.connections[player.id] = ws
+
+    # Kill the hall's recruitable NPC — the played-in state we want gone.
+    mara = next(n for n in runtime.engine.room.npcs.values() if n.name == "Mara")
+    mara.is_alive = False
+
+    await main.handle_dev_reset(ws)
+
+    # Live registries cleared and the client told to reload.
+    assert main.active_rooms == {}
+    assert main.player_room == {}
+    assert any(m["type"] == "world_reset" for m in ws.sent)
+
+    # Reloading the hall pulls a FRESH, living Mara from the reseeded rows.
+    reloaded = await main.get_or_load_room(hall.id)
+    mara2 = next(n for n in reloaded.engine.room.npcs.values() if n.name == "Mara")
+    assert mara2.is_alive
+
+
 async def test_traversal_round_trip(world_db):
     hall, ante = world_db
     runtime, player = await join_room(hall.id, "Hero")

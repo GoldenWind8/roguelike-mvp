@@ -33,7 +33,28 @@ class SetDisposition:
     disposition: Disposition
     source_id: str | None = None
 
-Effect = Damage | Kill | SetDisposition
+@dataclass
+class JoinParty:
+    """Recruit an NPC into a player's party. A TRUSTED engine effect, like
+    SetDisposition: it only exists after the dialogue validator turned an
+    untrusted `join_party` proposal into one (backend/dialogue_effects.py),
+    having checked the NPC is willing (grants), warm (friendly), free, and the
+    owner is under the cap. Writes `party_owner_id` and emits the event."""
+    target_id: str
+    owner_id: str
+    source_id: str | None = None
+
+
+@dataclass
+class LeaveParty:
+    """Dissolve an NPC's party membership (it quits, or is dismissed). Clears
+    `party_owner_id`. Idempotent: leaving when not in a party is a silent
+    no-op, never an error."""
+    target_id: str
+    source_id: str | None = None
+
+
+Effect = Damage | Kill | SetDisposition | JoinParty | LeaveParty
 
 def compute_damage(base_amount: int, target) -> int:
     """Damage a target actually takes: base amount minus defense, min 1."""
@@ -46,6 +67,10 @@ def apply_effect(room: RoomState, effect: Effect) -> list[GameEvent]:
         return _apply_kill(room, effect)
     if isinstance(effect, SetDisposition):
         return _apply_set_disposition(room, effect)
+    if isinstance(effect, JoinParty):
+        return _apply_join_party(room, effect)
+    if isinstance(effect, LeaveParty):
+        return _apply_leave_party(room, effect)
     return []
 
 def _apply_set_disposition(room: RoomState, effect: SetDisposition) -> list[GameEvent]:
@@ -53,13 +78,42 @@ def _apply_set_disposition(room: RoomState, effect: SetDisposition) -> list[Game
     if not target or not target.is_alive:
         return []
     target.disposition = effect.disposition
-    return [GameEvent(
+    events = [GameEvent(
         EventType.DISPOSITION_CHANGED,
         {
             "target_id": target.id,
             "disposition": effect.disposition.value,
             "source_id": effect.source_id,
         },
+        room.round,
+    )]
+    # Invariant: a follower is always friendly. An ally soured to neutral or
+    # hostile stops being your ally — the same field write that recolors it also
+    # dissolves the party bond (else select_brain would hand your "follower" the
+    # ChaseBrain and it would hunt you). Effects composing, not special cases.
+    if effect.disposition is not Disposition.FRIENDLY and getattr(target, "party_owner_id", None):
+        events.extend(_apply_leave_party(room, LeaveParty(target_id=target.id, source_id=effect.source_id)))
+    return events
+
+def _apply_join_party(room: RoomState, effect: JoinParty) -> list[GameEvent]:
+    npc = room.get_entity(effect.target_id)
+    if not isinstance(npc, NPC) or not npc.is_alive:
+        return []
+    npc.party_owner_id = effect.owner_id
+    return [GameEvent(
+        EventType.PARTY_CHANGED,
+        {"target_id": npc.id, "owner_id": effect.owner_id, "source_id": effect.source_id},
+        room.round,
+    )]
+
+def _apply_leave_party(room: RoomState, effect: LeaveParty) -> list[GameEvent]:
+    npc = room.get_entity(effect.target_id)
+    if not isinstance(npc, NPC) or not npc.party_owner_id:
+        return []
+    npc.party_owner_id = None
+    return [GameEvent(
+        EventType.PARTY_CHANGED,
+        {"target_id": npc.id, "owner_id": None, "source_id": effect.source_id},
         room.round,
     )]
 

@@ -27,12 +27,28 @@ now a `DialogueReply(text, proposals)`; `dialogue_effects.py` is the closed
 vocabulary + validator (one entry, `set_disposition`), and accepted proposals
 apply through the same `effects.apply_effect` path combat uses (`SetDisposition`
 → `disposition_changed` event). Invalid proposals are dropped and logged; the
-text always shows. Not yet: the `players` table — persisting player rows is
-useless until the open identity question (how a returning connection claims
-its row) is answered, so it waits for that decision rather than shipping dead
-schema. Next per the build order: party effects (`join_party`/`leave_party`,
-persistent membership, the follower `Brain` seam) and escalation (disposition
-flip → live room mode switch).
+text always shows.
+
+**Implemented 2026-07-14** (M6, party members): the `Brain` seam
+(`backend/brains.py`) — the second behavior finally justified the abstraction.
+The hardcoded chase is now `ChaseBrain`, the follower's defend-my-owner is
+`FollowerBrain`, and `select_brain(actor)` picks a brain from the actor's
+disposition + party data every round (so "enemy" is just data, and a soured
+follower would chase). A brain proposes an `Intent`; `systems.resolve_actor_phase`
+disposes it through the same rule primitives players obey — propose/dispose,
+now pointed at movement. `join_party`/`leave_party` joined the closed
+vocabulary, gated by a hard per-NPC `grants` allowlist on the persona (the
+capability wall `party_policy`, a mere prompt hint, can't be) plus alive +
+friendly + unattached + owner-under-cap checks; the validator gained a
+`player` argument because these effects are genuinely per-player.
+`npcs.party_owner_id` persists membership across resets and restarts. Mara, a
+recruitable sellsword, is seeded into the *combat* hall so the loop is live.
+
+Not yet: the `players` table — persisting player rows is useless until the open
+identity question (how a returning connection claims its row) is answered, so it
+waits for that decision rather than shipping dead schema. That same gate blocks
+*rebinding* a returning player to its follower and a *global* party cap. Next per
+the build order: escalation (disposition flip → live room mode switch).
 
 ## Core Model: Axes, Not Taxonomy
 
@@ -43,15 +59,23 @@ orthogonal axes of one **actor** concept:
 |---|---|---|
 | Being | What is it? | stats, hp, position, name (the dataclass) |
 | Disposition | How does it relate to players? | `hostile` / `neutral` / `friendly` |
-| Behavior | How does it decide to act? | none (stands still), chase-and-attack, later: scripted, LLM brain |
+| Behavior | How does it decide to act? | a brain chosen from data by `select_brain` (M6): `ChaseBrain` if hostile, `FollowerBrain` if in a party, none otherwise; later: scripted, LLM brain |
 | Interaction | What can you do with it? | attack it, talk to it (has dialogue data), later: trade |
 
-Under this model an "enemy" is an actor with hostile disposition and the
-chase brain; an "NPC" is an actor with friendly/neutral disposition, no brain
-(v1), and dialogue data. A shopkeeper turning hostile is a **field write**
-(`disposition = hostile`), never a change of class — modeling a change of
-mood as a change of species is the taxonomy trap this document exists to
-prevent.
+Under this model an "enemy" is an actor with hostile disposition (so
+`select_brain` hands it the `ChaseBrain`); an "NPC" is an actor whose brain is
+chosen the same way — `FollowerBrain` once recruited, `ChaseBrain` if soured
+hostile, none while it's a neutral bystander — plus dialogue data. Behavior is
+never a property of the class: it's read from the disposition + party fields
+every round. A shopkeeper turning hostile is a **field write**
+(`disposition = hostile`), and *that* is what changes its behavior — never a
+change of class. Modeling a change of mood as a change of species is the
+taxonomy trap this document exists to prevent.
+
+The Enemy/NPC line, then, is **not** behavior and **not** hostility — it is
+**persistence**: an Enemy is a *simple*, fungible actor (a hostile NPC minus
+the row, forgotten and respawned on reset); an NPC is an individual whose state
+is worth an `npcs` row. See "Storage Note: Fungible vs. Individual".
 
 Why this matters concretely:
 
@@ -70,9 +94,15 @@ Why this matters concretely:
    timer (so it cannot be used to stall a round). Combat-time dialogue is
    what later makes *parley* possible: a dialogue effect flipping the last
    hostile's disposition ends the fight and de-escalates the room.
-2. **NPCs occupy their tile.** Actors block movement; "walk adjacent, then
-   interact" matches attack targeting. Authors must not place NPCs in
-   doorways.
+2. **NPCs occupy their tile, but non-hostile ones yield to players.** An NPC
+   holds its grid cell (blocks enemies, anchors "walk adjacent, then interact"
+   targeting), and authors must not place NPCs in doorways. **Refined in M6:**
+   only *hostile* actors block a player's movement — a friendly/neutral NPC
+   *swaps places* with a player who steps into it. Fight-or-route-around
+   friction belongs to threats, not to allies or bystanders; this also means a
+   follower a reconnect orphaned to a stale player id (the identity gap) can
+   never wall you in. Interaction is unaffected: talk/attack are click-driven,
+   so pressing *into* an NPC is unambiguous intent to pass, not to bump.
 3. **Disposition ships as a three-value enum from day one**
    (`hostile | neutral | friendly`), even while v1 uses only one value —
    it is the hook escalation and factions grab onto.
@@ -291,14 +321,20 @@ flowchart TD
 
 ## What Not To Build Yet
 
-- The `Brain` interface (current enemy AI is one hardcoded brain; abstract
-  at the second behavior — the follower brain is that second behavior, so
-  the seam arrives with party effects, not before).
+- ~~The `Brain` interface~~ **Built (M6):** the follower brain was the second
+  behavior, so the seam arrived with party effects — `backend/brains.py`,
+  `select_brain` dispatching on data.
+- ~~A per-NPC effect allowlist~~ **Built (M6):** the persona `grants` list is
+  the hard capability gate for grantable effects like `join_party`.
+  `set_disposition` is deliberately still NOT gated — changing your own mood is
+  universally in-context, so it needs no allowlist entry.
 - A generalized relationship system or factions (the party map is the only
-  per-player datum until then).
-- A per-NPC effect allowlist (deferred with M5): `set_disposition` is the NPC
-  changing its own attitude — universally in-context, so a capability field
-  would be surface for zero payoff. Revisit at the second effect (`join_party`),
-  where some NPCs must be forbidden from granting it.
+  per-player datum until then; v1 disposition stays global toward players as a
+  class).
+- NPC traversal / cross-room followers (followers stay room-bound; the loop is
+  recruit → fight in this room → still here when you return).
 - On-the-fly persona generation (the schema gate must earn trust on
   hand-authored personas first).
+- Full unification of NPC actions onto the player `HANDLERS` (followers reuse
+  the same rule *primitives* today, not the same handler objects — revisit at
+  the third brain or the first NPC-initiated ability).

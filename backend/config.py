@@ -65,5 +65,19 @@ DIALOGUE_MAX_TOKENS = int(os.getenv("DIALOGUE_MAX_TOKENS", "512"))
 # Bounded dialogue memory: how many transcript entries an NPC keeps (one
 # entry = one speaker line). Persisted with the NPC row.
 NPC_TRANSCRIPT_LIMIT = 30
+# Party-size cap (NPCS.md "Followers"): most followers one player may hold.
+# Counted per-owner among the NPCs currently loaded in the room the recruit
+# happens in — a global cap needs an owner-centric query, which waits for the
+# players table / identity decision (see the party validator).
+PARTY_SIZE_CAP = 3
+# Follower leash: a follower only closes the gap to its owner when farther than
+# this (Manhattan). Keeps an idle ally a step back instead of glued to your
+# tile — the *tuning* half of the ally-blocking fix (the swap rule is the other).
+FOLLOW_LEASH = 2
 # Player text is untrusted input; cap it before it reaches a prompt.
 TALK_TEXT_LIMIT = 300
+
+# DEV-only affordances (e.g. the "reseed world" button). Destructive — it boots
+# every connected player and wipes individual state — so it is gated behind this
+# flag and OFF unless explicitly enabled. Never enable in a shared deployment.
+DEV_MODE = os.getenv("DEV_MODE", "1") not in ("0", "false", "False", "")

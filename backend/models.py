@@ -86,6 +86,12 @@ class NPCRow(Base):
     disposition: Mapped[str] = mapped_column(String, default="neutral")
     persona: Mapped[dict] = mapped_column(JSON, default=dict)
     memory: Mapped[list] = mapped_column(JSON, default=list)   # bounded transcript
+    # The player this NPC follows (NPCS.md "Followers"), or NULL. The first
+    # per-player relationship datum; nullable String because player ids are
+    # runtime strings ("player_3"), not a players-table FK yet — that (and
+    # rebinding a returning player to its follower) waits for the identity
+    # decision. Persists across room resets and restarts like the rest of the row.
+    party_owner_id: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
 
 
 class Room(Base):

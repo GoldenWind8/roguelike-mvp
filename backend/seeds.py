@@ -117,11 +117,44 @@ GORRIK_PERSONA = {
     "party_policy": "Will not leave his hall for strangers; decades of habit outweigh any offer.",
 }
 
-# (room_key, x, y, hp, defense) — placement is validated against the room
-# like every other seeded thing. Stats are modest: he is a caretaker, not a
-# combatant, but he IS an actor and can be hurt.
+# A recruitable individual seeded into the COMBAT hall (NPCS.md "Followers" —
+# there is no code barrier to an NPC in a combat room; only her room_id differs
+# from Gorrik's). Friendly from the start and — unlike Gorrik — her persona
+# GRANTS join_party, so warming her isn't needed: parley, recruit, and she
+# fights the hall's tenants beside you. The whole M6 loop, live, without NPC
+# traversal.
+MARA_PERSONA = {
+    "id": "mara-pillared-hall",
+    "name": "Mara",
+    "role": "stranded sellsword",
+    "persona": (
+        "A restless mercenary who wandered into the hall chasing a contract "
+        "that never paid. Blunt, itching for a fight, and quietly grateful for "
+        "any excuse to swing her blade at the tenants. Speaks in short, wry lines."
+    ),
+    "drives": [
+        "earn coin with steel",
+        "not die bored in this dusty hall",
+        "size up whether a traveler can actually fight",
+    ],
+    "disposition": "friendly",
+    "canned": [
+        "You look like you could use a blade at your back.",
+        "Say the word and I'll carve us a path.",
+        "These tenants won't clear themselves.",
+    ],
+    "party_policy": "Eager to join anyone who means to fight the hall's monsters; a real scrap is payment enough.",
+    "grants": ["join_party"],
+}
+
+# (room_key, persona, x, y, hp, defense, attack_damage) — placement is
+# validated against the room like every other seeded thing. Gorrik is a
+# caretaker (modest stats, harmless, no grants); Mara is a combatant (more hp,
+# a real attack, and grants join_party) so a recruited follower can actually
+# fight beside you.
 NPC_SEEDS = [
-    ("second", GORRIK_PERSONA, 5, 2, 20, 1),
+    ("second", GORRIK_PERSONA, 5, 2, 20, 1, 0),
+    ("default", MARA_PERSONA, 2, 8, 40, 1, 8),
 ]
 
 
@@ -146,7 +179,7 @@ async def seed_default_rooms(session) -> Room:
         validate_enemy_refs(data, known_enemy_ids)
     for from_key, _to, fx, fy in _CONNECTIONS:
         validate_connection(rooms[from_key], {"from_x": fx, "from_y": fy})
-    for room_key, persona, x, y, _hp, _defense in NPC_SEEDS:
+    for room_key, persona, x, y, _hp, _defense, _atk in NPC_SEEDS:
         validate_persona(persona)
         validate_npc_placement(rooms[room_key], x, y)
 
@@ -172,24 +205,37 @@ async def seed_default_rooms(session) -> Room:
             from_x=fx, from_y=fy,
         ))
 
-    for room_key, persona, x, y, hp, defense in NPC_SEEDS:
-        session.add(_npc_row(persona, models[room_key].id, x, y, hp, defense))
+    for room_key, persona, x, y, hp, defense, atk in NPC_SEEDS:
+        session.add(_npc_row(persona, models[room_key].id, x, y, hp, defense, atk))
 
     await session.commit()
     return models["default"]
 
 
-def _npc_row(persona: dict, room_id: int, x: int, y: int, hp: int, defense: int) -> NPCRow:
+def _npc_row(persona: dict, room_id: int, x: int, y: int, hp: int, defense: int, attack_damage: int) -> NPCRow:
     return NPCRow(
         room_id=room_id,
         name=persona["name"],
         x=x, y=y,
         hp=hp, max_hp=hp,
-        defense=defense, attack_damage=0,
+        defense=defense, attack_damage=attack_damage,
         disposition=persona["disposition"],
         persona=persona,
         memory=[],
     )
+
+
+async def _insert_npc_seeds(session) -> None:
+    """Add one row per NPC_SEEDS entry, resolving the room by name (rooms already
+    exist by the time this runs). Does NOT commit — the caller owns the unit of
+    work, so a reseed is atomic with whatever else it does."""
+    key_to_name = {"default": DEFAULT_ROOM["name"], "second": SECOND_ROOM["name"]}
+    for room_key, persona, x, y, hp, defense, atk in NPC_SEEDS:
+        validate_persona(persona)
+        room = (await session.execute(
+            select(Room).where(Room.name == key_to_name[room_key]))).scalars().first()
+        if room is not None:
+            session.add(_npc_row(persona, room.id, x, y, hp, defense, atk))
 
 
 async def seed_npcs_if_missing(session) -> None:
@@ -199,13 +245,18 @@ async def seed_npcs_if_missing(session) -> None:
     existing = (await session.execute(select(NPCRow))).scalars().first()
     if existing is not None:
         return
-    key_to_name = {"default": DEFAULT_ROOM["name"], "second": SECOND_ROOM["name"]}
-    for room_key, persona, x, y, hp, defense in NPC_SEEDS:
-        validate_persona(persona)
-        room = (await session.execute(
-            select(Room).where(Room.name == key_to_name[room_key]))).scalars().first()
-        if room is not None:
-            session.add(_npc_row(persona, room.id, x, y, hp, defense))
+    await _insert_npc_seeds(session)
+    await session.commit()
+
+
+async def reset_npcs(session) -> None:
+    """DEV: wipe ALL npc individual state and re-seed from NPC_SEEDS — restoring
+    a living, friendly Mara and a neutral Gorrik to their starting rows. This is
+    the one place that deliberately destroys individuals (Decision 10's opposite,
+    behind DEV_MODE). Template data (rooms, connections, enemy defs) is untouched;
+    fungible enemies respawn from the template when rooms reload."""
+    await session.execute(NPCRow.__table__.delete())
+    await _insert_npc_seeds(session)
     await session.commit()
 
 

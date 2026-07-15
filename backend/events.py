@@ -13,15 +13,22 @@ class EventType(Enum):
     ENEMY_MOVED = "enemy_moved"
     ENEMY_ATTACKED = "enemy_attacked"
     ENEMY_DIED = "enemy_died"
+    # A brain-driven NPC (a follower) moved or struck. Separate from the ENEMY_*
+    # pair because names never lie: an ally fighting beside you is not an enemy.
+    NPC_MOVED = "npc_moved"
+    NPC_ATTACKED = "npc_attacked"
     NPC_DIED = "npc_died"
     # A living actor's disposition toward players changed (e.g. a validated
     # set_disposition dialogue effect). World-visible: broadcast like any event.
     DISPOSITION_CHANGED = "disposition_changed"
+    # An NPC's party membership changed (join_party/leave_party effect, or a
+    # follower souring out of a party). owner_id is the player id, or null when
+    # the NPC left. World-visible like disposition_changed.
+    PARTY_CHANGED = "party_changed"
     ROUND_STARTED = "round_started"
     INVALID_ACTION = "invalid_action"
     PLAYER_LEFT = "player_left"
     PLAYER_ENTERED_DOOR = "player_entered_door"
-    GAME_OVER = "game_over"
     BOMB_THROWN = "bomb_thrown"
 
 
