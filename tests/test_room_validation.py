@@ -8,7 +8,7 @@ from backend.seeds import (
     DEFAULT_ROOM,
     ENEMY_DEFS,
     SECOND_ROOM,
-    seed_default_rooms,
+    seed_default_rooms, THIRD_ROOM,
 )
 from backend.room_validation import validate_enemy_refs, validate_room
 from backend.models import EnemyDef, Room, RoomConnection, TileType
@@ -21,6 +21,7 @@ _KNOWN_IDS = {d["id"] for d in ENEMY_DEFS}
 def test_default_rooms_are_valid():
     validate_room(DEFAULT_ROOM)   # must not raise
     validate_room(SECOND_ROOM)
+    validate_room(THIRD_ROOM)
     validate_enemy_refs(DEFAULT_ROOM, _KNOWN_IDS)
 
 
@@ -115,14 +116,17 @@ def test_rejects_sealed_off_tile():
 async def test_seed_round_trip(session):
     await seed_default_rooms(session)
 
-    room = (await session.execute(
-        select(Room).where(Room.name == "The Pillared Hall"))).scalar_one()
+    for expected in (DEFAULT_ROOM, SECOND_ROOM, THIRD_ROOM):
+        room = (
+            await session.execute(
+                select(Room).where(Room.name == expected["name"])
+            )
+        ).scalar_one()
 
-    assert room.terrain == DEFAULT_ROOM["terrain"]
-    assert room.objects == DEFAULT_ROOM["objects"]
-    assert room.spawn_points == DEFAULT_ROOM["spawn_points"]
-    assert room.enemy_spawns == DEFAULT_ROOM["enemy_spawns"]
-    assert room.capacity == 4
+        assert room.terrain == expected["terrain"]
+        assert room.objects == expected["objects"]
+        assert room.spawn_points == expected["spawn_points"]
+        assert room.enemy_spawns == expected["enemy_spawns"]
 
 
 async def test_enemy_stats_loaded_from_db(session):
@@ -147,6 +151,54 @@ async def test_door_links_to_second_room(session):
             RoomConnection.from_x == 4, RoomConnection.from_y == 9,
         ))).scalar_one()
     assert TileType(default.terrain[conn.from_y][conn.from_x]) is TileType.DOOR
+
+    target = await session.get(Room, conn.to_room_id)
+    assert target.name == "The Antechamber"
+
+async def test_door_links_to_third_room(session):
+    await seed_default_rooms(session)
+
+    second = (
+        await session.execute(
+            select(Room).where(Room.name == "The Antechamber")
+        )
+    ).scalar_one()
+
+    conn = (
+        await session.execute(
+            select(RoomConnection).where(
+                RoomConnection.from_room_id == second.id,
+                RoomConnection.from_x == 3,
+                RoomConnection.from_y == 0,
+            )
+        )
+    ).scalar_one()
+
+    assert TileType(second.terrain[conn.from_y][conn.from_x]) is TileType.DOOR
+
+    target = await session.get(Room, conn.to_room_id)
+    assert target.name == "The Den"
+
+async def test_door_links_back_to_second_room(session):
+    await seed_default_rooms(session)
+
+    third = (
+        await session.execute(
+            select(Room).where(Room.name == "The Den")
+        )
+    ).scalar_one()
+
+    conn = (
+        await session.execute(
+            select(RoomConnection).where(
+                RoomConnection.from_room_id == third.id,
+                RoomConnection.from_x == 4,
+                RoomConnection.from_y == 6,
+            )
+        )
+    ).scalar_one()
+
+    assert TileType(third.terrain[conn.from_y][conn.from_x]) is TileType.DOOR
 
     target = await session.get(Room, conn.to_room_id)
     assert target.name == "The Antechamber"

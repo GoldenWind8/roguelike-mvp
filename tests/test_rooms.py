@@ -21,7 +21,7 @@ from backend.models import Room
 @pytest_asyncio.fixture
 async def world_db(monkeypatch):
     """Seeded in-memory DB wired into backend.main: SessionMaker is patched,
-    registries are cleared, and (hall, ante) Room rows are returned."""
+    registries are cleared, and (hall, ante, den) Room rows are returned."""
     engine = create_async_engine(
         "sqlite+aiosqlite:///:memory:",
         connect_args={"check_same_thread": False},
@@ -35,13 +35,15 @@ async def world_db(monkeypatch):
         hall = await seed_default_rooms(session)
         ante = (await session.execute(
             select(Room).where(Room.name == "The Antechamber"))).scalars().one()
+        den =  (await session.execute(
+            select(Room).where(Room.name == "The Den"))).scalars().one()
 
     monkeypatch.setattr(main, "SessionMaker", maker)
     monkeypatch.setattr(main, "default_room_id", hall.id)
     main.active_rooms.clear()
     main.player_room.clear()
 
-    yield hall, ante
+    yield hall, ante, den
 
     main.active_rooms.clear()
     main.player_room.clear()
@@ -69,7 +71,7 @@ async def step_through_door(runtime, player_id, direction):
 
 
 async def test_get_or_load_room_caches_runtime(world_db):
-    hall, _ = world_db
+    hall, _, _ = world_db
     first = await main.get_or_load_room(hall.id)
     second = await main.get_or_load_room(hall.id)
     assert first is second
@@ -77,7 +79,7 @@ async def test_get_or_load_room_caches_runtime(world_db):
 
 
 async def test_eviction_cancels_timeout(world_db):
-    hall, _ = world_db
+    hall, _, _ = world_db
     runtime = await main.get_or_load_room(hall.id)
     main.start_round_timeout(runtime)
     task = runtime.timeout_task
@@ -91,7 +93,7 @@ async def test_eviction_cancels_timeout(world_db):
 
 
 async def test_traversal_round_trip(world_db):
-    hall, ante = world_db
+    hall, ante, _ = world_db
     runtime, player = await join_room(hall.id, "Hero")
     player.hp = 5  # battle-worn — must survive both crossings
 
@@ -117,7 +119,7 @@ async def test_traversal_round_trip(world_db):
 
 
 async def test_traversal_denied_when_destination_full(world_db):
-    hall, ante = world_db
+    hall, ante, _ = world_db
     await join_room(ante.id, "Resident1")
     await join_room(ante.id, "Resident2")  # antechamber capacity is 2 -> full
 
@@ -133,7 +135,7 @@ async def test_traversal_denied_when_destination_full(world_db):
 
 
 async def test_two_players_one_slot_exactly_one_transfers(world_db):
-    hall, ante = world_db
+    hall, ante, _ = world_db
     await join_room(ante.id, "Resident")  # leaves exactly one free slot
 
     runtime, p1 = await join_room(hall.id, "First")
@@ -157,7 +159,7 @@ async def test_two_players_one_slot_exactly_one_transfers(world_db):
 
 
 async def test_transfer_to_unloadable_room_is_denied_cleanly(world_db):
-    hall, _ = world_db
+    hall, _, _ = world_db
     runtime, player = await join_room(hall.id, "Hero")
 
     await main._transfer_player(runtime, player.id, 9999)  # no such room
@@ -168,7 +170,7 @@ async def test_transfer_to_unloadable_room_is_denied_cleanly(world_db):
 
 
 async def test_dead_player_is_not_transferred(world_db):
-    hall, ante = world_db
+    hall, ante, _ = world_db
     runtime, player = await join_room(hall.id, "Hero")
     player.is_alive = False  # died on the doorstep (enemy phase runs after moves)
 
@@ -180,7 +182,7 @@ async def test_dead_player_is_not_transferred(world_db):
 
 
 async def test_room_state_resets_after_eviction(world_db):
-    hall, _ = world_db
+    hall, _, _ = world_db
     runtime, player = await join_room(hall.id, "Hero")
     goblin = next(e for e in runtime.engine.room.enemies.values() if e.name == "Goblin")
     goblin.hp = 1
@@ -194,3 +196,14 @@ async def test_room_state_resets_after_eviction(world_db):
     fresh_goblin = next(e for e in fresh.engine.room.enemies.values() if e.name == "Goblin")
     assert fresh is not runtime
     assert fresh_goblin.hp == 6  # rooms have no memory — reseeded from the DB
+
+async def test_traversal_to_den(world_db):
+    _, ante, den = world_db
+
+    runtime, player = await join_room(ante.id, "Puku")
+
+    # north door in antechamber
+    runtime.engine.room.move_entity(player.id, Position(3, 1))
+    await step_through_door(runtime, player.id, [0, -1])
+
+    assert main.player_room[player.id] == den.id
