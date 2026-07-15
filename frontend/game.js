@@ -37,6 +37,11 @@ const NPC_DISPOSITION_COLORS = {
 function npcColor(npc) {
     return NPC_DISPOSITION_COLORS[npc && npc.disposition] || NPC_COLOR;
 }
+// A follower in YOUR party (party_owner_id === you). Another player's follower
+// is still just a friendly NPC to you — v1 party membership is per-player.
+function isMyFollower(npc) {
+    return npc && npc.party_owner_id && npc.party_owner_id === myPlayerId;
+}
 
 function connect() {
     const protocol = location.protocol === "https:" ? "wss:" : "ws:";
@@ -70,6 +75,10 @@ function connect() {
                 break;
             case "npc_dialogue":
                 handleNpcDialogue(msg);
+                break;
+            case "world_reset":
+                // DEV reseed happened server-side; reload into the fresh world.
+                location.reload();
                 break;
             case "error":
                 appendEvent("error", msg.message);
@@ -307,12 +316,13 @@ function renderGrid() {
             addHpBar(cell, enemy.hp, enemy.max_hp);
         } else if (npc) {
             cell.classList.add("cell-npc");
-            cell.title = "Talk to " + npc.name;
+            const ally = isMyFollower(npc);
+            cell.title = ally ? npc.name + " — in your party" : "Talk to " + npc.name;
             const color = npcColor(npc);
 
             const iconEl = document.createElement("div");
             iconEl.className = "entity-icon";
-            iconEl.textContent = NPC_ICON;
+            iconEl.textContent = ally ? "⚔" : NPC_ICON;
             iconEl.style.color = color;
             cell.appendChild(iconEl);
 
@@ -452,9 +462,10 @@ function renderEntities() {
     if (gameState.npcs) {
         Object.values(gameState.npcs).forEach((n) => {
             const li = document.createElement("li");
+            const tag = isMyFollower(n) ? "ally" : (n.disposition || "");
             li.innerHTML = `
-                <span style="color:${npcColor(n)}">${NPC_ICON} ${n.name}</span>
-                <span>${n.disposition || ""}</span>
+                <span style="color:${npcColor(n)}">${isMyFollower(n) ? "⚔" : NPC_ICON} ${n.name}</span>
+                <span>${tag}</span>
                 <span>${n.hp}/${n.max_hp} HP</span>
             `;
             if (!n.is_alive) li.classList.add("entity-dead");
@@ -469,13 +480,6 @@ function renderPhaseBanner() {
     if (!gameState.started) {
         banner.textContent = "Waiting for players...";
         banner.className = "phase-waiting";
-        return;
-    }
-
-    const gameOver = checkGameOver();
-    if (gameOver) {
-        banner.textContent = gameOver;
-        banner.className = "phase-gameover";
         return;
     }
 
@@ -524,18 +528,14 @@ function updateControls() {
     }
 }
 
-function checkGameOver() {
-    const livingPlayers = Object.values(gameState.players).filter((p) => p.is_alive);
-    const livingEnemies = gameState.enemies ? Object.values(gameState.enemies).filter((e) => e.is_alive) : [];
-    const totalEnemies = gameState.enemies ? Object.keys(gameState.enemies).length : 0;
 
-    if (livingPlayers.length === 0 && Object.keys(gameState.players).length > 0) {
-        return "Defeat — the dungeon claims all...";
+function devReset() {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        location.reload();
+        return;
     }
-    if (totalEnemies > 0 && livingEnemies.length === 0 && livingPlayers.length > 0) {
-        return "Victory — all enemies defeated!";
-    }
-    return null;
+    if (!confirm("DEV: wipe individual state and reseed the world to its starting state? This boots everyone.")) return;
+    ws.send(JSON.stringify({ type: "dev_reset" }));
 }
 
 function sendMove(dx, dy) {
@@ -734,8 +734,21 @@ function appendEventFromServer(event) {
         case "npc_died":
             appendEvent("death", getName(data.target_id) + " was slain!");
             break;
+        case "npc_moved":
+            appendEvent("npc", data.name + " moves to (" + data.to[0] + "," + data.to[1] + ")");
+            break;
+        case "npc_attacked":
+            appendEvent("npc", data.attacker_name + " strikes " + getName(data.target_id) + " for " + data.damage + " dmg");
+            break;
         case "disposition_changed":
             appendEvent("npc", getName(data.target_id) + " now regards you as " + data.disposition);
+            break;
+        case "party_changed":
+            if (data.owner_id === myPlayerId) {
+                appendEvent("npc", getName(data.target_id) + (data.owner_id ? " joined your party!" : " left your party."));
+            } else if (data.owner_id) {
+                appendEvent("npc", getName(data.target_id) + " joined another traveler's party.");
+            }
             break;
         case "bomb_thrown":
             appendEvent("attack", getName(data.player_id) + " hurls a bomb at (" + data.tile[0] + "," + data.tile[1] + ")");
@@ -748,9 +761,6 @@ function appendEventFromServer(event) {
             break;
         case "player_entered_door":
             appendEvent("move", (data.name || getName(data.player_id)) + " slips through the door");
-            break;
-        case "game_over":
-            appendEvent("gameover", data.winner_name);
             break;
         case "invalid_action":
             appendEvent("error", "Action rejected: " + (data.reason || "invalid action"));

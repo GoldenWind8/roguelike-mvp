@@ -18,10 +18,25 @@ v1 fields (all required):
   disposition   hostile | neutral | friendly
   canned        fallback lines, >= 1 (the CannedProvider and the live
                 fallback both draw from these — an NPC must never be mute)
-  party_policy  hint the LLM sees when deciding join_party (unused until the
-                party-effects slice, required now so authored content is ready)
+  party_policy  hint the LLM sees when deciding join_party — SHAPES what it
+                proposes (soft, prompt-side)
+
+Optional:
+  grants        the per-NPC effect allowlist (NPCS.md, deferred from M5 to
+                here). The closed set of GRANTABLE effects this NPC may
+                propose — a HARD engine gate, not a hint. Absent/empty means
+                "grants nothing": the default, so an ordinary NPC can never be
+                recruited no matter what a jailbroken LLM proposes. Only
+                effects that aren't universally in-context need listing:
+                set_disposition (an NPC changing its OWN mood) is always
+                allowed and is deliberately NOT grantable here.
 """
 from backend.entities import Disposition
+
+# Effects an NPC may be granted the capability to propose. set_disposition is
+# absent on purpose (universally in-context — see the docstring). Closed like
+# the effect vocabulary itself: a persona listing anything else fails the gate.
+GRANTABLE_EFFECTS = frozenset({"join_party"})
 
 _REQUIRED_STR = ("id", "name", "role", "persona", "party_policy")
 _REQUIRED_STR_LIST = ("drives", "canned")
@@ -61,7 +76,20 @@ def validate_persona(doc: dict) -> None:
     if disposition not in valid:
         raise ValueError(f"persona 'disposition' must be one of {valid}, got {disposition!r}")
 
-    unknown = set(doc) - set(_REQUIRED_STR) - set(_REQUIRED_STR_LIST) - {"disposition"}
+    # `grants` is optional; when present it must be a list drawn from the closed
+    # grantable set (same law as effects — no smuggling a novel capability past
+    # the gate). Absent means the safe default: this NPC grants nothing.
+    grants = doc.get("grants", [])
+    if not isinstance(grants, list):
+        raise ValueError(f"persona 'grants' must be a list, got {grants!r}")
+    unknown_grants = set(grants) - GRANTABLE_EFFECTS
+    if unknown_grants:
+        raise ValueError(
+            f"persona 'grants' has effects outside the grantable set "
+            f"{sorted(GRANTABLE_EFFECTS)}: {sorted(unknown_grants)}"
+        )
+
+    unknown = set(doc) - set(_REQUIRED_STR) - set(_REQUIRED_STR_LIST) - {"disposition", "grants"}
     if unknown:
         # Closed for now, like the effect vocabulary: a generator inventing
         # fields should fail loudly, not smuggle data past the gate.

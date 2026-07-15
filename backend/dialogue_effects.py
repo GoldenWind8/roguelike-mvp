@@ -18,24 +18,27 @@ new machinery.
 """
 import logging
 
-from backend.effects import Effect, SetDisposition, apply_effect
-from backend.entities import NPC, Disposition
+from backend.config import PARTY_SIZE_CAP
+from backend.effects import Effect, JoinParty, LeaveParty, SetDisposition, apply_effect
+from backend.entities import NPC, Disposition, Player
 from backend.events import GameEvent
 from backend.room_state import RoomState
 
 # Closed set: an effect name the LLM can propose must appear here, or it is
-# dropped. Grows by vocabulary, not by mechanism.
-CLOSED_VOCABULARY = frozenset({"set_disposition"})
+# dropped. Grows by vocabulary, not by mechanism. M6 adds the party pair.
+CLOSED_VOCABULARY = frozenset({"set_disposition", "join_party", "leave_party"})
 
 
-def validate_proposal(proposal: dict, *, npc: NPC, room: RoomState) -> Effect | None:
+def validate_proposal(
+    proposal: dict, *, npc: NPC, room: RoomState, player: Player | None = None
+) -> Effect | None:
     """Turn one untrusted proposal dict into a trusted engine `Effect`, or
     return None if it is malformed, unknown, or out of context.
 
-    `set_disposition` targets the NPC's own disposition toward players — a
-    global field on the NPC (not per-player), so `room` is enough context and
-    no `player` argument is needed. That arrives in M6 with join_party, where
-    the effect is genuinely per-player.
+    `set_disposition` targets the NPC's own mood — global, so `room` is enough.
+    `join_party`/`leave_party` are genuinely PER-PLAYER (the NPC follows the one
+    it is talking to), so they need `player`; without it they can't validate and
+    are dropped. This is why the M5 signature grew a `player` argument here.
     """
     if not isinstance(proposal, dict):
         return None
@@ -57,16 +60,62 @@ def validate_proposal(proposal: dict, *, npc: NPC, room: RoomState) -> Effect | 
             source_id=npc.id,
         )
 
+    if name == "join_party":
+        return _validate_join_party(npc=npc, room=room, player=player)
+
+    if name == "leave_party":
+        # Quitting only makes sense if the NPC is actually in a party. No
+        # disposition or capability gate — an ally is always free to leave.
+        if not npc.is_alive or not npc.party_owner_id:
+            return None
+        return LeaveParty(target_id=npc.id, source_id=npc.id)
+
     return None
 
 
-def process_proposals(room: RoomState, npc: NPC, proposals: list[dict]) -> list[GameEvent]:
+def _validate_join_party(*, npc: NPC, room: RoomState, player: Player | None) -> Effect | None:
+    """The engine rules that make recruitment safe (NPCS.md "Followers" DOD):
+    a live, WILLING (grants), WARM (friendly), FREE npc joins a present player
+    who is UNDER THE CAP. Any miss drops the proposal — declining is just text.
+    """
+    if player is None or not player.is_alive:
+        return None
+    if not npc.is_alive:
+        return None
+    # Hard capability gate: the persona must explicitly grant join_party. This
+    # is the wall party_policy (a mere prompt hint) can't be — a jailbroken LLM
+    # proposing join_party for an NPC that doesn't grant it gets nothing.
+    if "join_party" not in npc.persona.get("grants", []):
+        return None
+    # Disposition threshold: you recruit friends, not strangers or foes.
+    if npc.disposition is not Disposition.FRIENDLY:
+        return None
+    # Already committed — to this player or another. Idempotent, no thrash.
+    if npc.party_owner_id is not None:
+        return None
+    # Party-size cap, counted among THIS room's loaded followers of this owner.
+    # Room-scoped because followers are room-bound in v1; a global cap needs an
+    # owner-centric query across evicted rooms, which waits for the players
+    # table (identity decision, NPCS.md / DB_SCHEMA.md).
+    owned_here = sum(
+        1 for n in room.npcs.values() if n.party_owner_id == player.id
+    )
+    if owned_here >= PARTY_SIZE_CAP:
+        return None
+    return JoinParty(target_id=npc.id, owner_id=player.id, source_id=npc.id)
+
+
+def process_proposals(
+    room: RoomState, npc: NPC, proposals: list[dict], *, player: Player | None = None
+) -> list[GameEvent]:
     """Validate each proposal, apply the accepted ones through `apply_effect`,
     log the rejections (DOD: "rejections are logged for tuning"), and return
-    the collected events for the caller to broadcast."""
+    the collected events for the caller to broadcast. `player` is the recruiting
+    owner for party effects — None for the pure, socket-free unit tests that
+    only exercise self-targeting effects."""
     events: list[GameEvent] = []
     for proposal in proposals:
-        effect = validate_proposal(proposal, npc=npc, room=room)
+        effect = validate_proposal(proposal, npc=npc, room=room, player=player)
         if effect is None:
             logging.warning(
                 "dropped dialogue proposal from %s: %r", npc.id, proposal

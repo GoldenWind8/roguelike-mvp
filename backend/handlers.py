@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from backend.actions import ActionType, Action
 from backend.config import BOMB_THROW_RANGE, BOMB_RADIUS, BOMB_DAMAGE
 from backend.effects import apply_effect, compute_damage, Damage
-from backend.entities import Position
+from backend.entities import Disposition, NPC, Position
 from backend.room_state import RoomState
 from backend.events import GameEvent, EventType
 
@@ -15,6 +15,22 @@ def _invalid(room: RoomState, reason: str) -> GameEvent:
 
 def _manhattan(a: Position, b: Position) -> int:
     return abs(a.x - b.x) + abs(a.y - b.y)
+
+def _yielding_npc_at(room: RoomState, x: int, y: int) -> NPC | None:
+    """A living NON-HOSTILE NPC on tile (x, y) — the kind that yields (swaps)
+    to a moving player instead of walling them in (NPCS.md Decision 2). Hostile
+    actors (enemies, an NPC turned hostile) still block: fight-or-route-around
+    friction belongs to THREATS, not to allies, bystanders, or a follower this
+    session no longer recognizes as its own (the identity gap — a reconnecting
+    player gets a new id, so we intentionally don't gate this on ownership)."""
+    occupant_id = room.is_occupied(x, y)
+    if not occupant_id:
+        return None
+    occupant = room.get_entity(occupant_id)
+    if (isinstance(occupant, NPC) and occupant.is_alive
+            and occupant.disposition is not Disposition.HOSTILE):
+        return occupant
+    return None
 
 class ActionHandler(ABC):
     # Resolution ordering within a round (moves before acts). Named
@@ -41,7 +57,9 @@ class MoveHandler(ActionHandler):
             ny = player.position.y + action.direction[1]
             if not room.is_valid_position(nx, ny):
                 return _invalid(room, "Can't move there")
-            if room.is_occupied(nx, ny):
+            # A tile is passable if it's empty OR holds a non-hostile NPC (you
+            # swap with it on resolve). Hostile actors and other players block.
+            if room.is_occupied(nx, ny) and _yielding_npc_at(room, nx, ny) is None:
                 return _invalid(room, "Is occupied")
             return None
 
@@ -51,13 +69,29 @@ class MoveHandler(ActionHandler):
         nx = player.position.x + action.direction[0]
         ny = player.position.y + action.direction[1]
         new_pos = Position(nx, ny)
-        room.move_entity(action.player_id, new_pos)
+
+        # If a non-hostile NPC stands on the target tile, trade places instead
+        # of being blocked; otherwise a plain move. (validate already proved the
+        # tile is empty or holds a yielding NPC.)
+        yielder = _yielding_npc_at(room, nx, ny)
+        if yielder is not None:
+            room.swap_positions(action.player_id, yielder.id)
+        else:
+            room.move_entity(action.player_id, new_pos)
 
         events = [GameEvent(
             EventType.PLAYER_MOVED,
             {"player_id": action.player_id, "from": old_pos, "to": [nx, ny]},
             room.round,
         )]
+        if yielder is not None:
+            # The displaced NPC slid into the tile you left — narrate it so the
+            # log explains why it jumped.
+            events.append(GameEvent(
+                EventType.NPC_MOVED,
+                {"npc_id": yielder.id, "name": yielder.name, "from": [nx, ny], "to": old_pos},
+                room.round,
+            ))
 
         # Stepping onto a connected door/portal is intent to traverse. The
         # engine only announces it — the async edge owns the actual transfer

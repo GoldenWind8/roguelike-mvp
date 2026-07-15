@@ -47,6 +47,7 @@ async def load_npcs(session: AsyncSession, room_id: int) -> list[NPC]:
             disposition=Disposition(row.disposition),
             persona=row.persona,
             transcript=list(row.memory or [])[-NPC_TRANSCRIPT_LIMIT:],
+            party_owner_id=row.party_owner_id,
         ))
     return npcs
 
@@ -69,4 +70,5 @@ async def save_npcs(session: AsyncSession, npcs: list[NPC]) -> None:
         row.is_alive = npc.is_alive
         row.disposition = npc.disposition.value
         row.memory = list(npc.transcript)[-NPC_TRANSCRIPT_LIMIT:]
+        row.party_owner_id = npc.party_owner_id
     await session.commit()

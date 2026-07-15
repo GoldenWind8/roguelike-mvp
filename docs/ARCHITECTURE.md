@@ -120,6 +120,18 @@ bombs, and occupancy target `Actor` without caring which one they hit.
 Disposition (`hostile | neutral | friendly`) is a field, not a class — a
 shopkeeper turning hostile is a field write.
 
+The three kinds differ on two orthogonal axes, never on "kind of thing":
+
+- **Behavior comes from data, not type.** `brains.select_brain(actor)` picks a
+  brain each round from the actor's disposition + party membership: a hostile
+  actor chases, a follower defends, everyone else idles. A `Player` has no
+  brain (its socket drives it). So a hostile `Enemy` and an `NPC` soured to
+  hostile behave *identically*.
+- **Persistence is the real `Enemy`/`NPC` split.** An `Enemy` is a *simple*,
+  fungible actor — a hostile NPC minus the row: its hp/position are forgotten
+  on reset and it respawns from the template. An `NPC` is an individual whose
+  state is worth an `npcs` row. Recruiting an enemy promotes fungible → individual.
+
 ## Room Modes
 
 Every room runs one of two timing models (the `RoomMode` seam, implemented in
@@ -168,10 +180,15 @@ The round order is:
 1. Player actions are collected.
 2. Movement actions resolve first.
 3. Attack/bomb/wait actions resolve next.
-4. Enemy phase resolves.
-5. Game-over checks run.
-6. The round increments.
-7. A full state update and event list are sent to clients.
+4. Actor phase resolves (every non-player actor with a brain — hostiles chase,
+   followers defend; the brain is chosen from data by `brains.select_brain`).
+5. The round increments.
+6. A full state update and event list are sent to clients.
+
+There is no win/lose step: this is an infinite, procedurally-generated world,
+not a match. Clearing a room isn't victory (it just means no hostiles remain —
+M7 reads that to flip the room to exploration), and a party wipe isn't a
+terminal defeat (death/respawn is its own future concern).
 
 ## Actions, Handlers, Effects, Events
 
@@ -387,15 +404,17 @@ Once real data matters, add Alembic and stop dropping tables.
 These are accepted constraints for the current prototype:
 
 - Room mode is inferred from content (enemies → combat); there is no authored
-  `mode` column to override it yet. NPCs do not affect the inference, and
-  nothing reads `disposition` yet — a hostile NPC neither fights nor flips
-  the room to combat until the escalation slice lands.
+  `mode` column to override it yet. Disposition now *drives behavior* (a
+  hostile NPC fights via the ChaseBrain) but does not yet *flip a room's mode*
+  live — a room soured mid-play stays in its loaded mode until the escalation
+  slice (M7) reads disposition to switch it.
 - Exploration rooms only accept movement as an *action* — examining
   (`inspect_object`) and talking (`talk`) are requests outside the action
   economy.
-- Dialogue is text-only: no effect channel yet, so nothing said to an NPC
-  can change game state. NPCs have no brain — they stand still, in both
-  modes.
+- Dialogue has two channels (M5+M6): text never mutates state, but validated
+  effect proposals from the closed vocabulary can (`set_disposition`,
+  `join_party`/`leave_party`). NPCs now act via brains chosen from their data —
+  hostiles chase, followers defend — but only inside a combat room's actor phase.
 - Evicted rooms reset their fungible state — enemies respawn from the seed
   on the next visit; NPCs persist as individuals.
 - One global lock serializes all rooms (per-room locks are a later

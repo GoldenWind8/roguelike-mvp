@@ -103,32 +103,55 @@ async def test_seeded_npc_loads_as_entity(session):
     assert hall is not None
     rows = [r for r in (await session.execute(
         NPCRow.__table__.select())).all()]
-    assert len(rows) == 1
+    # Two individuals now: Gorrik (Antechamber) and Mara (the combat hall).
+    assert {r.name for r in rows} == {"Gorrik", "Mara"}
 
-    npcs = await load_npcs(session, rows[0].room_id)
-    assert len(npcs) == 1
-    gorrik = npcs[0]
+    gorrik_room = next(r.room_id for r in rows if r.name == "Gorrik")
+    [gorrik] = await load_npcs(session, gorrik_room)
     assert gorrik.name == "Gorrik"
     assert gorrik.id == f"npc_{gorrik.db_id}"
     assert gorrik.disposition is Disposition.NEUTRAL
+    assert gorrik.party_owner_id is None                 # unrecruited by default
 
 
 async def test_npc_state_round_trips(session):
     await seed_default_rooms(session)
-    row_room_id = (await session.execute(NPCRow.__table__.select())).one().room_id
+    gorrik_room = (await session.execute(
+        NPCRow.__table__.select().where(NPCRow.name == "Gorrik"))).one().room_id
 
-    [gorrik] = await load_npcs(session, row_room_id)
+    [gorrik] = await load_npcs(session, gorrik_room)
     gorrik.hp = 3
     gorrik.position = Position(2, 3)
     gorrik.disposition = Disposition.FRIENDLY
+    gorrik.party_owner_id = "player_7"          # party membership persists too
     gorrik.transcript.append({"speaker": "Hero", "text": "hello"})
     await save_npcs(session, [gorrik])
 
-    [reloaded] = await load_npcs(session, row_room_id)
+    [reloaded] = await load_npcs(session, gorrik_room)
     assert reloaded.hp == 3
     assert (reloaded.position.x, reloaded.position.y) == (2, 3)
     assert reloaded.disposition is Disposition.FRIENDLY
+    assert reloaded.party_owner_id == "player_7"
     assert reloaded.transcript == [{"speaker": "Hero", "text": "hello"}]
+
+
+async def test_reset_npcs_restores_starting_state(session):
+    from backend.seeds import reset_npcs
+    await seed_default_rooms(session)
+    # Simulate a played-in world: everyone dead, soured, and recruited.
+    await session.execute(NPCRow.__table__.update().values(
+        is_alive=False, disposition="hostile", party_owner_id="player_1"))
+    await session.commit()
+
+    await reset_npcs(session)
+
+    rows = (await session.execute(NPCRow.__table__.select())).all()
+    by_name = {r.name: r for r in rows}
+    assert set(by_name) == {"Gorrik", "Mara"}
+    assert by_name["Mara"].is_alive is True
+    assert by_name["Mara"].disposition == "friendly"
+    assert by_name["Mara"].party_owner_id is None       # unrecruited again
+    assert by_name["Gorrik"].disposition == "neutral"   # un-soured
 
 
 async def test_load_rejects_malformed_persona(session):
@@ -151,14 +174,14 @@ async def test_npcs_backfilled_into_pre_npc_database(session):
 
     await get_or_seed_default_room(session)
     rows = (await session.execute(NPCRow.__table__.select())).all()
-    assert len(rows) == 1 and rows[0].name == "Gorrik"
+    assert {r.name for r in rows} == {"Gorrik", "Mara"}
 
-    # A dead Gorrik is a row with is_alive=False — reboot must NOT resurrect.
+    # Dead individuals are rows with is_alive=False — reboot must NOT resurrect.
     await session.execute(NPCRow.__table__.update().values(is_alive=False, hp=0))
     await session.commit()
     await get_or_seed_default_room(session)
     rows = (await session.execute(NPCRow.__table__.select())).all()
-    assert len(rows) == 1 and rows[0].is_alive is False
+    assert len(rows) == 2 and all(r.is_alive is False for r in rows)
 
 
 async def test_eviction_saves_individuals(world_db):  # noqa: F811
@@ -190,9 +213,39 @@ def make_room_with_npc(make_template, npc=None):
     return room, npc
 
 
-def test_npc_occupies_its_tile(make_template):
+def test_npc_occupies_its_tile_on_the_grid(make_template):
+    # An NPC still OCCUPIES its tile (blocks enemies, anchors targeting) — the
+    # grid cell holds its id. What changed in M6 is only that a non-hostile NPC
+    # YIELDS to the player who steps in (next test), not enemies.
+    room, npc = make_room_with_npc(make_template)   # npc at (1, 2)
+    assert room.grid[2][1] == npc.id
+
+
+def test_player_passes_a_non_hostile_npc_by_swapping(make_template):
+    # A friendly/neutral NPC never walls you in: stepping into its tile trades
+    # places. Ownership is irrelevant — this holds even for a follower a refresh
+    # orphaned to a stale player id (the identity gap).
+    room, npc = make_room_with_npc(make_template)       # neutral npc at (1, 2)
+    npc.party_owner_id = "player_someone_else"           # ownership must not matter
+    player = room.add_player("Hero")                     # spawns at (1, 1)
+
+    action = Action(ActionType.MOVE, player.id, direction=(0, 1))  # step onto npc
+    assert HANDLERS[ActionType.MOVE].validate(room, action) is None    # not blocked
+    events = HANDLERS[ActionType.MOVE].resolve(room, action)
+
+    assert (player.position.x, player.position.y) == (1, 2)            # traded places
+    assert (npc.position.x, npc.position.y) == (1, 1)
+    assert room.grid[2][1] == player.id                                # grid follows
+    assert room.grid[1][1] == npc.id
+    types = [e.event_type for e in events]
+    assert EventType.PLAYER_MOVED in types and EventType.NPC_MOVED in types
+
+
+def test_hostile_npc_blocks_movement(make_template):
+    # Hostiles are the only occupants that impose fight-or-route-around friction.
     room, npc = make_room_with_npc(make_template)
-    player = room.add_player("Hero")            # spawns at (1, 1); npc at (1, 2)
+    npc.disposition = Disposition.HOSTILE
+    player = room.add_player("Hero")
     action = Action(ActionType.MOVE, player.id, direction=(0, 1))
     error = HANDLERS[ActionType.MOVE].validate(room, action)
     assert error is not None and "occupied" in error.data["reason"].lower()

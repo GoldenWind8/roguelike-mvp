@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 
-from backend.config import NPC_TRANSCRIPT_LIMIT, TALK_TEXT_LIMIT, TURN_TIMEOUT
+from backend.config import DEV_MODE, NPC_TRANSCRIPT_LIMIT, TALK_TEXT_LIMIT, TURN_TIMEOUT
 from backend.db import SessionMaker, init_db
 from backend.dialogue import build_provider
 from backend.dialogue_effects import process_proposals
@@ -16,7 +16,7 @@ from backend.events import EventType
 from backend.npc_store import load_npcs, save_npcs
 from backend.room_engine import RoomEngine
 from backend.room_loader import load_room
-from backend.seeds import get_or_seed_default_room
+from backend.seeds import get_or_seed_default_room, reset_npcs
 
 
 @dataclass
@@ -127,8 +127,12 @@ async def maybe_evict(runtime: RoomRuntime) -> None:
     and reloads individuals from their rows."""
     if runtime.engine.room.players:
         return
-    await _save_individuals(runtime)
+    # Stop the round timer BEFORE the (awaiting) save: don't leave a timer armed
+    # while we do async I/O during teardown. cancel_round_timeout has no await,
+    # so the timer coroutine can't sneak in and force-resolve a room we're
+    # dropping.
     cancel_round_timeout(runtime)
+    await _save_individuals(runtime)
     if active_rooms.get(runtime.room_id) is runtime:
         del active_rooms[runtime.room_id]
 
@@ -337,7 +341,13 @@ async def handle_talk(websocket: WebSocket, player_id: str, data: dict) -> None:
         # uses (invalid/unknown ones are dropped and logged inside). Runs under
         # the lock — pure CPU, no I/O — and its events are world-visible, so
         # they broadcast to the whole room, unlike the 1:1 dialogue text below.
-        effect_events = process_proposals(runtime.engine.room, npc, reply.proposals)
+        #
+        # Re-fetch the player here: party effects (join_party) recruit THIS
+        # owner, and the LLM call awaited outside the lock — the player may have
+        # walked away or left. A missing owner just drops party proposals; the
+        # spoken text still shows.
+        owner = runtime.engine.room.get_player(player_id)
+        effect_events = process_proposals(runtime.engine.room, npc, reply.proposals, player=owner)
         if effect_events:
             await broadcast_state_and_events(runtime, effect_events)
 
@@ -350,6 +360,46 @@ async def handle_talk(websocket: WebSocket, player_id: str, data: dict) -> None:
         "player_text": text,
         "text": reply.text,
     })
+
+
+# --- dev affordances ------------------------------------------------------------
+
+
+async def handle_dev_reset(websocket: WebSocket) -> None:
+    """DEV-only (gated by DEV_MODE): discard every live room and restore the
+    world to its seeded starting state — individuals reset (a living Mara, a
+    neutral Gorrik), and fungible enemies respawn when rooms reload. This boots
+    everyone, so it is a testing affordance, never a shipped feature.
+
+    Current state is DISCARDED, not saved: we skip _save_individuals on purpose
+    (the whole point is to throw away the played-in state), then tell every
+    connected client to reload into the fresh world.
+    """
+    if not DEV_MODE:
+        await websocket.send_json({"type": "error", "message": "Dev reset is disabled."})
+        return
+
+    async with state_lock:
+        # Capture sockets BEFORE clearing the registry (dedup by identity, and
+        # include the caller in case they hadn't joined a room yet).
+        sockets = {id(ws): ws for rt in active_rooms.values() for ws in rt.connections.values()}
+        sockets[id(websocket)] = websocket
+
+        for runtime in list(active_rooms.values()):
+            cancel_round_timeout(runtime)
+        active_rooms.clear()
+        player_room.clear()
+
+        async with SessionMaker() as session:
+            await reset_npcs(session)
+
+    # Clients reload and reconnect fresh — a full reload sidesteps any partial
+    # state left on the old sockets.
+    for ws in sockets.values():
+        try:
+            await ws.send_json({"type": "world_reset"})
+        except Exception:
+            pass
 
 
 # --- websocket endpoint ---------------------------------------------------------
@@ -431,6 +481,11 @@ async def websocket_endpoint(websocket: WebSocket):
                     await websocket.send_json({"type": "error", "message": "Join first"})
                     continue
                 await handle_talk(websocket, player_id, data)
+
+            elif msg_type == "dev_reset":
+                # World-wide reset — deliberately does NOT require a player_id
+                # (usable from the join screen too). Gated by DEV_MODE inside.
+                await handle_dev_reset(websocket)
 
             elif msg_type == "inspect_object":
                 if not player_id:

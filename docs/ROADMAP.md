@@ -20,18 +20,18 @@ Goal: what an NPC agrees to can actually happen — recruit a follower, or
 talk your way into (and out of) a fight.
 
 Milestones 1 (room runtime boundary), 2 (door/portal traversal), 3
-(exploration mode), 4 (NPC dialogue + individual persistence), and 5
-(dialogue effects — the validated closed-vocabulary channel) are done and
-folded into Current Reality above. The old "combat-room integration"
-milestone dissolved: its static half (combat and exploration rooms
-coexisting, traversal between them) shipped with M3–M4, and its dynamic half
-(a room *switching* modes live) is exactly the escalation feature, now
-Milestone 7.
+(exploration mode), 4 (NPC dialogue + individual persistence), 5
+(dialogue effects — the validated closed-vocabulary channel), and 6 (party
+members — the `Brain` seam + `join_party`) are done and folded into Current
+Reality above. The old "combat-room integration" milestone dissolved: its
+static half (combat and exploration rooms coexisting, traversal between them)
+shipped with M3–M4, and its dynamic half (a room *switching* modes live) is
+exactly the escalation feature, now Milestone 7.
 
 ```mermaid
 flowchart TD
     E["Basic NPC dialogue (done)"] --> F["M5: dialogue effects<br/>(closed vocabulary, set_disposition)"]
-    F --> G["M6: party members<br/>(join_party, follower brain)"]
+    F --> G["M6: party members (done)<br/>(join_party, Brain seam, follower)"]
     F --> H["M7: escalation<br/>(disposition flip -> live room mode switch)"]
 ```
 
@@ -98,24 +98,41 @@ fight — that escalation is Milestone 7, which reads this same field.
 Smallest slice on purpose: one effect proved the whole pipe (parse →
 validate → apply → event). Every later effect is vocabulary, not machinery.
 
-### Milestone 6: Party Members
+### Milestone 6: Party Members (done)
 
 Design source of truth: NPCS.md "Followers / Party Members". Recruitment is
 a dialogue effect, not a new system.
 
-Definition of done:
+Shipped against its definition of done:
 
-- `join_party` / `leave_party` enter the closed vocabulary, validated by
-  engine rules (disposition threshold, party-size cap). Declining is just
-  text.
-- `npcs.party_owner_id` lands; membership survives room resets and restarts.
-- The `Brain` seam arrives (this is the second behavior — the rule was
-  "abstract at the second behavior"): the hardcoded enemy chase becomes one
-  brain, the follower's defend-my-owner becomes the other, and NPC actions
-  go through the same `Action` validation players use.
-- Followers remain room-bound (NPC traversal is deferred): the loop is
+- `join_party` / `leave_party` entered the closed vocabulary, validated by
+  engine rules (must be alive, willing via the persona `grants` allowlist,
+  friendly, unattached, and the owner under `PARTY_SIZE_CAP`). Declining is
+  just text. ✔ (`dialogue_effects.py`; the validator gained a `player`
+  argument because party effects are genuinely per-player)
+- `npcs.party_owner_id` landed (nullable String, not a FK — player ids are
+  runtime strings until the `players`/identity table exists); membership
+  survives room resets and restarts as data. ✔
+- The `Brain` seam arrived — the second behavior justified the abstraction
+  (NPCS.md "abstract at the second behavior"). The hardcoded enemy chase is
+  now `ChaseBrain`, the follower's defend-my-owner is `FollowerBrain`, and
+  `select_brain(actor)` picks the brain FROM the actor's disposition + party
+  data each round, so "enemy" is just data. A brain proposes an `Intent`; the
+  engine disposes it through the same rule primitives players obey. ✔
+  (`brains.py`, `systems.resolve_actor_phase`)
+- Followers remain room-bound (NPC traversal stays deferred): the loop is
   parley → recruit → your ally fights beside you in that room → still there
-  when you return.
+  when you return. Demonstrable now via Mara, a recruitable sellsword seeded
+  into the combat hall. ✔
+
+Deferred with a named revisit-trigger: **rebinding** a returning player to
+its follower (party_owner_id persists as data, but reconnection-matching
+needs the identity decision), a **global** party cap (the v1 cap counts a
+room's loaded followers; a cross-room count needs the owner-centric
+`players` query), and full unification of NPC actions onto the player
+`HANDLERS` (revisit when a third brain or an NPC-initiated ability arrives —
+today followers reuse the same rule *primitives*, not the same handler
+objects).
 
 ### Milestone 7: Escalation (absorbs old combat-room integration)
 

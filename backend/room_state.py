@@ -159,6 +159,19 @@ class RoomState:
         entity.position = new_pos
         self.grid[new_pos.y][new_pos.x] = entity_id
 
+    def swap_positions(self, a_id: str, b_id: str):
+        """Exchange two occupants' tiles in one move — used when a player steps
+        into their own follower (handlers._is_own_follower). Both tiles are
+        overwritten, so neither is left dangling; no is_occupied check because
+        the callers already know the two cells hold exactly a and b."""
+        a = self.get_entity(a_id)
+        b = self.get_entity(b_id)
+        if not a or not b:
+            return
+        a.position, b.position = b.position, a.position
+        self.grid[a.position.y][a.position.x] = a_id
+        self.grid[b.position.y][b.position.x] = b_id
+
     def living_players(self) -> list[Player]:
         return [p for p in self.players.values() if p.is_alive]
 
