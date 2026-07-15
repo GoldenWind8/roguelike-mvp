@@ -144,12 +144,11 @@ Definition of done:
 
 - Insulting the caretaker (a `set_disposition` proposal to hostile) flips
   the room to combat: rounds, timers, the works.
+- Hostile NPCs acting as enemies would and attacking the player on their turn.
 - The last hostile dying — or a mid-combat parley flipping the last
   hostile's disposition back — returns the room to exploration.
 - Clearing a seeded combat room makes it explorable without a reload.
 
-The success condition is not "big MMO." It is "the game loop is real":
-words, fights, and allies all feed one simulation.
 
 ## Later: Good Ideas To Defer
 
