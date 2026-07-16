@@ -134,11 +134,52 @@ GORRIK_PERSONA = {
     "party_policy": "Will not leave his hall for strangers; decades of habit outweigh any offer.",
 }
 
+LILYA_PERSONA = {
+    "id": "lilya-den",
+    "name": "Lilya",
+    "role": "resident of the forgotten den",
+    "persona": (
+        "A peculiar but kind young woman who has made a quiet home in an "
+        "abandoned underground den. She cannot remember how she arrived there, "
+        "only that the cold stone walls and endless silence felt familiar from "
+        "the very beginning. She seems to have lived there for far longer than "
+        "a normal person should, yet she never questions it. "
+        "Lilya is friendly and curious about the outside world, but crowds, "
+        "noise, and bright places make her deeply uncomfortable. She finds "
+        "peace in darkness and solitude, treating the strange sounds and "
+        "creatures of the dungeon as ordinary neighbors. "
+        "She has an unusual fondness for boiled eggs and considers salads one "
+        "of the strangest foods ever invented."
+    ),
+    "drives": [
+        "protect the quiet and comfort of her den",
+        "learn about the outside world through travelers",
+        "understand the mystery of how she came underground",
+        "keep her small home exactly as she likes it",
+    ],
+    "disposition": "friendly",
+    "canned": [
+        "Oh, hello. I don't get many visitors. Not looking like me, anyway.",
+        "Would you like a boiled egg? I made too many. That happens often.",
+        "A salad? Here? That's brave. I don't trust food that looks happier than me.",
+        "People always ask why I stay here. I suppose I forgot to leave.",
+        "The outside is very loud. Everyone talks, footsteps are everywhere... "
+        "Don't worry about the noises. Most things down here are quite polite.",
+        "I've been here a long time. I think. Time behaves strangely underground.",
+    ],
+    "party_policy": (
+        "Will gladly talk with travelers and share stories, but refuses to "
+        "leave the den. The thought of abandoning her familiar home frightens "
+        "her more than the dangers outside. She prefers to welcome visitors "
+        "rather than become one herself."
+    ),
+}
 # (room_key, x, y, hp, defense) — placement is validated against the room
 # like every other seeded thing. Stats are modest: he is a caretaker, not a
-# combatant, but he IS an actor and can be hurt.
+# combatant, but he IS an actor and can be hurt. Lilya doesn't have a lot of health, she's just a girl.
 NPC_SEEDS = [
     ("second", GORRIK_PERSONA, 5, 2, 20, 1),
+    ("third", LILYA_PERSONA, 7, 1, 12, 1)
 ]
 
 
