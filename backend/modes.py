@@ -8,13 +8,39 @@ handlers, the boundary is wrong).
 
   - TurnBasedMode   buffer actions, resolve when all players submit (combat)
   - ExplorationMode validate and resolve immediately (walking, examining)
+
+WHICH mode a room is in is not stored anywhere — it is derived, live, by
+`derive_mode` (ROADMAP M7): combat iff a living hostile is present. The old
+load-time inference ("a room with enemies is a combat room") was this same
+predicate evaluated once; now the engine re-evaluates it at every resolution
+point, so an insulted caretaker escalates his room and a cleared room calms
+down, with no static mode to go stale.
 """
 from abc import ABC, abstractmethod
+from itertools import chain
 
 from backend.actions import ActionType, parse_action
+from backend.entities import Disposition
 from backend.events import GameEvent, EventType
 from backend.handlers import HANDLERS
+from backend.room_state import RoomState
 from backend.systems import validate_player_action
+
+
+def derive_mode(room: RoomState) -> str:
+    """The M7 predicate: "combat" iff a living actor hostile to the players is
+    present, "exploration" otherwise. One function, so every caller (engine
+    construction, round end, dialogue effects) agrees on what mode means.
+
+    Cost: O(actors in the room) with an early exit on the first hostile, no
+    allocation beyond the chain iterator — and it only runs at resolution
+    points (a round resolving, a dialogue effect landing, a room loading),
+    never per websocket message, so it cannot become a hot-loop drag. Players
+    are skipped: they are never hostile to themselves."""
+    for actor in chain(room.enemies.values(), room.npcs.values()):
+        if actor.is_alive and actor.disposition is Disposition.HOSTILE:
+            return "combat"
+    return "exploration"
 
 
 class RoomMode(ABC):

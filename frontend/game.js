@@ -178,7 +178,7 @@ function initGrid() {
             cell.className = "cell";
             cell.dataset.x = x;
             cell.dataset.y = y;
-            cell.onclick = () => handleCellClick(x, y);
+            cell.onclick = (e) => handleCellClick(x, y, e);
             container.appendChild(cell);
         }
     }
@@ -524,7 +524,7 @@ function updateControls() {
     if (help) {
         help.textContent = isExploration()
             ? "Arrow keys/WASD to move · Click objects to inspect · Moves happen instantly"
-            : "Arrow keys/WASD to move · Click adjacent enemy to attack · B then click a tile to bomb · All players act simultaneously";
+            : "Arrow keys/WASD to move · Click adjacent enemy to attack · Shift+click to parley · B then click a tile to bomb · All players act simultaneously";
     }
 }
 
@@ -590,7 +590,7 @@ function toggleBomb() {
     renderPhaseBanner();
 }
 
-function handleCellClick(x, y) {
+function handleCellClick(x, y, e) {
     if (!gameState) return;
 
     if (bombArmed) {
@@ -610,9 +610,16 @@ function handleCellClick(x, y) {
 
     // Talking is a request, not an action — allowed in both modes, even while
     // the round is locked. Same targeting rule as attack: walk adjacent first.
+    //
+    // Since M7 one tile can carry TWO verbs: a soured NPC is attackable AND
+    // parley-able (parley is the de-escalation path). The click default
+    // follows disposition — talk to the peaceful, strike the hostile — and
+    // Shift+click always talks, so you can still negotiate mid-fight.
     const clickedId = getGridOccupant(x, y);
     const npc = clickedId && gameState.npcs ? gameState.npcs[clickedId] : null;
-    if (npc && npc.is_alive) {
+    const wantsTalk = npc && npc.is_alive
+        && (npc.disposition !== "hostile" || (e && e.shiftKey));
+    if (wantsTalk) {
         const self = gameState.players[myPlayerId];
         if (self && Math.abs(self.position[0] - x) + Math.abs(self.position[1] - y) === 1) {
             openDialogue(npc);
@@ -752,6 +759,13 @@ function appendEventFromServer(event) {
             break;
         case "bomb_thrown":
             appendEvent("attack", getName(data.player_id) + " hurls a bomb at (" + data.tile[0] + "," + data.tile[1] + ")");
+            break;
+        case "room_mode_changed":
+            // The state_update carrying this event already swapped the UI
+            // (isExploration reads the live mode) — this line telegraphs WHY.
+            appendEvent("round", data.mode === "combat"
+                ? "⚔ Steel is drawn — the room erupts into combat!"
+                : "The threat has passed. You may move freely.");
             break;
         case "round_started":
             appendEvent("round", "— Round " + (data.round + 1) + " —");

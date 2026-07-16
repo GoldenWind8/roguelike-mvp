@@ -71,10 +71,9 @@ class RoomTemplate:
     # Door/portal tile -> destination room id. Loaded once with the room so
     # the engine can answer "does this tile lead somewhere?" without the DB.
     connections: dict[tuple[int, int], int] = field(default_factory=dict)
-    # Timing model for the room: "combat" (turn-based rounds) or "exploration"
-    # (immediate resolution). See backend/modes.py. Defaults to combat — the
-    # conservative choice for anything built without going through load_room.
-    mode: str = "combat"
+    # Note: no `mode` field. A room's timing model is DERIVED live from who is
+    # present (modes.derive_mode, M7) — a template with enemies wakes up combat
+    # because those enemies are hostile, not because a stored flag says so.
 
 
 def _object_payload(raw: dict, index: int) -> RoomObject:
@@ -147,9 +146,4 @@ async def load_room(session: AsyncSession, room_id: int) -> RoomTemplate:
         objects=objects,
         capacity=room.capacity,
         connections=connections,
-        # Mode is inferred from content for now (WORLD_EXPLORATION_PLAN step 1:
-        # "start with a conservative server-side rule"): a room with enemies is
-        # a combat room; a peaceful room is explorable. Promote this to a real
-        # `rooms` column once authored content needs to override the inference.
-        mode="combat" if enemies else "exploration",
     )

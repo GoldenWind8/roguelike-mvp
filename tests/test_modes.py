@@ -1,8 +1,11 @@
-"""RoomMode seam tests (Milestone 3): exploration resolves immediately,
-combat still buffers into rounds, and both share one rules engine.
+"""RoomMode seam tests (Milestone 3, re-grounded by Milestone 7): exploration
+resolves immediately, combat still buffers into rounds, and both share one
+rules engine.
 
-Pure-engine tests use the synthetic `make_template` fixture; the mode-inference
-test at the bottom goes through the real loader against seeded rooms.
+Since M7 there is no mode knob anywhere — a room is combat because a living
+hostile is present (`enemies=` on the fixture), exploration because none is.
+The derivation test at the bottom goes through the real loader against seeded
+rooms; escalation/de-escalation transitions live in tests/test_escalation.py.
 """
 from sqlalchemy import select
 
@@ -25,7 +28,7 @@ def submit_move(engine, player_id, direction):
 
 
 def test_exploration_move_resolves_immediately(make_template):
-    engine = RoomEngine(make_template(mode="exploration"))
+    engine = RoomEngine(make_template())  # nobody hostile -> exploration
     hero, _ = engine.join("Hero")
     engine.join("Bystander")  # never acts — must not block the hero
 
@@ -42,7 +45,7 @@ def test_exploration_move_resolves_immediately(make_template):
 
 def test_exploration_allows_consecutive_moves(make_template):
     # No "one action per round" limit — the same player can keep walking.
-    engine = RoomEngine(make_template(mode="exploration"))
+    engine = RoomEngine(make_template())
     hero, _ = engine.join("Hero")
 
     _, first = submit_move(engine, hero.id, [0, 1])
@@ -53,7 +56,7 @@ def test_exploration_allows_consecutive_moves(make_template):
 
 
 def test_combat_move_still_waits_for_all(make_template):
-    engine = RoomEngine(make_template(mode="combat"))
+    engine = RoomEngine(make_template(enemies=((3, 3),)))  # a hostile -> combat
     hero, _ = engine.join("Hero")
     engine.join("Slowpoke")
 
@@ -70,7 +73,7 @@ def test_combat_move_still_waits_for_all(make_template):
 
 
 def test_exploration_shares_movement_validation(make_template):
-    engine = RoomEngine(make_template(spawn_points=[(1, 1)], mode="exploration"))
+    engine = RoomEngine(make_template(spawn_points=[(1, 1)]))
     hero, _ = engine.join("Hero")
 
     events, resolved = submit_move(engine, hero.id, [0, -1])  # into the border wall
@@ -81,7 +84,7 @@ def test_exploration_shares_movement_validation(make_template):
 
 
 def test_exploration_rejects_combat_actions(make_template):
-    engine = RoomEngine(make_template(mode="exploration"))
+    engine = RoomEngine(make_template())
     hero, _ = engine.join("Hero")
 
     for action_data in (
@@ -95,7 +98,7 @@ def test_exploration_rejects_combat_actions(make_template):
 
 
 def test_exploration_move_onto_door_emits_traversal_event(make_template):
-    engine = RoomEngine(make_template(spawn_points=[(2, 1)], connections={(2, 0): 99}, mode="exploration"))
+    engine = RoomEngine(make_template(spawn_points=[(2, 1)], connections={(2, 0): 99}))
     hero, _ = engine.join("Hero")
 
     events, resolved = submit_move(engine, hero.id, [0, -1])
@@ -108,19 +111,19 @@ def test_exploration_move_onto_door_emits_traversal_event(make_template):
 # --- mode surfaces to the client -------------------------------------------
 
 
-def test_state_reports_room_mode(make_template):
-    assert RoomEngine(make_template(mode="exploration")).get_state()["room"]["mode"] == "exploration"
-    assert RoomEngine(make_template(mode="combat")).get_state()["room"]["mode"] == "combat"
+def test_state_reports_live_derived_mode(make_template):
+    assert RoomEngine(make_template()).get_state()["room"]["mode"] == "exploration"
+    assert RoomEngine(make_template(enemies=((3, 3),))).get_state()["room"]["mode"] == "combat"
 
 
-# --- mode inference at the loader seam --------------------------------------
+# --- mode derivation over real loaded rooms ----------------------------------
 
 
-async def test_load_room_infers_mode_from_enemies(session):
+async def test_loaded_rooms_derive_mode_from_hostiles(session):
     hall = await seed_default_rooms(session)
     ante = (await session.execute(
         select(Room).where(Room.name == "The Antechamber"))).scalars().one()
 
-    # The hall has enemies -> combat; the empty antechamber -> exploration.
-    assert (await load_room(session, hall.id)).mode == "combat"
-    assert (await load_room(session, ante.id)).mode == "exploration"
+    # The hall seeds hostiles -> combat; the empty antechamber -> exploration.
+    assert RoomEngine(await load_room(session, hall.id)).mode_name == "combat"
+    assert RoomEngine(await load_room(session, ante.id)).mode_name == "exploration"

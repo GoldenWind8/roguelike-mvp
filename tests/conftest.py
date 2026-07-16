@@ -10,7 +10,7 @@ from sqlalchemy.pool import StaticPool
 
 import backend.models  # noqa: F401 — register tables on Base.metadata before create_all
 from backend.db import Base
-from backend.room_loader import RoomTemplate
+from backend.room_loader import EnemySpawn, RoomTemplate
 
 
 @pytest_asyncio.fixture
@@ -45,7 +45,11 @@ def make_template():
     """Factory for a synthetic in-memory RoomTemplate — pure-engine tests (door
     events, attach/detach) need no DB. Default shape: a width x height room
     with border walls; tiles listed in `connections` or `doors` are passable
-    gaps in the border (doors lead somewhere, plain doors lead nowhere)."""
+    gaps in the border (doors lead somewhere, plain doors lead nowhere).
+
+    There is no `mode` knob — mode is derived from who is present (M7). A test
+    that wants a combat room seeds a hostile via `enemies` (grid positions);
+    an empty room is an exploration room, same as in production."""
     def _make(
         width: int = 5,
         height: int = 5,
@@ -53,7 +57,7 @@ def make_template():
         connections: dict[tuple[int, int], int] | None = None,
         doors: tuple[tuple[int, int], ...] = (),
         capacity: int | None = None,
-        mode: str = "combat",
+        enemies: tuple[tuple[int, int], ...] = (),
     ) -> RoomTemplate:
         spawn_points = spawn_points or [(1, 1), (2, 1)]
         connections = connections or {}
@@ -69,8 +73,11 @@ def make_template():
             height=height,
             spawn_points=list(spawn_points),
             walls=walls,
+            enemies=[
+                EnemySpawn(name="Goblin", hp=10, attack_damage=1, defense=0, position=pos)
+                for pos in enemies
+            ],
             capacity=capacity if capacity is not None else len(spawn_points),
             connections=dict(connections),
-            mode=mode,
         )
     return _make

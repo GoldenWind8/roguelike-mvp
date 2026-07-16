@@ -21,18 +21,20 @@ talk your way into (and out of) a fight.
 
 Milestones 1 (room runtime boundary), 2 (door/portal traversal), 3
 (exploration mode), 4 (NPC dialogue + individual persistence), 5
-(dialogue effects — the validated closed-vocabulary channel), and 6 (party
-members — the `Brain` seam + `join_party`) are done and folded into Current
-Reality above. The old "combat-room integration" milestone dissolved: its
-static half (combat and exploration rooms coexisting, traversal between them)
-shipped with M3–M4, and its dynamic half (a room *switching* modes live) is
-exactly the escalation feature, now Milestone 7.
+(dialogue effects — the validated closed-vocabulary channel), 6 (party
+members — the `Brain` seam + `join_party`), and 7 (escalation — live derived
+room mode) are done and folded into Current Reality above. The old
+"combat-room integration" milestone dissolved: its static half (combat and
+exploration rooms coexisting, traversal between them) shipped with M3–M4, and
+its dynamic half (a room *switching* modes live) shipped as M7's escalation.
+With M7, the goal above is closed: you can recruit a follower, and talk your
+way into — and out of — a fight.
 
 ```mermaid
 flowchart TD
     E["Basic NPC dialogue (done)"] --> F["M5: dialogue effects<br/>(closed vocabulary, set_disposition)"]
     F --> G["M6: party members (done)<br/>(join_party, Brain seam, follower)"]
-    F --> H["M7: escalation<br/>(disposition flip -> live room mode switch)"]
+    F --> H["M7: escalation (done)<br/>(disposition flip -> live room mode switch)"]
 ```
 
 ### Milestone 3: Exploration Mode (done)
@@ -134,20 +136,62 @@ room's loaded followers; a cross-room count needs the owner-centric
 today followers reuse the same rule *primitives*, not the same handler
 objects).
 
-### Milestone 7: Escalation (absorbs old combat-room integration)
+### Milestone 7: Escalation (done — absorbed old combat-room integration)
 
 Design source of truth: NPCS.md core model + [Future Ideas](FUTURE.md).
-Room mode stops being a load-time inference and derives from live state:
-"is a living actor hostile to players present?"
+Room mode stopped being a load-time inference and became a **live, derived
+property**: `combat` iff a living actor hostile to the players is present,
+`exploration` otherwise.
 
-Definition of done:
+That one predicate subsumes every case. A seeded combat room is "combat"
+*because its enemies are hostile*; an insulted caretaker makes his room
+"combat" the instant his disposition flips; the last hostile falling — to a
+blade or a parley — makes it "exploration" again. The old `enemies → combat`
+inference (`room_loader`) was just this predicate evaluated once at load; M7
+keeps evaluating it.
 
-- Insulting the caretaker (a `set_disposition` proposal to hostile) flips
-  the room to combat: rounds, timers, the works.
-- Hostile NPCs acting as enemies would and attacking the player on their turn.
-- The last hostile dying — or a mid-combat parley flipping the last
-  hostile's disposition back — returns the room to exploration.
-- Clearing a seeded combat room makes it explorable without a reload.
+The mechanism: one derivation function (`modes.derive_mode`), re-checked at
+every resolution point via `RoomEngine.refresh_mode` — after a round resolves
+and after dialogue effects land. When its answer changes the engine swaps
+timing models live and emits the transition. Efficiency, asked and answered:
+the predicate is O(actors-in-room) with an early exit on the first hostile,
+and it runs only at resolution points (a round, a dialogue effect, a load) —
+never per websocket message — so it can't drag the hot loop. `template.mode`
+went past "demoted to a default" and was **removed**: derivation is
+authoritative from construction, and a dead field would only invite drift.
+
+Shipped against its definition of done:
+
+- **One predicate, evaluated live.** `derive_mode` is the only source of a
+  room's mode; nothing reads a static `mode` after load (the field no longer
+  exists). Its result decides whether the room buffers rounds or resolves
+  immediately. ✔
+- **Escalate.** A `set_disposition`-to-hostile flips the room to combat —
+  `refresh_mode` swaps the timing model, announces the mode, and starts the
+  first round; the soured NPC already carries the `ChaseBrain` (M6) and
+  attacks on its turn. Talk is out-of-band, so the flip lands between
+  rounds. ✔
+- **De-escalate.** The last hostile dying (checked after every round) or a
+  mid-combat parley (checked after every dialogue effect) returns the room to
+  exploration: pending actions clear, the round timer is cancelled
+  (`main.handle_talk` + a de-escalation guard in the timeout task), immediate
+  movement resumes. Clearing a seeded combat room makes it explorable without
+  a reload — verified live over the websocket. ✔
+- **Tell the client.** `room_mode_changed` announces every transition; the
+  client already re-reads `state.room.mode` (now the live value) on every
+  state update, so the UI swaps automatically, and a log line telegraphs the
+  flip (GAME_DESIGN's fairness rule). ✔
+- **Doors stay open.** Nothing in escalation touches doors: mid-combat door
+  traversal is covered by a test. "Into and out of a fight" cuts both ways. ✔
+
+Fell out for free, now pinned by tests so we notice if it breaks:
+
+- **Escalation persists.** Disposition lives on the NPC row; the loader calls
+  `refresh_mode` after individuals load, so a room you soured is combat again
+  on your return.
+- **The pieces compose.** A follower is friendly by invariant, so the predicate
+  never counts it: your ally fights through the escalation and stands down when
+  it ends, with no follower-specific code.
 
 
 ## Later: Good Ideas To Defer
@@ -160,14 +204,8 @@ design thinking for all of them lives in [Future Ideas](FUTURE.md):
   decision: how a returning connection claims its row).
 - Inventory that follows players between rooms.
 - Object pickup, opening, destruction, and item effects.
-- AI-generated room creation on first visit; generated personas through the
-  existing persona gate.
 - NPC traversal (followers crossing rooms) and per-player relationships.
 - World clock and time pressure.
-- Faction simulation.
-- Hazards and random events with fair telegraphs.
-- Event sourcing and replay.
-- Postgres production database.
 - Redis routing and pub/sub.
 - Gateway/lobby service.
 - Multiple room workers.

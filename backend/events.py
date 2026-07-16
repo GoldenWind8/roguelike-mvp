@@ -25,6 +25,10 @@ class EventType(Enum):
     # follower souring out of a party). owner_id is the player id, or null when
     # the NPC left. World-visible like disposition_changed.
     PARTY_CHANGED = "party_changed"
+    # The room's derived mode flipped (M7 escalation): a hostile appeared and
+    # the room is now "combat", or the last hostile fell/parleyed and it is
+    # "exploration" again. The client swaps UI on this.
+    ROOM_MODE_CHANGED = "room_mode_changed"
     ROUND_STARTED = "round_started"
     INVALID_ACTION = "invalid_action"
     PLAYER_LEFT = "player_left"

@@ -47,8 +47,9 @@ recruitable sellsword, is seeded into the *combat* hall so the loop is live.
 Not yet: the `players` table — persisting player rows is useless until the open
 identity question (how a returning connection claims its row) is answered, so it
 waits for that decision rather than shipping dead schema. That same gate blocks
-*rebinding* a returning player to its follower and a *global* party cap. Next per
-the build order: escalation (disposition flip → live room mode switch).
+*rebinding* a returning player to its follower and a *global* party cap.
+Escalation (disposition flip → live room mode switch) shipped as M7: room mode
+is now derived live by `modes.derive_mode`, exactly the predicate below.
 
 ## Core Model: Axes, Not Taxonomy
 

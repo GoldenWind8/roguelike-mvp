@@ -10,7 +10,6 @@ from fastapi.responses import FileResponse
 from backend.config import DEV_MODE, NPC_TRANSCRIPT_LIMIT, TALK_TEXT_LIMIT, TURN_TIMEOUT
 from backend.db import SessionMaker, init_db
 from backend.dialogue import build_provider
-from backend.dialogue_effects import process_proposals
 from backend.entities import NPC
 from backend.events import EventType
 from backend.npc_store import load_npcs, save_npcs
@@ -102,6 +101,11 @@ async def get_or_load_room(room_id: int) -> RoomRuntime:
         # fungible enemies above; individuals arrive from their own rows.
         for npc in npcs:
             runtime.engine.room.add_npc(npc)
+        # Individuals can change the mode predicate's answer — an NPC soured on
+        # a past visit reloads hostile, so the room must wake up combat
+        # ("escalation persists", ROADMAP M7). Events are dropped: this is the
+        # room's initial mode, not a transition anyone is present to witness.
+        runtime.engine.refresh_mode()
         active_rooms[room_id] = runtime
     return runtime
 
@@ -205,6 +209,11 @@ async def _round_timeout(runtime: RoomRuntime):
             # was evicted (and possibly reloaded fresh). A stale timer must
             # never force-resolve a room it doesn't own.
             if active_rooms.get(runtime.room_id) is not runtime:
+                return
+            # De-escalation guard (M7): the room may have calmed while this
+            # timer slept (a disconnect auto-resolve killed the last hostile).
+            # Exploration has no rounds to force — nobody is "pending".
+            if not runtime.engine.turn_based:
                 return
             if runtime.engine.room.players_pending():
                 events = runtime.engine.force_resolve()
@@ -347,7 +356,15 @@ async def handle_talk(websocket: WebSocket, player_id: str, data: dict) -> None:
         # walked away or left. A missing owner just drops party proposals; the
         # spoken text still shows.
         owner = runtime.engine.room.get_player(player_id)
-        effect_events = process_proposals(runtime.engine.room, npc, reply.proposals, player=owner)
+        effect_events = runtime.engine.apply_dialogue_effects(npc, reply.proposals, owner)
+
+        # Timer work stays here (main owns timers): escalation needs none (the
+        # first combat submission arms it, same as a fresh room), but a
+        # de-escalating parley must cancel a mid-round timer or it would fire
+        # into a room with no fight left (the engine already dropped the
+        # half-collected round).
+        if not runtime.engine.turn_based:
+            cancel_round_timeout(runtime)
         if effect_events:
             await broadcast_state_and_events(runtime, effect_events)
 

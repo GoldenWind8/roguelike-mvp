@@ -152,10 +152,16 @@ it is a request outside the action economy (NPCS.md Decision 1): it never
 consumes a turn and never pauses the round timer, so it works mid-combat and
 cannot be used to stall a round.
 
-A room's mode is currently inferred at load time in `load_room` — a room
-with enemy spawns is `combat`, a peaceful room is `exploration` — and is sent
-to the client in `state.room.mode`. Promote the inference to a real `rooms`
-column once authored content needs to override it.
+A room's mode is a **live, derived property** (M7 escalation), never stored:
+`modes.derive_mode` answers `combat` iff a living actor hostile to the players
+is present, `exploration` otherwise. `RoomEngine.refresh_mode` re-evaluates it
+at every resolution point — after a round resolves and after dialogue effects
+land — and when the answer changes it swaps timing models in place, clears any
+half-collected round on de-escalation, and emits `room_mode_changed` (the
+round timer is cancelled in `main`). So an insulted caretaker turns his room
+into a fight, and clearing the last hostile — by blade or by parley — makes
+the room explorable without a reload. The live mode is sent to the client in
+`state.room.mode`; there is no `mode` field on templates or rows to go stale.
 
 ## Combat Model
 
@@ -403,11 +409,10 @@ Once real data matters, add Alembic and stop dropping tables.
 
 These are accepted constraints for the current prototype:
 
-- Room mode is inferred from content (enemies → combat); there is no authored
-  `mode` column to override it yet. Disposition now *drives behavior* (a
-  hostile NPC fights via the ChaseBrain) but does not yet *flip a room's mode*
-  live — a room soured mid-play stays in its loaded mode until the escalation
-  slice (M7) reads disposition to switch it.
+- Room mode is derived from disposition live (M7): a soured NPC escalates its
+  room to combat, and the last hostile falling de-escalates it. There is no
+  authored `mode` override — a room that must *stay* peaceful (or hostile)
+  regardless of occupants would need a new column feeding the predicate.
 - Exploration rooms only accept movement as an *action* — examining
   (`inspect_object`) and talking (`talk`) are requests outside the action
   economy.

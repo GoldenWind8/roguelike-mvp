@@ -198,7 +198,8 @@ class RoomState:
                 "name": self.template.room_name,
                 "width": self.template.width,
                 "height": self.template.height,
-                "mode": self.template.mode,
+                # No "mode" here: mode is a live, derived property the engine
+                # injects in get_state (M7) — a static copy would go stale.
             },
             "round": self.round,
             "grid": self.grid,

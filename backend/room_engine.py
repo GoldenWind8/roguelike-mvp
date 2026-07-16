@@ -1,9 +1,10 @@
 from backend.actions import Action, ActionType
 from backend.config import RNG_SEED
-from backend.entities import Player, Position
+from backend.dialogue_effects import process_proposals
+from backend.entities import NPC, Player, Position
 from backend.events import GameEvent, EventType
 from backend.room_loader import RoomTemplate
-from backend.modes import MODES
+from backend.modes import MODES, derive_mode
 from backend.systems import resolve_round
 from backend.room_state import RoomState
 
@@ -11,7 +12,12 @@ from backend.room_state import RoomState
 class RoomEngine:
     def __init__(self, template: RoomTemplate, seed: int = RNG_SEED):
         self.room = RoomState(template, seed)
-        self.mode = MODES[template.mode]
+        # Mode is DERIVED, never configured (M7): the template's seeded enemies
+        # are already placed by RoomState above, so the predicate sees them.
+        # Individuals load after construction — the loader calls refresh_mode()
+        # once they're placed, so a room soured on a past visit wakes up combat.
+        self.mode_name = derive_mode(self.room)
+        self.mode = MODES[self.mode_name]
         self.started = False
         self.phase = "waiting"
 
@@ -101,6 +107,52 @@ class RoomEngine:
 
         return self.mode.submit(self, player_id, action_data)
 
+    def apply_dialogue_effects(
+        self, npc: NPC, proposals: list[dict], player: Player | None
+    ) -> list[GameEvent]:
+        """The out-of-band mutation entry point: validate and apply a dialogue
+        reply's effect proposals, THEN re-derive the room mode — one call, so
+        no transport layer can apply effects and forget the refresh (the
+        invariant is 'mode is re-checked after every batch of world mutations',
+        and this is the only batch that happens outside a round). A future
+        out-of-band effect source (items, scripted triggers) should come
+        through here — or through a sibling that generalizes this — rather
+        than calling process_proposals directly."""
+        events = process_proposals(self.room, npc, proposals, player=player)
+        events.extend(self.refresh_mode())
+        return events
+
+    def refresh_mode(self) -> list[GameEvent]:
+        """Re-evaluate the M7 predicate and swap timing models if its answer
+        changed. Called at every resolution point: after a round resolves
+        (below) and after dialogue effects land (main.handle_talk) — the two
+        places a hostile can appear or the last one can fall.
+
+        Escalating announces the mode and starts the first combat round;
+        de-escalating drops any half-collected round (those intents belonged
+        to a fight that no longer exists) and movement is immediate again.
+        The round TIMER lives in main.py, which cancels it on de-escalation."""
+        new_name = derive_mode(self.room)
+        if new_name == self.mode_name:
+            return []
+        self.mode_name = new_name
+        self.mode = MODES[new_name]
+
+        events = [GameEvent(
+            EventType.ROOM_MODE_CHANGED,
+            {"mode": new_name},
+            self.room.round,
+        )]
+        if self.mode.turn_based:
+            events.append(GameEvent(
+                EventType.ROUND_STARTED,
+                {"round": self.room.round},
+                self.room.round,
+            ))
+        else:
+            self.room.pending_actions.clear()
+        return events
+
     def force_resolve(self) -> list[GameEvent]:
         """Called by timeout — auto-wait for anyone who hasn't acted."""
         for pid in self.room.players_pending():
@@ -116,11 +168,17 @@ class RoomEngine:
         actions = dict(self.room.pending_actions)
         self.room.pending_actions.clear()
         events = resolve_round(self.room, actions)
+        # A round can change the predicate's answer (the last hostile died) —
+        # re-derive so a cleared room is explorable without a reload.
+        events.extend(self.refresh_mode())
         self.phase = "player_phase"
         return (events, True)
 
     def get_state(self) -> dict:
         state = self.room.to_dict()
+        # The LIVE derived mode (M7) — the engine owns it, so RoomState no
+        # longer reports the template's static default.
+        state["room"]["mode"] = self.mode_name
         state["started"] = self.started
         state["phase"] = self.phase
         return state
