@@ -1,13 +1,14 @@
 # NPC And Actor Design
 
-This document is the source of truth for how NPCs, enemies, and future
-followers relate. It feeds [Roadmap](ROADMAP.md) Milestone 4 (basic dialogue)
-and the escalation design in [Future Ideas](FUTURE.md). For the
+This document is the source of truth for how NPCs, enemies, and followers
+relate. It fed the completed NPC arc — Milestones 4–7, archived in
+[NPC Arc Milestones](archive/NPC_MILESTONES.md). For the
 product intent behind NPCs see [Game Design](GAME_DESIGN.md).
 
 ## Status
 
-Design, agreed. Milestone 4 implements the smallest slice of it.
+Design, agreed and implemented through Milestone 7 (dialogue, effects,
+party members, escalation). Deferred pieces are marked in place below.
 
 Revised 2026-07-14 after reviewing an external LLM-NPC engine design
 (Animus/Duskfell): LLM is the M4 dialogue source (text-only), personas are

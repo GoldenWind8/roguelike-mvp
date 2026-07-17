@@ -28,14 +28,11 @@ from typing import Protocol
 
 import httpx
 
-from backend.config import (
-    DIALOGUE_MAX_TOKENS,
-    DIALOGUE_MODEL,
-    DIALOGUE_TIMEOUT,
-    GRID_API_KEY,
-    GRID_BASE_URL,
-)
+from backend.config import DIALOGUE_MAX_TOKENS, DIALOGUE_TIMEOUT
 from backend.entities import NPC
+from backend.llm import (
+    DEFAULT_TIER, LLMError, TIERS, complete_tier, strip_code_fence, tier_available,
+)
 
 
 @dataclass
@@ -147,52 +144,41 @@ class GridProvider:
 
     def __init__(self, fallback: DialogueProvider, client: httpx.AsyncClient | None = None):
         self.fallback = fallback
-        self.client = client or httpx.AsyncClient(
-            base_url=GRID_BASE_URL,
-            headers={"apikey": GRID_API_KEY},
-            timeout=DIALOGUE_TIMEOUT,
-        )
+        # Test seam: an injected client (MockTransport) serves every tier.
+        # Live, clients come from the per-tier cache in backend/llm.py.
+        self.client = client
 
     async def reply(self, npc: NPC, player_name: str, text: str) -> DialogueReply:
+        # WHICH model answers is the NPC's tier — content data, validated by
+        # the persona gate. Everything else here (token budget, timeout, the
+        # degrade-to-canned policy) is dialogue policy, identical across tiers.
+        tier = npc.persona.get("tier", DEFAULT_TIER)
         try:
-            response = await self.client.post("/v1/chat/completions", json={
-                "model": DIALOGUE_MODEL,
-                "messages": build_prompt(npc, player_name, text),
-                "max_tokens": DIALOGUE_MAX_TOKENS,
-                # JSON mode: force a valid JSON object so the effect envelope is
-                # always parseable. Without it, grid models intermittently reply
-                # in bare prose and the effect channel silently vanishes; with
-                # it, {"say", "effects"} comes back every time (measured across
-                # auto routing and named models). The prompt already asks for
-                # this shape — this just makes the transport enforce it.
-                "response_format": {"type": "json_object"},
-            })
-            response.raise_for_status()
-            choice = response.json()["choices"][0]
-        except Exception:
-            # Genuinely unexpected — network down, HTTP error, malformed body.
-            # Worth a traceback, since it may need investigation.
-            logging.warning("dialogue provider errored for %s; using canned line", npc.id, exc_info=True)
-            return await self._fallback(npc, player_name, text)
-
-        content = choice.get("message", {}).get("content")
-        if not isinstance(content, str) or not content.strip():
-            # NOT a crash, so no traceback: the grid routes to reasoning models
-            # whose hidden reasoning_content shares the token budget with the
-            # answer, so a tight budget yields empty content (finish_reason
-            # "length"). Degrade to canned; DIALOGUE_MAX_TOKENS is the lever.
-            logging.warning(
-                "empty dialogue completion for %s (finish_reason=%s); using canned line — "
-                "raise DIALOGUE_MAX_TOKENS (currently %d) if this recurs",
-                npc.id, choice.get("finish_reason"), DIALOGUE_MAX_TOKENS,
+            content = await complete_tier(
+                tier, build_prompt(npc, player_name, text),
+                max_tokens=DIALOGUE_MAX_TOKENS, timeout=DIALOGUE_TIMEOUT,
+                client=self.client,
             )
+        except LLMError as e:
+            if e.empty:
+                # NOT a crash, so no traceback: a reasoning model spent the
+                # budget on hidden thinking. DIALOGUE_MAX_TOKENS is the lever.
+                logging.warning(
+                    "empty dialogue completion for %s (%s); using canned line — "
+                    "raise DIALOGUE_MAX_TOKENS (currently %d) if this recurs",
+                    npc.id, e, DIALOGUE_MAX_TOKENS,
+                )
+            else:
+                # Genuinely unexpected — network down, HTTP error, malformed
+                # body. Worth a traceback, since it may need investigation.
+                logging.warning("dialogue provider errored for %s; using canned line", npc.id, exc_info=True)
             return await self._fallback(npc, player_name, text)
 
         # A completion arrived: this is a SUCCESS. Parsing the effect envelope
         # out of it may still fail (a weak model returns bare prose) — that
         # degrades to TEXT-ONLY, never to the canned fallback, which would throw
         # away a real reply.
-        return _parse_envelope(content.strip())
+        return _parse_envelope(content)
 
     async def _fallback(self, npc: NPC, player_name: str, text: str) -> DialogueReply:
         reply = await self.fallback.reply(npc, player_name, text)
@@ -205,7 +191,7 @@ def _parse_envelope(content: str) -> DialogueReply:
     well-formed envelope degrades to text-only: the model spoke, so show its
     prose and propose nothing. Proposals stay RAW here — validation is the
     engine's job (dialogue_effects.py)."""
-    body = _strip_code_fence(content)
+    body = strip_code_fence(content)
     try:
         parsed = json.loads(body)
     except (ValueError, TypeError):
@@ -222,23 +208,12 @@ def _parse_envelope(content: str) -> DialogueReply:
     return DialogueReply(say.strip(), effects)
 
 
-def _strip_code_fence(content: str) -> str:
-    """Remove a single leading/trailing ``` fence (optionally ```json) so the
-    JSON inside parses. Leaves un-fenced content untouched."""
-    stripped = content.strip()
-    if not stripped.startswith("```"):
-        return stripped
-    lines = stripped.splitlines()
-    lines = lines[1:]  # drop the opening ```/```json line
-    if lines and lines[-1].strip() == "```":
-        lines = lines[:-1]
-    return "\n".join(lines).strip()
-
-
 def build_provider() -> DialogueProvider:
-    """Composition root for dialogue: with a key, the LLM wrapped around the
-    canned fallback; without one, canned only — the game runs either way."""
-    if GRID_API_KEY:
+    """Composition root for dialogue: if any tier is callable, the LLM wrapped
+    around the canned fallback; otherwise canned only — the game runs either
+    way. A tier that later fails per-call (bad key, provider down) degrades to
+    canned for that line, so partial configuration is safe too."""
+    if any(tier_available(t) for t in TIERS):
         return GridProvider(fallback=CannedProvider())
-    logging.info("GRID_API_KEY not set — NPC dialogue is canned-only")
+    logging.info("no LLM tier has an API key — NPC dialogue is canned-only")
     return CannedProvider()

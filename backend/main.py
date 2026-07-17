@@ -4,15 +4,25 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
+from backend import auth
 from backend.config import DEV_MODE, NPC_TRANSCRIPT_LIMIT, TALK_TEXT_LIMIT, TURN_TIMEOUT
 from backend.db import SessionMaker, init_db
 from backend.dialogue import build_provider
-from backend.entities import NPC
+from backend.entities import NPC, Player, Position
 from backend.events import EventType
 from backend.npc_store import load_npcs, save_npcs
+from backend.player_store import (
+    UsernameTaken,
+    authenticate,
+    get_player_row,
+    make_live_player,
+    register_player,
+    save_players,
+)
 from backend.room_engine import RoomEngine
 from backend.room_loader import load_room
 from backend.seeds import get_or_seed_default_room, reset_npcs
@@ -82,6 +92,56 @@ async def serve_js():
     return FileResponse(FRONTEND_DIR / "game.js", media_type="application/javascript")
 
 
+# --- accounts (ACCOUNTS.md M8) ------------------------------------------------
+# Login over HTTP, play over WebSocket (Decision 5): these two endpoints turn
+# credentials into a signed token; the WS join handler turns the token back
+# into a player row. Passwords exist only inside these handlers and leave only
+# as bcrypt hashes — they are never logged and never stored raw.
+
+
+class Credentials(BaseModel):
+    username: str
+    password: str
+    email: str | None = None  # register only; stored unverified (Decision 4)
+
+
+def _session_payload(row) -> dict:
+    return {
+        "token": auth.sign_token(row.id),
+        "player_id": row.id,
+        "username": row.username,
+    }
+
+
+@app.post("/register", status_code=201)
+async def register(creds: Credentials):
+    username = creds.username.strip()
+    if not (3 <= len(username) <= 20):
+        raise HTTPException(400, "Username must be 3-20 characters.")
+    # bcrypt reads at most 72 BYTES of input — reject longer instead of
+    # silently truncating (a user's 80-char passphrase should not verify on
+    # its first 72 bytes).
+    if not (6 <= len(creds.password.encode()) <= 72):
+        raise HTTPException(400, "Password must be 6-72 characters.")
+    async with SessionMaker() as session:
+        try:
+            row = await register_player(session, username, creds.password, creds.email)
+        except UsernameTaken:
+            raise HTTPException(409, "That username is taken.")
+    return _session_payload(row)
+
+
+@app.post("/login")
+async def login(creds: Credentials):
+    async with SessionMaker() as session:
+        row = await authenticate(session, creds.username.strip(), creds.password)
+    if row is None:
+        # One message for unknown user AND wrong password — don't confirm
+        # which usernames exist.
+        raise HTTPException(401, "Wrong username or password.")
+    return _session_payload(row)
+
+
 # --- room registry -----------------------------------------------------------
 # Lock discipline: every helper below assumes the CALLER holds state_lock and
 # never acquires it itself (asyncio.Lock is not reentrant — a helper that
@@ -111,16 +171,34 @@ async def get_or_load_room(room_id: int) -> RoomRuntime:
 
 
 async def _save_individuals(runtime: RoomRuntime) -> None:
+    """Persist a room's individuals: NPC rows and (M8) player rows. At the
+    eviction save site the room is empty of players by definition, so the
+    player half only fires from shutdown — disconnect saves its one leaver
+    via _save_player."""
     npcs = list(runtime.engine.room.npcs.values())
-    if not npcs:
+    players = list(runtime.engine.room.players.values())
+    if not npcs and not players:
         return
     try:
         async with SessionMaker() as session:
-            await save_npcs(session, npcs)
+            if npcs:
+                await save_npcs(session, npcs)
+            if players:
+                await save_players(session, players, runtime.room_id)
     except Exception:
         # A failed save must not take the room registry down with it — the
         # in-memory state is still authoritative until the next save point.
-        logging.exception("failed to save NPCs for room %s", runtime.room_id)
+        logging.exception("failed to save individuals for room %s", runtime.room_id)
+
+
+async def _save_player(player: Player, room_id: int) -> None:
+    """Persist one player's state at the disconnect edge (ACCOUNTS.md
+    Decision 7). Same failure posture as _save_individuals: log and move on."""
+    try:
+        async with SessionMaker() as session:
+            await save_players(session, [player], room_id)
+    except Exception:
+        logging.exception("failed to save player %s", player.id)
 
 
 async def maybe_evict(runtime: RoomRuntime) -> None:
@@ -441,13 +519,75 @@ async def websocket_endpoint(websocket: WebSocket):
             msg_type = data.get("type")
 
             if msg_type == "join":
+                # Token-in-first-message (ACCOUNTS.md Decision 5): the token
+                # resolves to a player row BEFORE the socket joins any room.
+                # Auth failures carry code "auth" so the client knows to drop
+                # its stored token and show the login form again.
+                if player_id:
+                    await websocket.send_json({"type": "error", "message": "Already joined."})
+                    continue
+
+                token = data.get("token")
+                account_id = auth.verify_token(token) if isinstance(token, str) else None
+                if account_id is None:
+                    await websocket.send_json({
+                        "type": "error", "code": "auth",
+                        "message": "Invalid session — please log in.",
+                    })
+                    continue
+
+                async with SessionMaker() as session:
+                    row = await get_player_row(session, account_id)
+                if row is None:
+                    # A validly signed token for a vanished row (db reset):
+                    # same remedy as a forged one — log in again.
+                    await websocket.send_json({
+                        "type": "error", "code": "auth",
+                        "message": "Unknown account — please register again.",
+                    })
+                    continue
+
                 async with state_lock:
-                    runtime = await get_or_load_room(default_room_id)
+                    # One socket per account (Decision 6): reject the newcomer.
+                    # Revisit trigger: if refresh-during-play feels broken,
+                    # switch to newest-connection-takes-over.
+                    if account_id in player_room:
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": "This account is already playing — one connection at a time.",
+                        })
+                        continue
+
+                    # Where to resume (ACCOUNTS.md flow). A character saved
+                    # dead respawns fresh at the default room; a saved room
+                    # that no longer loads falls back the same way.
+                    respawning = row.hp <= 0
+                    target_room_id = row.room_id
+                    preferred = None
+                    if respawning or target_room_id is None:
+                        target_room_id = default_room_id
+                    elif row.x is not None and row.y is not None:
+                        preferred = Position(row.x, row.y)
+
                     try:
-                        player, events = runtime.engine.join(data.get("name", "Anonymous"))
-                    except ValueError as e:
+                        runtime = await get_or_load_room(target_room_id)
+                    except Exception:
+                        logging.exception("failed to load saved room %s", target_room_id)
+                        if target_room_id == default_room_id:
+                            await websocket.send_json({"type": "error", "message": "The world failed to load."})
+                            continue
+                        target_room_id, preferred = default_room_id, None
+                        runtime = await get_or_load_room(target_room_id)
+
+                    player = make_live_player(row)
+                    try:
+                        events = runtime.engine.attach_player(player, preferred)
+                    except ValueError:
                         await maybe_evict(runtime)  # don't leak a speculatively loaded room
-                        await websocket.send_json({"type": "error", "message": str(e)})
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": "The room is full — try again in a moment.",
+                        })
                         continue
 
                     player_id = player.id
@@ -457,6 +597,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     await send_to(runtime, player_id, {
                         "type": "join_ack",
                         "player_id": player_id,
+                        "username": row.username,
                         "state": runtime.engine.get_state(),
                     })
 
@@ -536,6 +677,13 @@ async def websocket_endpoint(websocket: WebSocket):
                 player_room.pop(player_id, None)
                 if runtime is not None:
                     runtime.connections.pop(player_id, None)
+                    # Persistence at the disconnect edge (ACCOUNTS.md
+                    # Decision 7): capture the leaver BEFORE removal — their
+                    # state is final now; the auto-resolve below only moves
+                    # the players who stayed.
+                    leaver = runtime.engine.room.get_player(player_id)
+                    if leaver is not None:
+                        await _save_player(leaver, runtime.room_id)
                     # remove_player may auto-resolve the round (the leaver was
                     # the last pending player) — that resolution can contain
                     # door events for OTHER players, so this site handles

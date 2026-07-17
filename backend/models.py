@@ -10,11 +10,13 @@ Two layers of the world (see ARCHITECTURE.md "separate terrain from entities"):
 Enemies are NORMALIZED: their stats live once in `enemy_defs`; a room only
 stores a placement {enemy_id, x, y} and loads the rest by id.
 """
+from datetime import datetime, timezone
 from enum import Enum
 
-from sqlalchemy import ForeignKey, Integer, String, JSON
+from sqlalchemy import DateTime, ForeignKey, Integer, String, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
+from backend.config import PLAYER_MAX_HP
 from backend.db import Base
 
 
@@ -86,12 +88,46 @@ class NPCRow(Base):
     disposition: Mapped[str] = mapped_column(String, default="neutral")
     persona: Mapped[dict] = mapped_column(JSON, default=dict)
     memory: Mapped[list] = mapped_column(JSON, default=list)   # bounded transcript
-    # The player this NPC follows (NPCS.md "Followers"), or NULL. The first
-    # per-player relationship datum; nullable String because player ids are
-    # runtime strings ("player_3"), not a players-table FK yet — that (and
-    # rebinding a returning player to its follower) waits for the identity
-    # decision. Persists across room resets and restarts like the rest of the row.
+    # The player this NPC follows (NPCS.md "Followers"), or NULL. Since M8 it
+    # holds a `players.id` — stable across sessions, so a returning login
+    # rebinds to its follower automatically. Still a plain String, not a FK:
+    # promotion waits one more milestone, until eviction ordering provably
+    # never saves an NPC before its owner exists (ACCOUNTS.md). Persists
+    # across room resets and restarts like the rest of the row.
     party_owner_id: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+
+
+class PlayerRow(Base):
+    """An account and its one character — the row IS the character
+    (ACCOUNTS.md Decision 1). `id` is the identity everything else references
+    (Decision 2): an opaque "player_<uuid>" string, prefixed so
+    RoomState.get_entity's prefix dispatch keeps working and stable so
+    `npcs.party_owner_id` finally points at something real. Usernames are for
+    humans and login only — renameable later without breaking references.
+
+    Two column groups with different lifecycles:
+      - auth (username / password_hash / email): written by /register, read by
+        /login, never sent to clients. email is nullable, unverified, unused
+        until the password-reset trigger fires (Decision 4).
+      - game state (room_id, x, y, hp): written at the edges only — disconnect
+        and shutdown — the `npcs` rhythm (Decision 7). All nullable-or-defaulted
+        because a fresh account has no position yet; NULL room means "spawn at
+        the default room", which is also the fallback whenever a saved location
+        stops making sense (deleted room, dead character).
+    """
+    __tablename__ = "players"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    username: Mapped[str] = mapped_column(String, unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String)
+    email: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+    room_id: Mapped[int | None] = mapped_column(ForeignKey("rooms.id"), nullable=True, default=None)
+    x: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
+    y: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
+    hp: Mapped[int] = mapped_column(Integer, default=PLAYER_MAX_HP)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc)
+    )
 
 
 class Room(Base):

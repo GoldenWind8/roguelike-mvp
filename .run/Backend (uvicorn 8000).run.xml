@@ -1,0 +1,24 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Backend (uvicorn :8000)" type="Python.FastAPI">
+    <option name="additionalOptions" value="--reload --port 8000" />
+    <option name="appName" value="app" />
+    <option name="file" value="$PROJECT_DIR$/backend/main.py" />
+    <module name="roguelike-mvp" />
+    <option name="ENV_FILES" value="" />
+    <option name="INTERPRETER_OPTIONS" value="" />
+    <option name="PARENT_ENVS" value="true" />
+    <option name="SDK_HOME" value="$PROJECT_DIR$/.venv/bin/python" />
+    <option name="SDK_NAME" value="Python 3.14 (roguelike-mvp)" />
+    <!-- Working dir MUST be the repo root: DATABASE_URL defaults to
+         sqlite:///./game.db, which is resolved relative to the cwd. -->
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <option name="IS_MODULE_SDK" value="false" />
+    <option name="ADD_CONTENT_ROOTS" value="true" />
+    <option name="ADD_SOURCE_ROOTS" value="true" />
+    <option name="DEBUG_JUST_MY_CODE" value="false" />
+    <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+    <option name="RUN_TOOL" value="" />
+    <option name="launchJavascriptDebuger" value="false" />
+    <method v="2" />
+  </configuration>
+</component>

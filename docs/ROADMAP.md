@@ -8,200 +8,56 @@ This roadmap keeps three ideas separate:
 
 ## Now: Current Reality
 
-The current system — room registry, door traversal, turn-based combat,
-exploration mode, and their accepted limitations — is documented in one place:
-[Current Architecture](ARCHITECTURE.md). In one line: multiple rooms can be
-live in one process, combat rooms resolve in rounds, peaceful rooms move at
-exploration speed, and everything is server-authoritative.
+The current system — room registry, door traversal, live derived room mode
+(combat/exploration), NPC dialogue with the validated effect channel, party
+members, escalation, and their accepted limitations — is documented in one
+place: [Current Architecture](ARCHITECTURE.md). In one line: multiple rooms
+can be live in one process, a room is in combat exactly while a living hostile
+is present, everything is server-authoritative, and AI proposes while the
+engine disposes.
 
-## Next: NPCs That Matter
+The "NPCs That Matter" arc (Milestones 6–7) is complete: you can recruit a
+follower, and talk your way into — and out of — a fight. The detailed
+definition-of-done write-ups are archived in
+[NPC Arc Milestones](archive/NPC_MILESTONES.md)
 
-Goal: what an NPC agrees to can actually happen — recruit a follower, or
-talk your way into (and out of) a fight.
+Milestone 8 (identity & accounts) is done: username + password login over
+HTTP, a signed token as the WebSocket's first message, a `players` table
+whose row *is* the character, and followers that rebind across sessions and
+restarts. Design source of truth: [Accounts & Identity](archive/ACCOUNTS.md).
 
-Milestones 1 (room runtime boundary), 2 (door/portal traversal), 3
-(exploration mode), 4 (NPC dialogue + individual persistence), 5
-(dialogue effects — the validated closed-vocabulary channel), 6 (party
-members — the `Brain` seam + `join_party`), and 7 (escalation — live derived
-room mode) are done and folded into Current Reality above. The old
-"combat-room integration" milestone dissolved: its static half (combat and
-exploration rooms coexisting, traversal between them) shipped with M3–M4, and
-its dynamic half (a room *switching* modes live) shipped as M7's escalation.
-With M7, the goal above is closed: you can recruit a follower, and talk your
-way into — and out of — a fight.
+## Next: UI Arc
 
-```mermaid
-flowchart TD
-    E["Basic NPC dialogue (done)"] --> F["M5: dialogue effects<br/>(closed vocabulary, set_disposition)"]
-    F --> G["M6: party members (done)<br/>(join_party, Brain seam, follower)"]
-    F --> H["M7: escalation (done)<br/>(disposition flip -> live room mode switch)"]
-```
+Goal: the client grows up around the identity M8 established.
+- **Milestone 9: Client migration.** Mechanical React/TypeScript/Vite port of
+  the existing client — no new features. Trigger and stack are already
+  defined in [Frontend Design](FRONTEND_DESIGN.md).
+- **Milestone 10: UI design.** The real layout/panel/visual pass on the
+  migrated stack, including account surfaces. Needs its own short design doc
+  before it starts.
 
-### Milestone 3: Exploration Mode (done)
+Both milestones consume M8's decisions (auth handshake, reconnect states,
+message shapes), which are now settled. M8's client surface stayed a trivial
+login form on purpose — the real account UI lands with M10.
 
-Shipped against its definition of done:
+## Parallel Track: Room Generation
 
-- Non-combat rooms allow immediate movement without waiting for all players. ✔
-- Combat rooms still use the existing turn-based loop. ✔
-- The server owns movement validation in both modes (one shared handler
-  path — the mode only chooses timing and allowed actions). ✔
-- The client shows whether the room is exploration or combat. ✔
-
-### Milestone 4: Basic NPC Dialogue (done)
-
-Design source of truth: [NPC And Actor Design](NPCS.md) — actor axes (no
-NPC/enemy taxonomy), the two-channel dialogue rule, and the follower/party
-deferral.
-
-Shipped against its definition of done:
-
-- A room can contain a simple NPC definition. ✔ (NPC instance rows — the
-  Antechamber's caretaker Gorrik; rooms never list NPCs, see NPCS.md
-  Decision 9)
-- The client can open a one-on-one dialogue panel. ✔
-- The server sends player text plus NPC context to the dialogue layer. ✔
-  (LLM via the `DialogueProvider` seam, canned fallback, hard timeout)
-- The response is displayed to the player. ✔
-- NPC dialogue cannot mutate game state directly. ✔ (text channel only;
-  the effect channel is the next slice)
-
-Beyond the floor: NPCs persist as individuals (eviction saves their row),
-and dialogue memory survives restarts as a bounded transcript.
-
-### Milestone 5: Dialogue Effects (done)
-
-Design source of truth: NPCS.md "Dialogue: Two Channels". The LLM's reply
-gains a second, structured channel: effect proposals drawn from a **closed
-vocabulary**, validated by the engine in context, applied through the same
-`apply_effect` path combat uses. AI proposes, the engine disposes — prompt
-injection can only propose what the validator refuses.
-
-Shipped against its definition of done:
-
-- The dialogue provider returns `(text, effect proposals)` instead of text
-  alone (`DialogueReply`); canned replies never propose. ✔ (`GridProvider`
-  parses a `{"say", "effects"}` JSON envelope; a non-JSON completion degrades
-  to text-only, never to canned — a real reply is never discarded.)
-- `set_disposition` works end to end: a validated proposal flips the NPC's
-  disposition field and emits a `disposition_changed` event players see. ✔
-  (trusted engine effect `SetDisposition` in the `effects.py` union)
-- Invalid/unknown/out-of-context proposals are dropped silently; the text
-  still shows. Rejections are logged for tuning. ✔ (`dialogue_effects.py` —
-  the pure, websocket-free validate→apply seam)
-- The persona document tells the LLM what it is allowed to propose. ✔ (the
-  closed vocabulary + JSON envelope live in `build_prompt`'s system framing;
-  a per-NPC allowlist was deliberately deferred until a second effect makes
-  per-NPC capability meaningful — M6's `join_party`)
-
-Scope held tight: flipping to hostile only writes the field + emits the event
-(the NPC recolors, a line logs). It does NOT switch room mode or start a
-fight — that escalation is Milestone 7, which reads this same field.
-
-Smallest slice on purpose: one effect proved the whole pipe (parse →
-validate → apply → event). Every later effect is vocabulary, not machinery.
-
-### Milestone 6: Party Members (done)
-
-Design source of truth: NPCS.md "Followers / Party Members". Recruitment is
-a dialogue effect, not a new system.
-
-Shipped against its definition of done:
-
-- `join_party` / `leave_party` entered the closed vocabulary, validated by
-  engine rules (must be alive, willing via the persona `grants` allowlist,
-  friendly, unattached, and the owner under `PARTY_SIZE_CAP`). Declining is
-  just text. ✔ (`dialogue_effects.py`; the validator gained a `player`
-  argument because party effects are genuinely per-player)
-- `npcs.party_owner_id` landed (nullable String, not a FK — player ids are
-  runtime strings until the `players`/identity table exists); membership
-  survives room resets and restarts as data. ✔
-- The `Brain` seam arrived — the second behavior justified the abstraction
-  (NPCS.md "abstract at the second behavior"). The hardcoded enemy chase is
-  now `ChaseBrain`, the follower's defend-my-owner is `FollowerBrain`, and
-  `select_brain(actor)` picks the brain FROM the actor's disposition + party
-  data each round, so "enemy" is just data. A brain proposes an `Intent`; the
-  engine disposes it through the same rule primitives players obey. ✔
-  (`brains.py`, `systems.resolve_actor_phase`)
-- Followers remain room-bound (NPC traversal stays deferred): the loop is
-  parley → recruit → your ally fights beside you in that room → still there
-  when you return. Demonstrable now via Mara, a recruitable sellsword seeded
-  into the combat hall. ✔
-
-Deferred with a named revisit-trigger: **rebinding** a returning player to
-its follower (party_owner_id persists as data, but reconnection-matching
-needs the identity decision), a **global** party cap (the v1 cap counts a
-room's loaded followers; a cross-room count needs the owner-centric
-`players` query), and full unification of NPC actions onto the player
-`HANDLERS` (revisit when a third brain or an NPC-initiated ability arrives —
-today followers reuse the same rule *primitives*, not the same handler
-objects).
-
-### Milestone 7: Escalation (done — absorbed old combat-room integration)
-
-Design source of truth: NPCS.md core model + [Future Ideas](FUTURE.md).
-Room mode stopped being a load-time inference and became a **live, derived
-property**: `combat` iff a living actor hostile to the players is present,
-`exploration` otherwise.
-
-That one predicate subsumes every case. A seeded combat room is "combat"
-*because its enemies are hostile*; an insulted caretaker makes his room
-"combat" the instant his disposition flips; the last hostile falling — to a
-blade or a parley — makes it "exploration" again. The old `enemies → combat`
-inference (`room_loader`) was just this predicate evaluated once at load; M7
-keeps evaluating it.
-
-The mechanism: one derivation function (`modes.derive_mode`), re-checked at
-every resolution point via `RoomEngine.refresh_mode` — after a round resolves
-and after dialogue effects land. When its answer changes the engine swaps
-timing models live and emits the transition. Efficiency, asked and answered:
-the predicate is O(actors-in-room) with an early exit on the first hostile,
-and it runs only at resolution points (a round, a dialogue effect, a load) —
-never per websocket message — so it can't drag the hot loop. `template.mode`
-went past "demoted to a default" and was **removed**: derivation is
-authoritative from construction, and a dead field would only invite drift.
-
-Shipped against its definition of done:
-
-- **One predicate, evaluated live.** `derive_mode` is the only source of a
-  room's mode; nothing reads a static `mode` after load (the field no longer
-  exists). Its result decides whether the room buffers rounds or resolves
-  immediately. ✔
-- **Escalate.** A `set_disposition`-to-hostile flips the room to combat —
-  `refresh_mode` swaps the timing model, announces the mode, and starts the
-  first round; the soured NPC already carries the `ChaseBrain` (M6) and
-  attacks on its turn. Talk is out-of-band, so the flip lands between
-  rounds. ✔
-- **De-escalate.** The last hostile dying (checked after every round) or a
-  mid-combat parley (checked after every dialogue effect) returns the room to
-  exploration: pending actions clear, the round timer is cancelled
-  (`main.handle_talk` + a de-escalation guard in the timeout task), immediate
-  movement resumes. Clearing a seeded combat room makes it explorable without
-  a reload — verified live over the websocket. ✔
-- **Tell the client.** `room_mode_changed` announces every transition; the
-  client already re-reads `state.room.mode` (now the live value) on every
-  state update, so the UI swaps automatically, and a log line telegraphs the
-  flip (GAME_DESIGN's fairness rule). ✔
-- **Doors stay open.** Nothing in escalation touches doors: mid-combat door
-  traversal is covered by a test. "Into and out of a fight" cuts both ways. ✔
-
-Fell out for free, now pinned by tests so we notice if it breaks:
-
-- **Escalation persists.** Disposition lives on the NPC row; the loader calls
-  `refresh_mode` after individuals load, so a room you soured is combat again
-  on your return.
-- **The pieces compose.** A follower is friendly by invariant, so the predicate
-  never counts it: your ally fights through the escalation and stands down when
-  it ends, with no follower-specific code.
-
+Being built alongside the arc above (`backend/procgen/`, untracked until
+workable): a registry of generator presets behind one validated contract —
+the same param schema renders the tuning harness, coerces untrusted input,
+and will later be the closed vocabulary an AI config-picker fills. It joins
+the roadmap as a milestone (wire an ungenerated exit to generate → validate →
+store → load) only once the presets are worth walking through.
 
 ## Later: Good Ideas To Defer
 
-These belong in the project, but not before the exploration loop works. The
+These belong in the project, but not before the next milestone works. The
 design thinking for all of them lives in [Future Ideas](FUTURE.md):
 
 - Per-room locks and the fuller room runtime architecture.
-- Persistent player accounts (`players` table — blocked on the identity
-  decision: how a returning connection claims its row).
+- Account hardening (password reset, email verification, login rate limiting,
+  session expiry — deferred with named triggers in
+  [Accounts & Identity](archive/ACCOUNTS.md)).
 - Inventory that follows players between rooms.
 - Object pickup, opening, destruction, and item effects.
 - NPC traversal (followers crossing rooms) and per-player relationships.
@@ -222,6 +78,10 @@ For this project, that means:
 3. Add exploration movement timing. (done)
 4. Add simple exploration interactions — NPC dialogue. (done)
 5. Let dialogue change the world through a validated effect channel, then
-   spend that machinery twice: recruitment and escalation.
-6. Only then decide what persistence, identity, and scale features have earned
-   their complexity.
+   spend that machinery twice: recruitment and escalation. (done)
+6. Give players identity: the smallest account system that makes a returning
+   connection the same player, unblocking everything that needs an owner. (done)
+7. Let the client earn its rebuild: migrate the stack mechanically, then
+   design the UI on solid ground.
+8. Fold in room generation from the parallel track, and only then decide what
+   scale features have earned their complexity.

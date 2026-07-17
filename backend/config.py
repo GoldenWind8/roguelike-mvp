@@ -28,6 +28,22 @@ _load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./game.db")
 
 
+# Session-token signing secret (ACCOUNTS.md Decision 5): a token is
+# HMAC(player_id, SECRET_KEY), so whoever holds this secret can mint a session
+# for any account — prod MUST set a real value in the environment. The dev
+# default is deliberately stable (not random-per-boot) so local tokens survive
+# a server restart instead of logging everyone out on every code reload.
+SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-not-for-production")
+
+
+# Session-token signing secret (ACCOUNTS.md Decision 5). A token is
+# HMAC(player_id, SECRET_KEY) — anyone holding the secret can mint a session
+# for any account, so a real deployment MUST set this in the environment.
+# The dev default is deliberately stable (not random-per-boot) so local
+# tokens survive server restarts; a rotating secret would log everyone out
+# on every reload.
+SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-not-for-production")
+
 # Player defaults.
 PLAYER_MAX_HP = 100
 PLAYER_ATTACK_DAMAGE = 30
@@ -67,8 +83,9 @@ DIALOGUE_MAX_TOKENS = int(os.getenv("DIALOGUE_MAX_TOKENS", "512"))
 NPC_TRANSCRIPT_LIMIT = 30
 # Party-size cap (NPCS.md "Followers"): most followers one player may hold.
 # Counted per-owner among the NPCs currently loaded in the room the recruit
-# happens in — a global cap needs an owner-centric query, which waits for the
-# players table / identity decision (see the party validator).
+# happens in. The players table (M8) makes a global owner-centric cap query
+# possible — deferred until a second recruitable NPC makes it reachable
+# (ACCOUNTS.md "Deferred").
 PARTY_SIZE_CAP = 3
 # Follower leash: a follower only closes the gap to its owner when farther than
 # this (Manhattan). Keeps an idle ally a step back instead of glued to your

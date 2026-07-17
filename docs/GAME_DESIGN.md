@@ -72,9 +72,9 @@ When a player moves through an exit:
 
 ### Exploration
 
-Exploration is the next major product milestone.
+Exploration shipped in its first form (see [ARCHITECTURE.md](ARCHITECTURE.md)).
 
-Players should be able to:
+Players can:
 
 - Move freely inside non-combat rooms.
 - See other players in the same room.

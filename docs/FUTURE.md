@@ -58,7 +58,7 @@ before it affects mechanics:
 
 | Seam | Trigger | Output | Validation |
 |---|---|---|---|
-| Room generation | reaching an ungenerated exit | terrain, objects, spawns, lore, connections | room validation |
+| Room generation (**in progress** on a parallel track, see [Roadmap](ROADMAP.md)) | reaching an ungenerated exit | terrain, objects, spawns, lore, connections | room validation |
 | NPC dialogue | player talks to NPC | text response, memory summary | dialogue policy and state rules |
 | NPC action | NPC decides to act | normal `Action` | same action validation as players |
 | Item generation | loot/reward creation | item definition and effect data | closed effect vocabulary |

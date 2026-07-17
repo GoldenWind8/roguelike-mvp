@@ -30,8 +30,14 @@ Optional:
                 effects that aren't universally in-context need listing:
                 set_disposition (an NPC changing its OWN mood) is always
                 allowed and is deliberately NOT grantable here.
+  tier          which model TIER speaks for this NPC (backend/llm.py TIERS) —
+                an abstract capability level ("premium"), never a provider or
+                model name. Content stays stable while config rebinds tiers to
+                whatever models exist this month. Absent means the cheapest
+                tier: most NPCs are tavern filler.
 """
 from backend.entities import Disposition
+from backend.llm import TIERS
 
 # Effects an NPC may be granted the capability to propose. set_disposition is
 # absent on purpose (universally in-context — see the docstring). Closed like
@@ -89,7 +95,14 @@ def validate_persona(doc: dict) -> None:
             f"{sorted(GRANTABLE_EFFECTS)}: {sorted(unknown_grants)}"
         )
 
-    unknown = set(doc) - set(_REQUIRED_STR) - set(_REQUIRED_STR_LIST) - {"disposition", "grants"}
+    # `tier` is optional; when present it must name a real tier — same closed-
+    # vocabulary law as grants. A generated persona claiming tier "galactic"
+    # fails here, not at dialogue time with a confusing transport error.
+    tier = doc.get("tier")
+    if tier is not None and tier not in TIERS:
+        raise ValueError(f"persona 'tier' must be one of {list(TIERS)}, got {tier!r}")
+
+    unknown = set(doc) - set(_REQUIRED_STR) - set(_REQUIRED_STR_LIST) - {"disposition", "grants", "tier"}
     if unknown:
         # Closed for now, like the effect vocabulary: a generator inventing
         # fields should fail loudly, not smuggle data past the gate.

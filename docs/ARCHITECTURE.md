@@ -53,9 +53,10 @@ At startup, the server:
 3. Remembers the default room id.
 4. Accepts WebSocket joins.
 
-On shutdown it saves the individuals of every still-live room — rooms with
-players connected never went through eviction, and a restart must not be the
-one remaining way to destroy an NPC's state.
+On shutdown it saves the individuals of every still-live room — NPCs and,
+since M8, connected players' rows — because rooms with players connected
+never went through eviction, and a restart must not be the one remaining way
+to destroy an individual's state.
 
 No `RoomEngine` is built at startup — the first join loads the default room through
 the same `get_or_load_room` path traversal uses.
@@ -271,9 +272,12 @@ sequenceDiagram
     participant Server
     participant RoomEngine
 
-    Client->>Server: join
-    Server->>RoomEngine: engine.join(name)
-    RoomEngine-->>Server: player and events
+    Client->>Server: POST /register or /login (HTTP)
+    Server-->>Client: signed session token
+    Client->>Server: join with token (first WS message)
+    Note over Server: token -> players row (M8), reject if invalid or already connected
+    Server->>RoomEngine: attach_player(player, saved position)
+    RoomEngine-->>Server: events
     Server-->>Client: join_ack
     Server-->>Client: state_update
 
@@ -432,7 +436,7 @@ These are accepted constraints for the current prototype:
 - There is no player account or persistent inventory.
 
 These are not failures. They are the correct next set of engineering choices to
-make as exploration becomes real.
+make as the world grows beyond hand-seeded rooms.
 
 ## Next Architectural Move
 
@@ -448,16 +452,28 @@ exploration movement timing (RoomMode seam, done)
 basic NPC dialogue + individual persistence (Milestone 4, done)
         |
         v
-dialogue effects: closed vocabulary, set_disposition first (Milestone 5)
+dialogue effects: closed vocabulary, set_disposition first (Milestone 5, done)
         |
         v
-escalation + party members (Milestones 6-7)
+party members + escalation (Milestones 6-7, done)
+        |
+        v
+identity + accounts: players table, reconnect claims your row (Milestone 8, done)
+        |
+        v
+client migration + UI design (Milestones 9-10)
+        |
+        v
+room generation joins from its parallel track (preset registry -> traversal
+wiring -> AI config-picker)
         |
         v
 later, only if needed: per-room locks, workers, Redis
 ```
 
-Avoid jumping straight to workers, Redis, gateway routing, or full account
-systems. Dialogue is proven text-only against a live LLM; next, open the
-effect channel so what an NPC agrees to can actually happen — through
-engine validation, never directly.
+Avoid jumping straight to workers, Redis, or gateway routing. Identity (M8)
+is done — the `players` table, follower rebinding, and a stable owner for
+future inventory all exist; the next unlock is the client (migration, then
+UI). Room generation continues on a parallel track and is wired into
+traversal once its presets are workable. See [Roadmap](ROADMAP.md) and
+[Accounts & Identity](archive/ACCOUNTS.md).

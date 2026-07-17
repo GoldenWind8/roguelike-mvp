@@ -28,6 +28,10 @@ class RoomEngine:
         return self.mode.turn_based
 
     def join(self, player_name: str) -> tuple[Player, list[GameEvent]]:
+        """Create-and-place a fresh ephemeral player (counter id, no `players`
+        row). Since M8 the production join path is attach_player with an
+        account-backed Player — this stays as the engine-level entry tests
+        and tools use."""
         # Room capacity = number of spawn points (replaces the old MAX_PLAYERS).
         if len(self.room.players) >= self.room.template.capacity:
             raise ValueError("Room is full")
@@ -51,13 +55,24 @@ class RoomEngine:
 
         return player, events
 
-    def attach_player(self, player: Player) -> list[GameEvent]:
-        """Traversal arrival: place an EXISTING player (hp/id/name preserved)
-        at a free spawn. Raises ValueError when the room can't take them —
-        the caller denies the traversal and the player stays where they were."""
+    def attach_player(self, player: Player, preferred: Position | None = None) -> list[GameEvent]:
+        """Place an EXISTING player (hp/id/name preserved) — traversal arrival
+        and account login both come through here. `preferred` is a login's
+        saved position (ACCOUNTS.md flow): honored when still standable,
+        silently downgraded to a free spawn when not (a respawned enemy may
+        be parked on it — resuming NEAR your spot beats an error). Raises
+        ValueError when the room can't take them at all — the caller denies
+        the traversal/login and the player stays out."""
         if len(self.room.players) >= self.room.template.capacity:
             raise ValueError("The way is blocked")
-        spawn = self.room.free_spawn()
+
+        spawn = None
+        if (preferred is not None
+                and self.room.is_valid_position(preferred.x, preferred.y)
+                and not self.room.is_occupied(preferred.x, preferred.y)):
+            spawn = (preferred.x, preferred.y)
+        if spawn is None:
+            spawn = self.room.free_spawn()
         if spawn is None:
             raise ValueError("The way is blocked")
 

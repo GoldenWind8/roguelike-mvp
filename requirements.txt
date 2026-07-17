@@ -4,6 +4,8 @@ sqlalchemy[asyncio]
 asyncpg
 aiosqlite
 httpx  # async client for the NPC dialogue provider (AI Power Grid)
+bcrypt  # password hashing (ACCOUNTS.md Decision 3)
+bcrypt  # password hashing (ACCOUNTS.md Decision 3)
 
 # test
 pytest

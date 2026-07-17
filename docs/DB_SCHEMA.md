@@ -76,7 +76,8 @@ erDiagram
 | `rooms` | Room template data | Terrain, objects, spawns, and enemy placements. This is not live session state. |
 | `room_connections` | Directed world graph edges | Traversal uses these: `load_room` reads a room's outgoing edges into `RoomTemplate.connections`, and stepping onto a connected tile transfers the player. Arrival uses the destination's first free spawn (`to_x`/`to_y` are still future columns). |
 | `enemy_defs` | Reusable enemy catalog | Rooms reference enemy ids from JSON and load stats from this table. Planned: runtime-appendable by LLM world generation, gated by schema/bounds validation (stat ranges; effect lists drawn from the closed vocabulary). |
-| `npcs` | NPC instance rows (individuals) | One row per NPC that exists in the world; play edits it (hp, position, disposition, memory, party membership) and it survives room resets and restarts. Loaded/saved by `npc_store.py`; eviction is "save individuals, unload". Full stats are columns because an individual's wounds and buffs are instance state. `persona` is validated by `persona.validate_persona` on insert *and* load. `party_owner_id` (M6) is a nullable String holding the runtime id of the player this NPC follows — NOT a FK, because player ids aren't a persisted table yet; rebinding a returning player to its follower waits for the identity decision. |
+| `npcs` | NPC instance rows (individuals) | One row per NPC that exists in the world; play edits it (hp, position, disposition, memory, party membership) and it survives room resets and restarts. Loaded/saved by `npc_store.py`; eviction is "save individuals, unload". Full stats are columns because an individual's wounds and buffs are instance state. `persona` is validated by `persona.validate_persona` on insert *and* load. `party_owner_id` (M6) is a nullable String holding the `players.id` of the account this NPC follows (M8) — stable across sessions, so followers rebind on the next login. Still a plain String, not a FK: promotion waits one milestone, until eviction ordering provably never saves an NPC before its owner exists (ACCOUNTS.md). |
+| `players` | Account + character rows (individuals) | One row per account, and the row *is* the character (ACCOUNTS.md Decision 1). `id` is an opaque `player_<uuid>` string everything else references; `username`/`password_hash` (bcrypt)/`email` are the auth columns, never sent to clients. Game state (`room_id`, `x`, `y`, `hp`) is written at the edges — disconnect and shutdown — by `player_store.py`, the `npc_store` rhythm. NULL `room_id` means "spawn at the default room", the fallback whenever a saved location stops making sense. |
 
 ## Important Boundary
 
@@ -87,9 +88,9 @@ remember something":
   generated definitions. Never edited because something happened during
   play. Generation (human or LLM) may *append* — a new room, a new enemy
   def — through validation, but play never mutates.
-- **Individual state** (`npcs` — current; `players` — planned): instance rows
-  that *are* edited by play (hp, position, room, party membership) and survive
-  room resets and restarts.
+- **Individual state** (`npcs`, `players`): instance rows that *are* edited
+  by play (hp, position, room, party membership) and survive room resets and
+  restarts.
 - **Ephemeral state** (fungible enemy hp/positions, round counters): lives
   only in memory and is deliberately forgotten on room reset — enemy
   respawn is a feature, not a persistence gap.
@@ -209,8 +210,8 @@ erDiagram
 |---|---|
 | `room_connections.to_x`, `to_y` | Place players at a specific destination tile after traversal. |
 | `room_connections.kind` | Distinguish door, portal, path, stairs, etc. |
-| `npcs` | **Done**, now including `party_owner_id` (M6). It stays a nullable String rather than a real FK until the `players` table gives it a row to reference. |
-| `players` | Individual player state that survives disconnect and restart; also gives inventory/progression a stable owner. Open question: identity — how a returning connection claims its row. |
+| `npcs` | **Done**, now including `party_owner_id` (M6), which since M8 holds a real `players.id`. Promoting it to a FK waits until eviction ordering provably never saves an NPC before its owner exists. |
+| `players` | **Done** (M8): username + password login resolves to the row, everything references its opaque id, state survives disconnect and restart — see [Accounts & Identity](archive/ACCOUNTS.md). Inventory/progression now have a stable owner to hang off. |
 | `items` | Store generated or hand-authored item definitions. |
 | `player_inventory` | Let items follow players between rooms. |
 

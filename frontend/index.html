@@ -79,6 +79,11 @@
         border-radius: 4px;
     }
     #join-screen button:hover { background: #c73650; }
+    #join-screen button.secondary { background: #0f3460; }
+    #join-screen button.secondary:hover { background: #1a3a6e; }
+    #auth-buttons { display: flex; gap: 8px; }
+    #auth-hint { font-size: 11px; color: #666; }
+    #auth-error { font-size: 12px; color: #e94560; min-height: 16px; max-width: 260px; text-align: center; }
 
     #game-screen { display: none; }
 
@@ -359,9 +364,18 @@
     <div id="connection-status" class="status-disconnected">Disconnected</div>
     <button id="dev-reset" onclick="devReset()" title="DEV: wipe individual state and reseed the world to its starting state (boots everyone)">🔄 Reseed world (dev)</button>
 
+    <!-- M8: minimal login/register form (plain HTML/JS on purpose — the real
+         account UI waits for the React milestone). One form, two verbs. -->
     <div id="join-screen">
-        <input type="text" id="player-name" placeholder="Enter your name" maxlength="12" autofocus>
-        <button onclick="joinGame()">Join Game</button>
+        <input type="text" id="auth-username" placeholder="Username" maxlength="20" autocomplete="username" autofocus>
+        <input type="password" id="auth-password" placeholder="Password" autocomplete="current-password">
+        <input type="email" id="auth-email" placeholder="Email (optional)" autocomplete="email">
+        <div id="auth-hint">Email is only used for registration.</div>
+        <div id="auth-buttons">
+            <button onclick="submitAuth('/login')">Log in</button>
+            <button class="secondary" onclick="submitAuth('/register')">Register</button>
+        </div>
+        <div id="auth-error"></div>
     </div>
 
     <div id="game-screen">

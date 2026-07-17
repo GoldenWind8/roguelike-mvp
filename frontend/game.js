@@ -50,6 +50,9 @@ function connect() {
     ws.onopen = () => {
         document.getElementById("connection-status").textContent = "Connected";
         document.getElementById("connection-status").className = "status-connected";
+        // A stored token resumes the session without showing the form; if
+        // the server rejects it (code "auth") we fall back to the form.
+        if (storedToken()) sendJoin();
     };
 
     ws.onmessage = (event) => {
@@ -81,6 +84,15 @@ function connect() {
                 location.reload();
                 break;
             case "error":
+                // Auth errors mean the stored token is dead (forged, or the
+                // account vanished) — drop it and return to the login form.
+                if (msg.code === "auth") {
+                    localStorage.removeItem(TOKEN_KEY);
+                }
+                if (!myPlayerId) {
+                    showAuthError(msg.message);
+                    break;
+                }
                 appendEvent("error", msg.message);
                 if (dialoguePending) {
                     dialoguePending = false;
@@ -96,11 +108,56 @@ function connect() {
     };
 }
 
-function joinGame() {
-    const nameInput = document.getElementById("player-name");
-    const name = nameInput.value.trim() || "Anonymous";
+// --- accounts (M8): login/register over HTTP, then join over WS with the
+// signed token as the first message. The token lives in localStorage so a
+// reload resumes the session without re-typing credentials.
+
+const TOKEN_KEY = "roguelike_token";
+
+function storedToken() {
+    return localStorage.getItem(TOKEN_KEY);
+}
+
+function showAuthError(message) {
+    const el = document.getElementById("auth-error");
+    if (el) el.textContent = message || "";
+}
+
+async function submitAuth(path) {
+    const username = document.getElementById("auth-username").value.trim();
+    const password = document.getElementById("auth-password").value;
+    if (!username || !password) {
+        showAuthError("Enter a username and password.");
+        return;
+    }
+    const body = { username, password };
+    const email = document.getElementById("auth-email").value.trim();
+    if (path === "/register" && email) body.email = email;
+
+    showAuthError("");
+    let res, data;
+    try {
+        res = await fetch(path, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+        });
+        data = await res.json();
+    } catch (e) {
+        showAuthError("Could not reach the server.");
+        return;
+    }
+    if (!res.ok) {
+        showAuthError(data.detail || "Something went wrong.");
+        return;
+    }
+    localStorage.setItem(TOKEN_KEY, data.token);
+    sendJoin();
+}
+
+function sendJoin() {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    ws.send(JSON.stringify({ type: "join", name }));
+    ws.send(JSON.stringify({ type: "join", token: storedToken() }));
 }
 
 function handleJoinAck(msg) {
@@ -111,7 +168,7 @@ function handleJoinAck(msg) {
     document.getElementById("game-screen").style.display = "block";
     initGrid();
     renderAll();
-    appendEvent("join", "You joined as " + msg.player_id);
+    appendEvent("join", "You joined as " + (msg.username || msg.player_id));
 }
 
 function handleStateUpdate(msg) {
@@ -812,8 +869,8 @@ document.addEventListener("keydown", (e) => {
     if (handled) e.preventDefault();
 });
 
-document.getElementById("player-name").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") joinGame();
+document.getElementById("auth-password").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") submitAuth("/login");
 });
 
 connect();
