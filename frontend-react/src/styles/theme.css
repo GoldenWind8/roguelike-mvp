@@ -1,0 +1,903 @@
+/* ==========================================================================
+   Emberhollow — candlelit tavern theme
+   Deep umber wood, warm parchment text, amber candle-glow; when steel is
+   drawn the same room cools and reddens ([data-mode="combat"]).
+   ========================================================================== */
+
+:root {
+  --bg0: #171009;
+  --bg1: #241a12;
+  --panel: #2b2016;
+  --panel2: #33261a;
+  --edge: #4d3a26;
+  --edge-soft: #3a2c1d;
+  --text: #ecdcbd;
+  --dim: #b39a78;
+  --faint: #8a7458;
+  --amber: #e8a84e;
+  --amber-soft: rgba(232, 168, 78, 0.14);
+  --gold: #d9b23f;
+  --ember: #cf5b3f;
+  --ember-deep: #a83f2c;
+  --sage: #93b389;
+  --lavender: #c4a6e0;
+  --water: #8fb6c9;
+  --cell: 54px;
+  --serif: Georgia, "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  background:
+    radial-gradient(1200px 700px at 50% -10%, #33241666, transparent 70%),
+    linear-gradient(180deg, var(--bg1), var(--bg0) 70%);
+  background-attachment: fixed;
+  color: var(--text);
+  font-family: var(--serif);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--edge); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--amber); }
+
+/* --- app shell ---------------------------------------------------------- */
+
+.app {
+  position: relative;
+  min-height: 100vh;
+  padding: 16px 20px 170px; /* keep clear of the fixed belt */
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 32%, transparent 42%, rgba(14, 9, 5, 0.72) 100%);
+  z-index: 1;
+}
+
+.vignette-danger {
+  background: radial-gradient(ellipse at 50% 40%, transparent 35%, rgba(140, 40, 18, 0.28) 100%);
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+
+[data-mode="combat"] .vignette-danger { opacity: 1; }
+
+.embers {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.embers span {
+  position: absolute;
+  bottom: -12px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 6px 1px rgba(232, 168, 78, 0.55);
+  animation: ember-rise linear infinite;
+}
+
+@keyframes ember-rise {
+  0%   { transform: translateY(0) translateX(0); opacity: 0; }
+  8%   { opacity: 0.8; }
+  60%  { opacity: 0.45; }
+  100% { transform: translateY(-105vh) translateX(24px); opacity: 0; }
+}
+
+/* Equal side columns so the middle column (and therefore the grid) sits on
+   the exact screen centreline — the same axis the fixed belt hangs on. */
+.layout {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 270px minmax(0, 1fr) 270px;
+  gap: 20px;
+  align-items: start;
+  width: 100%;
+  max-width: 1560px;
+  margin: 0 auto;
+}
+
+/* --- status bar ---------------------------------------------------------- */
+
+.status-bar {
+  position: relative;
+  z-index: 20; /* above the panel columns so the help popover overlays them */
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 10px 16px;
+  background: linear-gradient(180deg, var(--panel2), var(--panel));
+  border: 1px solid var(--edge-soft);
+  border-radius: 8px;
+  box-shadow: 0 0 28px rgba(232, 168, 78, 0.06), 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+
+.brand { display: flex; align-items: center; gap: 8px; }
+
+.brand-flame {
+  font-size: 18px;
+  animation: flicker 3.2s ease-in-out infinite;
+}
+
+@keyframes flicker {
+  0%, 100% { opacity: 1; }
+  47%      { opacity: 0.82; }
+  53%      { opacity: 0.95; }
+  71%      { opacity: 0.78; }
+}
+
+.brand-name {
+  font-size: 17px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--amber);
+  text-shadow: 0 0 14px rgba(232, 168, 78, 0.35);
+}
+
+.room-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.room-name { font-size: 15px; color: var(--text); font-style: italic; }
+
+.mode-chip {
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid;
+  transition: all 0.6s ease;
+}
+
+.mode-exploration { color: var(--sage); border-color: #4c5c48; background: rgba(147, 179, 137, 0.08); }
+.mode-combat {
+  color: #ffb09a;
+  border-color: var(--ember-deep);
+  background: rgba(207, 91, 63, 0.14);
+  animation: danger-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes danger-pulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(207, 91, 63, 0); }
+  50%      { box-shadow: 0 0 12px rgba(207, 91, 63, 0.5); }
+}
+
+.status-right { display: flex; align-items: center; gap: 12px; }
+
+.icon-btn-active { color: var(--amber); border-color: var(--edge); }
+
+.help-anchor { position: relative; }
+
+.help-pop {
+  position: absolute;
+  top: 40px;
+  right: 0;
+  width: 290px;
+  z-index: 40;
+  background: linear-gradient(180deg, #362818, var(--panel));
+  border: 1px solid var(--edge);
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 0 30px rgba(232, 168, 78, 0.12), 0 14px 30px rgba(0, 0, 0, 0.55);
+}
+
+.help-pop h4 {
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--amber);
+  font-weight: normal;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--edge-soft);
+}
+
+.help-row {
+  display: flex;
+  gap: 10px;
+  padding: 3px 0;
+  font-size: 12.5px;
+}
+.help-keys { color: var(--gold); min-width: 118px; }
+.help-what { color: var(--dim); font-style: italic; }
+
+.vigor-bar {
+  width: 110px;
+  height: 8px;
+  background: #1a120b;
+  border: 1px solid var(--edge-soft);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.hp-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease, background 0.4s ease; }
+.hp-high { background: linear-gradient(90deg, #7da872, var(--sage)); }
+.hp-mid  { background: linear-gradient(90deg, #c98e3f, var(--amber)); }
+.hp-low  { background: linear-gradient(90deg, var(--ember-deep), var(--ember)); }
+
+.icon-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid var(--edge-soft);
+  background: var(--panel);
+  color: var(--dim);
+  font-size: 15px;
+}
+.icon-btn:hover { color: var(--amber); border-color: var(--edge); }
+.leave-btn:hover { color: var(--ember); }
+
+.conn-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+.conn-connected { background: var(--sage); box-shadow: 0 0 8px rgba(147, 179, 137, 0.6); }
+.conn-connecting { background: var(--amber); }
+.conn-disconnected { background: var(--ember); }
+
+/* --- the room grid -------------------------------------------------------- */
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* The camera: a fixed frame the world pans beneath — tiles move, the border
+   stays put, no scrollbars. RoomGrid drives the transform; drag to look. */
+.grid-frame {
+  position: relative;
+  width: 100%;
+  max-width: 900px;
+  height: min(72vh, 720px);
+  overflow: hidden;
+  border: 1px solid var(--edge-soft);
+  border-radius: 10px;
+  background: #140d07; /* the void beyond the room's floor */
+  box-shadow: 0 0 40px rgba(232, 168, 78, 0.07), inset 0 0 30px rgba(0, 0, 0, 0.5);
+  transition: box-shadow 1s ease, border-color 1s ease;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.grid-frame:active { cursor: grabbing; }
+
+[data-mode="combat"] .grid-frame {
+  border-color: #5c2c1c;
+  box-shadow: 0 0 44px rgba(207, 91, 63, 0.16), inset 0 0 30px rgba(0, 0, 0, 0.55);
+}
+
+.grid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: max-content;
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  background: linear-gradient(160deg, #1f150d, #191008);
+  border-radius: 10px;
+  will-change: transform;
+}
+
+/* Cut-off sides dissolve into shadow instead of clipping raw. Each fade is
+   on only while more room continues past that edge, so a crisp rim always
+   means "this is the actual wall" and darkness means "more that way". */
+.edge-fade {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.45s ease;
+}
+.edge-fade.on { opacity: 1; }
+.fade-left   { top: 0; bottom: 0; left: 0;   width: 44px;  background: linear-gradient(to right,  rgba(16, 10, 5, 0.96), transparent); }
+.fade-right  { top: 0; bottom: 0; right: 0;  width: 44px;  background: linear-gradient(to left,   rgba(16, 10, 5, 0.96), transparent); }
+.fade-top    { left: 0; right: 0; top: 0;    height: 44px; background: linear-gradient(to bottom, rgba(16, 10, 5, 0.96), transparent); }
+.fade-bottom { left: 0; right: 0; bottom: 0; height: 44px; background: linear-gradient(to top,    rgba(16, 10, 5, 0.96), transparent); }
+
+.cell {
+  width: var(--cell);
+  height: var(--cell);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  background:
+    linear-gradient(180deg, rgba(255, 220, 160, 0.03), transparent 60%),
+    #2a1d12;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+
+.cell-wall {
+  background: linear-gradient(180deg, #120c07, #0d0905);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.7);
+}
+
+.cell-actionable { cursor: pointer; }
+.cell-actionable:hover {
+  box-shadow: inset 0 0 0 1px var(--amber), 0 0 14px rgba(232, 168, 78, 0.35);
+  animation: candle-hover 1.4s ease-in-out infinite;
+}
+
+@keyframes candle-hover {
+  0%, 100% { box-shadow: inset 0 0 0 1px var(--amber), 0 0 10px rgba(232, 168, 78, 0.3); }
+  50%      { box-shadow: inset 0 0 0 1px var(--amber), 0 0 18px rgba(232, 168, 78, 0.5); }
+}
+
+.cell-hostile { cursor: pointer; }
+.cell-hostile:hover {
+  box-shadow: inset 0 0 0 1px var(--ember), 0 0 14px rgba(207, 91, 63, 0.45);
+}
+
+.cell-bomb-target { cursor: crosshair; }
+.cell-bomb-target:hover {
+  box-shadow: inset 0 0 0 2px var(--ember), 0 0 16px rgba(207, 91, 63, 0.55);
+}
+
+.cell-me {
+  box-shadow: inset 0 0 0 2px var(--gold), 0 0 16px rgba(217, 178, 63, 0.3);
+}
+
+/* Holding a consumable: you are the target. */
+.cell-self-target { cursor: pointer; }
+.cell-self-target:hover {
+  box-shadow: inset 0 0 0 2px var(--sage), 0 0 16px rgba(147, 179, 137, 0.45);
+}
+
+.entity-icon { font-size: 21px; line-height: 1; }
+.entity-name {
+  font-size: 8px;
+  color: var(--dim);
+  margin-top: 1px;
+  max-width: calc(var(--cell) - 6px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.object-icon { font-size: 19px; line-height: 1; opacity: 0.95; }
+.object-name {
+  font-size: 8px;
+  color: var(--amber);
+  opacity: 0.8;
+  margin-top: 1px;
+  max-width: calc(var(--cell) - 6px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hp-bar {
+  width: 34px;
+  height: 3px;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 2px;
+  margin-top: 2px;
+  overflow: hidden;
+}
+
+.disp-dot {
+  position: absolute;
+  top: 4px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.4);
+}
+.disp-friendly { background: var(--sage); }
+.disp-neutral  { background: var(--amber); }
+.disp-hostile  { background: var(--ember); animation: danger-pulse 1.4s infinite; }
+
+.party-badge {
+  position: absolute;
+  top: 2px;
+  left: 5px;
+  font-size: 10px;
+  color: var(--gold);
+  text-shadow: 0 0 6px rgba(217, 178, 63, 0.8);
+}
+
+/* --- controls (keyboard-first; the only on-screen action is combat's Hold) -- */
+
+.combat-actions { display: flex; gap: 8px; align-items: center; }
+
+/* Turn-based rounds: your action is in; the round waits on the others. */
+.waiting-note {
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 16px;
+  border: 1px dashed var(--edge-soft);
+  border-radius: 6px;
+  color: var(--dim);
+  font-size: 13px;
+  font-style: italic;
+}
+
+.combat-actions button {
+  height: 40px;
+  padding: 0 16px;
+  background: var(--panel);
+  border: 1px solid var(--edge-soft);
+  border-radius: 6px;
+  color: var(--dim);
+  font-size: 13px;
+  font-family: inherit;
+  transition: all 0.15s ease;
+}
+
+.combat-actions button:hover {
+  color: var(--amber);
+  border-color: var(--edge);
+  background: var(--panel2);
+}
+
+.bomb-btn { color: #d9917e; }
+.bomb-armed {
+  color: #ffd9cd !important;
+  border-color: var(--ember) !important;
+  background: rgba(207, 91, 63, 0.18) !important;
+  animation: danger-pulse 1.2s infinite;
+}
+
+.help-text {
+  font-size: 12.5px;
+  color: var(--faint);
+  font-style: italic;
+  text-align: center;
+  max-width: 560px;
+}
+
+/* --- sidebar panels --------------------------------------------------------- */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* the You panel */
+
+.you-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.you-icon { font-size: 26px; }
+.you-name { font-size: 16px; color: var(--gold); }
+.you-state { font-size: 11px; color: var(--faint); font-style: italic; }
+
+.you-vigor { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.vigor-wide { flex: 1; height: 10px; }
+.you-vigor-num { font-size: 13px; color: var(--text); white-space: nowrap; }
+.you-vigor-num em { font-style: normal; font-size: 11px; color: var(--faint); }
+
+.you-stats { display: flex; flex-direction: column; gap: 2px; }
+.stat-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 13px;
+  border-top: 1px solid rgba(77, 58, 38, 0.35);
+}
+.stat-icon { font-size: 14px; }
+.stat-label { flex: 1; color: var(--dim); }
+.stat-row strong { color: var(--text); font-weight: normal; font-size: 14px; }
+
+.you-worn {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(77, 58, 38, 0.35);
+  font-size: 12px;
+  color: var(--dim);
+  font-style: italic;
+}
+
+.panel {
+  background: linear-gradient(180deg, var(--panel2), var(--panel));
+  border: 1px solid var(--edge-soft);
+  border-radius: 8px;
+  padding: 12px 14px;
+  box-shadow: 0 0 24px rgba(232, 168, 78, 0.05), 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.panel h3 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--amber);
+  font-weight: normal;
+  margin-bottom: 9px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--edge-soft);
+}
+
+.panel-close {
+  background: none;
+  border: none;
+  color: var(--faint);
+  font-size: 17px;
+  line-height: 1;
+  padding: 0 2px;
+}
+.panel-close:hover { color: var(--ember); }
+
+.panel-empty { font-size: 13px; color: var(--faint); font-style: italic; }
+.panel-hint  { font-size: 11px; color: var(--faint); font-style: italic; margin-top: 8px; }
+
+/* companions */
+
+.companion {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+.companion-dead { opacity: 0.45; }
+.companion-icon { font-size: 22px; }
+.companion-info { flex: 1; }
+.companion-name { font-size: 14px; }
+.companion-role { display: block; font-size: 11px; color: var(--faint); font-style: italic; }
+.companion-info .vigor-bar { width: 100%; margin-top: 4px; }
+.companion-note { font-size: 10.5px; color: var(--sage); font-style: italic; white-space: nowrap; }
+
+/* --- the belt (hotbar) ---------------------------------------------------- */
+
+.hotbar-wrap {
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.hotbar-hint {
+  font-size: 12.5px;
+  color: var(--amber);
+  font-style: italic;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  min-height: 18px;
+}
+.hotbar-hint.visible { opacity: 1; }
+
+.hotbar {
+  display: flex;
+  gap: 5px;
+  padding: 7px;
+  background: linear-gradient(180deg, #362818, var(--panel));
+  border: 1px solid var(--edge);
+  border-radius: 10px;
+  box-shadow: 0 0 30px rgba(232, 168, 78, 0.1), 0 12px 30px rgba(0, 0, 0, 0.55);
+}
+
+.slot {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--edge-soft);
+  border-radius: 7px;
+  transition: all 0.12s ease;
+}
+.slot:hover { border-color: var(--edge); background: rgba(0, 0, 0, 0.18); }
+.slot-empty { opacity: 0.55; cursor: default; }
+.slot-held {
+  border-color: var(--amber);
+  background: var(--amber-soft);
+  box-shadow: 0 0 14px rgba(232, 168, 78, 0.4), inset 0 0 0 1px var(--amber);
+  transform: translateY(-3px);
+}
+
+.slot-icon { font-size: 23px; line-height: 1; }
+.slot-key {
+  position: absolute;
+  top: 2px;
+  left: 5px;
+  font-size: 9px;
+  color: var(--faint);
+}
+.slot-count {
+  position: absolute;
+  bottom: 2px;
+  right: 5px;
+  font-size: 10.5px;
+  color: var(--text);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+/* inspection */
+
+.inspection-title { color: var(--gold); font-size: 15px; margin-bottom: 4px; }
+.inspection-desc { font-size: 13px; color: var(--text); margin-bottom: 8px; }
+.inspection-details { list-style: none; }
+.inspection-details li {
+  font-size: 12px;
+  color: var(--dim);
+  font-style: italic;
+  padding: 4px 0;
+  border-top: 1px solid rgba(77, 58, 38, 0.4);
+}
+
+/* chronicle */
+
+.chronicle {
+  height: 210px;
+  overflow-y: auto;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.chron-line { padding: 3px 0; border-bottom: 1px solid rgba(77, 58, 38, 0.25); }
+.chron-ambient { color: var(--faint); font-style: italic; }
+.chron-join    { color: var(--sage); }
+.chron-calm    { color: var(--sage); font-style: italic; }
+.chron-attack  { color: #d98a5f; }
+.chron-danger  { color: var(--ember); }
+.chron-death   { color: var(--ember); font-weight: bold; }
+.chron-heal    { color: var(--sage); }
+.chron-npc     { color: var(--lavender); }
+.chron-item    { color: var(--gold); }
+.chron-error   { color: #c98080; font-style: italic; }
+
+/* --- dialogue panel (right-column takeover) ------------------------------------ */
+/* Talking swaps the right sidebar's context panels for the conversation; the
+   world, your stats, and the belt stay visible throughout. */
+
+.panel-dialogue {
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #362818, var(--panel));
+  border-color: var(--edge);
+  box-shadow: 0 0 34px rgba(232, 168, 78, 0.1), 0 8px 24px rgba(0, 0, 0, 0.45);
+  animation: dialogue-in 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes dialogue-in {
+  from { opacity: 0; transform: translateX(26px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.dialogue-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--edge-soft);
+}
+.dialogue-icon { font-size: 26px; }
+.dialogue-who { flex: 1; display: flex; flex-direction: column; }
+.dialogue-name { font-size: 16px; color: var(--gold); }
+.dialogue-role { font-size: 11.5px; color: var(--faint); font-style: italic; }
+
+.disp-chip {
+  font-size: 10.5px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 20px;
+  border: 1px solid;
+  transition: all 0.5s ease;
+}
+.disp-chip.disp-friendly { color: var(--sage); border-color: #4c5c48; background: rgba(147, 179, 137, 0.08); }
+.disp-chip.disp-neutral  { color: var(--amber); border-color: var(--edge); background: var(--amber-soft); }
+.disp-chip.disp-hostile  {
+  color: #ffb09a;
+  border-color: var(--ember-deep);
+  background: rgba(207, 91, 63, 0.14);
+  animation: danger-pulse 1.6s infinite;
+}
+
+.dialogue-log {
+  height: min(46vh, 440px); /* the takeover earns real vertical room */
+  overflow-y: auto;
+  padding: 8px 2px;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.dialogue-line { margin-bottom: 6px; }
+.line-speaker {
+  display: inline-block;
+  margin-right: 7px;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.line-player { color: var(--water); }
+.line-npc    { color: var(--lavender); }
+.line-hint   { color: var(--faint); font-style: italic; }
+
+.dialogue-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 0;
+}
+.dialogue-chips button {
+  font-size: 11.5px;
+  padding: 4px 11px;
+  border-radius: 20px;
+  border: 1px solid var(--edge-soft);
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--dim);
+  font-style: italic;
+}
+.dialogue-chips button:hover:not(:disabled) { color: var(--amber); border-color: var(--edge); }
+.dialogue-chips button:disabled { opacity: 0.4; cursor: default; }
+
+.dialogue-input-row { display: flex; gap: 8px; margin-top: 4px; }
+.dialogue-input-row input {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--edge-soft);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 8px 11px;
+  font-size: 13.5px;
+  font-family: inherit;
+  min-width: 0;
+}
+.dialogue-input-row input:focus { outline: none; border-color: var(--amber); }
+.dialogue-input-row button {
+  padding: 0 18px;
+  border-radius: 6px;
+  border: 1px solid var(--edge);
+  background: var(--amber-soft);
+  color: var(--amber);
+  font-size: 13.5px;
+}
+.dialogue-input-row button:hover:not(:disabled) { background: rgba(232, 168, 78, 0.24); }
+.dialogue-input-row button:disabled { opacity: 0.4; cursor: default; }
+
+/* --- login ---------------------------------------------------------------------- */
+
+.login-screen {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80vh;
+}
+
+.login-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: min(360px, 92vw);
+  padding: 36px 32px 26px;
+  background: linear-gradient(180deg, #362818, var(--panel));
+  border: 1px solid var(--edge);
+  border-radius: 14px;
+  box-shadow: 0 0 60px rgba(232, 168, 78, 0.1), 0 24px 60px rgba(0, 0, 0, 0.55);
+}
+
+.login-flame { font-size: 34px; animation: flicker 3.2s ease-in-out infinite; }
+
+.login-title {
+  font-size: 26px;
+  font-weight: normal;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  color: var(--amber);
+  text-shadow: 0 0 22px rgba(232, 168, 78, 0.4);
+}
+
+.login-tagline {
+  font-size: 13.5px;
+  color: var(--dim);
+  font-style: italic;
+  margin-bottom: 10px;
+}
+
+.login-card input {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--edge-soft);
+  border-radius: 7px;
+  color: var(--text);
+  padding: 10px 14px;
+  font-size: 14.5px;
+  font-family: inherit;
+  text-align: center;
+}
+.login-card input:focus { outline: none; border-color: var(--amber); }
+
+.login-buttons { display: flex; gap: 10px; margin-top: 6px; }
+
+.btn-primary,
+.btn-secondary {
+  padding: 9px 20px;
+  border-radius: 7px;
+  font-size: 14px;
+  border: 1px solid var(--edge);
+}
+.btn-primary {
+  background: linear-gradient(180deg, #f0b25c, #d99539);
+  border-color: #a8722c;
+  color: #241505;
+}
+.btn-primary:hover { filter: brightness(1.08); }
+.btn-secondary { background: var(--amber-soft); color: var(--amber); }
+.btn-secondary:hover { background: rgba(232, 168, 78, 0.24); }
+
+.login-hint { font-size: 11.5px; color: var(--faint); font-style: italic; min-height: 16px; }
+
+/* --- death veil ------------------------------------------------------------------- */
+
+.death-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: radial-gradient(ellipse at center, rgba(20, 10, 6, 0.82), rgba(10, 6, 3, 0.94));
+  animation: veil-in 1.2s ease;
+}
+
+@keyframes veil-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.death-title { font-size: 26px; color: var(--ember); letter-spacing: 2px; margin-bottom: 8px; }
+.death-sub   { font-size: 14px; color: var(--dim); font-style: italic; }
+
+/* --- responsive --------------------------------------------------------------------- */
+
+@media (max-width: 1180px) {
+  .layout { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; }
+  .stage { order: 1; width: 100%; }
+  .sidebar-left { order: 2; width: min(48%, 320px); }
+  .sidebar-right { order: 3; width: min(48%, 320px); }
+  .app { padding-bottom: 220px; }
+  :root { --cell: 42px; }
+}
+
+@media (max-width: 700px) {
+  .sidebar-left, .sidebar-right { width: min(100%, 560px); }
+}

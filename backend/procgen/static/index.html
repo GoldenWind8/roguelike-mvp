@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Procgen Playground</title>
+<style>
+  :root {
+    --bg: #14161c; --panel: #1c1f28; --line: #2b2f3a; --ink: #e6e9ef;
+    --muted: #8b93a7; --accent: #6ea8fe; --ok: #4ec98a; --bad: #e06c75;
+    --wall: #3a3f4b; --floor: #232734; --door: #c9a227; --portal: #8a5cf6;
+    --spawn: #6ea8fe; --enemy: #e06c75; --chest: #4ec98a; --barrel: #d98a3a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 14px/1.5 -apple-system, Segoe UI, Roboto, sans-serif; }
+  header { padding: 14px 20px; border-bottom: 1px solid var(--line);
+           display: flex; align-items: baseline; gap: 12px; }
+  header h1 { font-size: 16px; margin: 0; }
+  header .sub { color: var(--muted); font-size: 12px; }
+  .wrap { display: grid; grid-template-columns: 300px 1fr; gap: 0; min-height: calc(100vh - 52px); }
+  .controls { padding: 18px 20px; border-right: 1px solid var(--line); overflow-y: auto; }
+  .preview { padding: 18px 20px; overflow: auto; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 12px 0 4px; }
+  select, input, textarea { width: 100%; background: var(--panel); color: var(--ink);
+                  border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px;
+                  font: inherit; }
+  textarea { resize: vertical; }
+  input[type=range] { padding: 0; }
+  .hint { color: var(--muted); font-size: 11px; margin-top: 3px; }
+  .typelist { display: flex; flex-direction: column; gap: 6px; }
+  .typecard { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+              padding: 9px 11px; cursor: pointer; }
+  .typecard:hover { border-color: var(--muted); }
+  .typecard.active { border-color: var(--accent); }
+  .typecard.disabled { opacity: 0.45; cursor: not-allowed; }
+  .typecard .name { font-weight: 600; font-size: 13px; }
+  .typecard .tech { color: var(--accent); font-size: 11px; margin-top: 1px; }
+  .typecard .desc { color: var(--muted); font-size: 11px; margin-top: 3px; display: none; }
+  .typecard.active .desc { display: block; }
+  button { background: var(--accent); color: #0b0d12; border: 0; border-radius: 6px;
+           padding: 9px 12px; font-weight: 600; cursor: pointer; }
+  button.ghost { background: var(--panel); color: var(--ink); border: 1px solid var(--line); font-weight: 500; }
+  /* Seed + Generate live on the preview side, right above the output they
+     drive, and stay pinned there when a big room scrolls. */
+  .actions { position: sticky; top: 0; z-index: 1; background: var(--bg);
+             display: flex; gap: 8px; align-items: center;
+             padding: 2px 0 12px; margin-bottom: 6px; }
+  .actions label { margin: 0; }
+  .actions #seed { width: 110px; }
+  #generate { padding: 9px 22px; }
+  .status { margin: 0 0 14px; padding: 9px 12px; border-radius: 6px; font-size: 13px;
+            border: 1px solid var(--line); }
+  .status.ok { border-color: var(--ok); color: var(--ok); }
+  .status.bad { border-color: var(--bad); color: var(--bad); }
+  .grid { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line);
+          width: max-content; border-radius: 4px; overflow: hidden; }
+  .cell { width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+          font: 600 12px/1 ui-monospace, Menlo, monospace; background: var(--floor); }
+  .t-wall { background: var(--wall); } .t-floor { background: var(--floor); }
+  .t-door { background: var(--door); color: #1a1400; }
+  .t-portal { background: var(--portal); color: #fff; }
+  .m-spawn { color: var(--spawn); } .m-enemy { color: var(--enemy); }
+  .m-chest { color: var(--chest); } .m-barrel { color: var(--barrel); }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; color: var(--muted);
+            font-size: 12px; margin: 14px 0; }
+  .legend span b { color: var(--ink); font-weight: 600; }
+  .roomname { font-size: 15px; font-weight: 600; margin: 4px 0 2px; }
+  .ainotes { color: var(--muted); font-size: 12px; font-style: italic; margin: 0 0 10px; }
+  details { margin-top: 18px; }
+  summary { cursor: pointer; color: var(--muted); }
+  pre { background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+        padding: 12px; overflow: auto; font-size: 12px; max-height: 320px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Procgen Playground</h1>
+  <span class="sub">generate &rarr; validate against the real game gate &rarr; render</span>
+</header>
+<div class="wrap">
+  <div class="controls">
+    <div class="field">
+      <label>Generation mode</label>
+      <div class="typelist" id="modes"></div>
+    </div>
+    <div class="field" id="directionField" style="display:none">
+      <label for="direction">Direction for the AI (optional)</label>
+      <textarea id="direction" rows="3"
+        placeholder="e.g. a looted shrine, one tough guard, the reward in the far corner"></textarea>
+      <div class="hint">Free text the AI reads as creative direction, not rules.</div>
+    </div>
+    <div class="field" id="tierField" style="display:none">
+      <label for="tier">Model tier</label>
+      <select id="tier"></select>
+      <div class="hint">Which model answers &mdash; bindings live in .env (LLM_&lt;TIER&gt;_MODEL &hellip;).</div>
+    </div>
+    <div class="field" id="typeField">
+      <label>Room type &amp; technique</label>
+      <div class="typelist" id="types"></div>
+    </div>
+    <div id="params"></div>
+  </div>
+  <div class="preview">
+    <div class="actions">
+      <label for="seed">Seed</label>
+      <input id="seed" type="number" value="0" min="0">
+      <button class="ghost" id="roll" title="Random seed &amp; generate">&#127922;</button>
+      <button id="generate">Generate</button>
+      <span class="hint">Same seed + knobs &rarr; identical room. Enter works too.</span>
+    </div>
+    <div id="status" class="status">Pick a type and hit Generate.</div>
+    <div class="roomname" id="roomname"></div>
+    <div class="ainotes" id="ainotes"></div>
+    <div class="grid" id="grid"></div>
+    <div class="legend">
+      <span><b style="color:var(--spawn)">S</b> spawn</span>
+      <span><b style="color:var(--enemy)">E</b> enemy</span>
+      <span><b style="color:var(--chest)">C</b> chest</span>
+      <span><b style="color:var(--barrel)">B</b> barrel</span>
+      <span><b style="color:var(--door)">+</b> door</span>
+      <span><b style="color:var(--portal)">O</b> portal</span>
+    </div>
+    <details>
+      <summary>Raw room dict (what the game stores)</summary>
+      <pre id="json"></pre>
+    </details>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let ENEMY_NAMES = {};
+let CURRENT_TYPE = null;
+let CURRENT_MODE = "code";
+let AI_AVAILABLE = false;
+let CONTENT_PARAMS = [];   // knobs the AI decides in placement mode (server-provided)
+let TIERS = [];            // model tiers (server-provided, closed vocabulary)
+let TIER_DEFAULTS = {};    // mode -> default tier
+
+// Generation modes mirror the actor-brain pattern: the mode is the CALLER's
+// choice, not a property of the room type.
+const MODES = [
+  { key: "code", name: "Code only",
+    desc: "Pure procgen. Free, instant, seed-deterministic — what most rooms should use." },
+  { key: "placement", name: "Code shape + AI placement",
+    desc: "Procgen builds the geometry; an LLM furnishes it — enemies, loot, a name." },
+  { key: "full", name: "Full AI design",
+    desc: "The LLM authors the whole room against the validator contract. Failures are part of the experiment." },
+];
+
+function buildModes() {
+  const list = $("modes");
+  list.innerHTML = "";
+  for (const m of MODES) {
+    const needsAI = m.key !== "code";
+    const card = document.createElement("div");
+    card.className = "typecard" + (needsAI && !AI_AVAILABLE ? " disabled" : "");
+    card.dataset.mode = m.key;
+    card.innerHTML = `<div class="name"></div><div class="desc"></div>`;
+    card.querySelector(".name").textContent = m.name;
+    card.querySelector(".desc").textContent = m.desc;
+    if (needsAI && !AI_AVAILABLE) {
+      card.title = "Set GRID_API_KEY in .env to enable AI modes";
+    } else {
+      card.onclick = () => selectMode(m.key);
+    }
+    list.appendChild(card);
+  }
+  selectMode("code");
+}
+
+function buildTiers() {
+  const sel = $("tier");
+  sel.innerHTML = "";
+  for (const t of TIERS) {
+    const o = document.createElement("option");
+    o.value = t; o.textContent = t;
+    sel.appendChild(o);
+  }
+}
+
+function selectMode(key) {
+  CURRENT_MODE = key;
+  for (const c of document.querySelectorAll("#modes .typecard"))
+    c.classList.toggle("active", c.dataset.mode === key);
+  $("directionField").style.display = key === "code" ? "none" : "";
+  $("tierField").style.display = key === "code" ? "none" : "";
+  if (TIER_DEFAULTS[key]) $("tier").value = TIER_DEFAULTS[key];
+  // Full AI mode uses no preset and no knobs; placement mode keeps the shape
+  // knobs but hides the content counts the AI now decides.
+  $("typeField").style.display = key === "full" ? "none" : "";
+  $("params").style.display = key === "full" ? "none" : "";
+  updateParamVisibility();
+}
+
+function updateParamVisibility() {
+  for (const el of document.querySelectorAll("[data-pname]")) {
+    const hidden = CURRENT_MODE === "placement" && CONTENT_PARAMS.includes(el.dataset.pname);
+    el.closest(".field").style.display = hidden ? "none" : "";
+  }
+}
+
+async function loadTypes() {
+  const data = await (await fetch("/api/types")).json();
+  ENEMY_NAMES = data.enemy_names || {};
+  AI_AVAILABLE = !!data.ai_available;
+  CONTENT_PARAMS = data.content_params || [];
+  TIERS = data.tiers || [];
+  TIER_DEFAULTS = data.tier_defaults || {};
+  buildTiers();
+  buildModes();
+  const list = $("types");
+  list.innerHTML = "";
+  for (const t of data.types) {
+    const card = document.createElement("div");
+    card.className = "typecard";
+    card.dataset.key = t.key;
+    card.innerHTML = `<div class="name"></div><div class="tech"></div><div class="desc"></div>`;
+    card.querySelector(".name").textContent = t.label;
+    card.querySelector(".tech").textContent = t.technique || "";
+    card.querySelector(".desc").textContent = t.description || "";
+    card.onclick = () => selectType(t.key);
+    list.appendChild(card);
+  }
+  await selectType(data.types[0].key);
+}
+
+async function selectType(key) {
+  CURRENT_TYPE = key;
+  for (const c of document.querySelectorAll(".typecard"))
+    c.classList.toggle("active", c.dataset.key === key);
+  await loadSchema();
+}
+
+async function loadSchema() {
+  const { params } = await (await fetch("/api/schema/" + CURRENT_TYPE)).json();
+  const box = $("params");
+  box.innerHTML = "";
+  for (const p of params) {
+    const field = document.createElement("div");
+    field.className = "field";
+    const label = document.createElement("label");
+    label.textContent = p.label;
+    label.htmlFor = "p_" + p.name;
+    field.appendChild(label);
+
+    let input;
+    if (p.kind === "choice") {
+      input = document.createElement("select");
+      for (const opt of p.options) {
+        const o = document.createElement("option");
+        o.value = opt; o.textContent = opt; if (opt === p.default) o.selected = true;
+        input.appendChild(o);
+      }
+    } else if (p.kind === "bool") {
+      input = document.createElement("input"); input.type = "checkbox"; input.checked = !!p.default;
+    } else {
+      input = document.createElement("input"); input.type = "number";
+      input.value = p.default;
+      if (p.min !== null) input.min = p.min;
+      if (p.max !== null) input.max = p.max;
+    }
+    input.id = "p_" + p.name;
+    input.dataset.kind = p.kind;
+    input.dataset.pname = p.name;
+    field.appendChild(input);
+    if (p.help) {
+      const hint = document.createElement("div");
+      hint.className = "hint"; hint.textContent = p.help;
+      field.appendChild(hint);
+    }
+    box.appendChild(field);
+  }
+  updateParamVisibility();
+}
+
+function collectParams() {
+  const out = {};
+  for (const el of document.querySelectorAll("[data-pname]")) {
+    if (el.dataset.kind === "bool") out[el.dataset.pname] = el.checked;
+    else if (el.dataset.kind === "int") out[el.dataset.pname] = parseInt(el.value, 10);
+    else out[el.dataset.pname] = el.value;
+  }
+  return out;
+}
+
+async function generate() {
+  const body = {
+    room_type: CURRENT_TYPE, params: collectParams(),
+    seed: parseInt($("seed").value, 10) || 0,
+    mode: CURRENT_MODE, direction: $("direction").value,
+    tier: $("tier").value,
+  };
+  const status = $("status");
+  status.className = "status";
+  status.textContent = CURRENT_MODE === "code"
+    ? "Generating…" : "Generating — asking the LLM, this can take a moment…";
+  $("generate").disabled = true;
+  try {
+    const res = await (await fetch("/api/generate", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+    })).json();
+    render(res);
+  } catch (e) {
+    status.className = "status bad";
+    status.textContent = "Request failed: " + e;
+  } finally {
+    $("generate").disabled = false;
+  }
+}
+
+function render(res) {
+  const status = $("status");
+  let who = { placement: "AI-furnished room", full: "AI-authored room" }[res.mode];
+  if (who && res.tier) who += ` · ${res.tier} tier`;
+  if (res.ok) {
+    status.className = "status ok";
+    status.textContent = who
+      ? `Valid ✓  (${who} passed the real validate_room)`
+      : `Valid ✓  (passed the real validate_room on attempt ${res.attempts})`;
+  } else {
+    status.className = "status bad";
+    status.textContent = `Invalid ✗  ${res.error || "generation failed"}`;
+  }
+  // AI modes return the room even when invalid — seeing the mistake is the point.
+  $("json").textContent = JSON.stringify(res.room, null, 2);
+  $("roomname").textContent = res.room && res.room.name ? res.room.name : "";
+  $("ainotes").textContent = res.ai_notes || "";
+  drawGrid(res.room);
+}
+
+function drawGrid(room) {
+  const grid = $("grid");
+  grid.innerHTML = "";
+  if (!room) return;
+  // A full-AI room can be malformed (ragged rows, absurd sizes) and we still
+  // want to SHOW it — clamp dimensions and treat missing chars as wall.
+  const w = Math.min(Math.max(parseInt(room.width, 10) || 0, 0), 60);
+  const h = Math.min(Math.max(parseInt(room.height, 10) || 0, 0), 40);
+  if (!w || !h || !Array.isArray(room.terrain)) return;
+  grid.style.gridTemplateColumns = `repeat(${w}, 26px)`;
+
+  // Overlay lookup: coord -> marker {char, cls}. Contents draw on top of terrain.
+  const asList = (v) => Array.isArray(v) ? v : [];
+  const marks = {};
+  asList(room.spawn_points).forEach(([x, y]) => marks[x + "," + y] = { c: "S", cls: "m-spawn" });
+  asList(room.enemy_spawns).forEach(e => marks[e.x + "," + e.y] = { c: "E", cls: "m-enemy", title: ENEMY_NAMES[e.enemy_id] });
+  asList(room.objects).forEach(o => {
+    if (o.type === "chest") marks[o.x + "," + o.y] = { c: "C", cls: "m-chest", title: "chest: " + (o.loot || []).join(", ") };
+    if (o.type === "fire_barrel") marks[o.x + "," + o.y] = { c: "B", cls: "m-barrel", title: "fire barrel hp " + o.hp };
+  });
+
+  const tileCls = { "#": "t-wall", ".": "t-floor", "+": "t-door", "O": "t-portal" };
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const ch = (room.terrain[y] || "")[x] || "#";
+      const cell = document.createElement("div");
+      cell.className = "cell " + (tileCls[ch] || "t-floor");
+      const m = marks[x + "," + y];
+      if (m) {
+        cell.classList.add(m.cls);
+        cell.textContent = m.c;
+        if (m.title) cell.title = m.title;
+      } else if (ch === "+") cell.textContent = "+";
+      else if (ch === "O") cell.textContent = "O";
+      grid.appendChild(cell);
+    }
+  }
+}
+
+$("generate").onclick = generate;
+$("roll").onclick = () => { $("seed").value = Math.floor(Math.random() * 100000); generate(); };
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && e.target.tagName !== "TEXTAREA") generate();
+});
+loadTypes();
+</script>
+</body>
+</html>
