@@ -75,7 +75,7 @@ SECOND_ROOM = {
     "width": 7,
     "height": 5,
     "terrain": [
-        "#######",
+        "###+###",
         "#.....#",
         "+.....#",   # door (0, 2) -> back to DEFAULT_ROOM; spawn beside it
         "#.....#",
@@ -86,7 +86,24 @@ SECOND_ROOM = {
     "enemy_spawns": [],
     "objects": [],
 }
-
+THIRD_ROOM = {
+    "name": "The Den",
+    "width": 9,
+    "height": 7,
+    "terrain": [
+        "#########",
+        "#.......#",
+        "#....####",
+        "#.......#",
+        "#......##",
+        "#.......#",
+        "####+####",
+    ],
+    # Two spawns so a pair can co-locate here (capacity = spawn count).
+    "spawn_points": [[3, 5], [4, 5]],
+    "enemy_spawns": [{"enemy_id": 3, "x": 4, "y": 3}],
+    "objects": [],
+}
 
 # The first individual (NPCS.md Decision 9): seeded ONCE as an instance row
 # in the Antechamber, then owned by play — reseeding never resurrects or
@@ -163,14 +180,16 @@ NPC_SEEDS = [
 _CONNECTIONS = [
     ("default", "second", 4, 0),   # far door
     ("default", "second", 4, 9),   # entry door
-    ("second", "default", 0, 2),   # door back
+    ("second", "default", 0, 2),   # door back to default
+    ("second", "third", 3, 0),     # door in second room to third room
+    ("third", "second", 4, 6)      # door in third room to second
 ]
 
 
 async def seed_default_rooms(session) -> Room:
-    """Validate, insert, and link the enemy catalog + default + second room.
+    """Validate, insert, and link the enemy catalog + the initial rooms.
     Returns the default Room (the one the game starts in)."""
-    rooms = {"default": DEFAULT_ROOM, "second": SECOND_ROOM}
+    rooms = {"default": DEFAULT_ROOM, "second": SECOND_ROOM, "third": THIRD_ROOM}
     known_enemy_ids = {d["id"] for d in ENEMY_DEFS}
 
     # Validate everything before touching the DB — fail fast, fail loud.
