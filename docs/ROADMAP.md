@@ -26,19 +26,17 @@ HTTP, a signed token as the WebSocket's first message, a `players` table
 whose row *is* the character, and followers that rebind across sessions and
 restarts. Design source of truth: [Accounts & Identity](archive/ACCOUNTS.md).
 
-## Next: UI Arc
+## Now: UI Arc Complete
 
-Goal: the client grows up around the identity M8 established.
-- **Milestone 9: Client migration.** Mechanical React/TypeScript/Vite port of
-  the existing client — no new features. Trigger and stack are already
-  defined in [Frontend Design](FRONTEND_DESIGN.md).
-- **Milestone 10: UI design.** The real layout/panel/visual pass on the
-  migrated stack, including account surfaces. Needs its own short design doc
-  before it starts.
+Milestones 9–10 have landed. The React/TypeScript/Vite client speaks the live
+backend protocol, includes account surfaces and the panel/grid visual pass,
+and its production build is now the client FastAPI serves. The former
+HTML/JavaScript client remains only as historical reference. See
+[Frontend Design](FRONTEND_DESIGN.md).
 
-Both milestones consume M8's decisions (auth handshake, reconnect states,
-message shapes), which are now settled. M8's client surface stayed a trivial
-login form on purpose — the real account UI lands with M10.
+The next gameplay milestone will be selected after defining the server-owned
+inventory and object-interaction contract; implementation is intentionally not
+started until those design decisions are made.
 
 ## Parallel Track: Room Generation
 

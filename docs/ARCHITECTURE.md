@@ -28,7 +28,7 @@ The app is currently one process:
 
 ```mermaid
 flowchart TB
-    B["Browser client"] <-- "HTTP: index.html / game.js" --> A["FastAPI app"]
+    B["React browser client"] <-- "HTTP: Vite production assets" --> A["FastAPI app"]
     B <-- "WebSocket: /ws" --> A
     A --> REG["active_rooms registry"]
     REG --> R1["RoomRuntime: room A"]

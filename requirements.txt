@@ -1,12 +1,12 @@
-fastapi>=0.115.0
-uvicorn[standard]>=0.34.0
-sqlalchemy[asyncio]
-asyncpg
-aiosqlite
-httpx  # async client for the NPC dialogue provider (AI Power Grid)
-bcrypt  # password hashing (ACCOUNTS.md Decision 3)
-bcrypt  # password hashing (ACCOUNTS.md Decision 3)
+fastapi==0.139.0
+uvicorn[standard]==0.49.0
+sqlalchemy[asyncio]==2.0.51
+asyncpg==0.31.0
+aiosqlite==0.22.1
+httpx==0.28.1  # async client for the NPC dialogue provider (AI Power Grid)
+bcrypt==5.0.0  # password hashing (ACCOUNTS.md Decision 3)
 
 # test
-pytest
-pytest-asyncio
+httpx2==2.7.0  # Starlette TestClient transport
+pytest==9.1.1
+pytest-asyncio==1.4.0

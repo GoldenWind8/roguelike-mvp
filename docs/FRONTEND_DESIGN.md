@@ -4,66 +4,49 @@ This document is the source of truth for the browser client direction.
 
 ## Current Client
 
-The current client is still plain HTML, CSS, and JavaScript served by FastAPI.
-That is acceptable while the game proves the exploration loop.
+The canonical client is React, TypeScript, and Vite in `frontend-react/`.
+FastAPI serves its production build from `frontend-react/dist`; the Vite dev
+server proxies login, registration, and WebSocket traffic to FastAPI. The old
+`frontend/` HTML/JavaScript client is retained only as historical reference
+and is no longer served.
 
-It now owns:
+It owns:
 
-- A grid built from server-provided room width and height, rebuilt when the
-  dimensions change.
-- Room transitions: a `room_changed` message swaps in the new room's state,
-  clears per-room UI (inspection panel, armed bomb, waiting banner), and logs
-  the arrival.
-- Room state rendering for name, size, mode, and object count.
-- Object markers on the grid.
-- A small inspection panel that asks the server for object details.
-- Combat input for movement, attacks, wait, and bombs.
+- A typed `GameSocket` seam with live WebSocket and local mock implementations.
+- Authentication and token-based reconnect state.
+- A variable-size DOM grid with movement, attack, bomb, wait, inspection, and
+  dialogue input.
+- Room transitions, live combat/exploration mode, party state, event history,
+  and the current visual-only belt.
+- A player-centred camera and responsive panel layout.
 
-The client should remain a renderer and input collector. The server owns rules,
+The client remains a renderer and input collector. The server owns rules,
 validation, combat resolution, room data, and inspection results.
 
-## Future Stack
-
-When the plain JavaScript file starts fighting the UI, the preferred frontend
-stack is:
-
-- React.
-- TypeScript.
-- Vite.
-- DOM-based grid rendering.
-
-React fits the likely UI shape: room view, inspection panel, dialogue panel,
-inventory, event log, map, and local selection state. TypeScript fits the
-WebSocket message shapes and server state contracts. Vite is enough; this does
-not need Next.js.
-
-## Migration Trigger
-
-Do not rewrite the client just because React is nicer.
-
-Move when at least one of these becomes true:
-
-- Dialogue, inventory, inspection, map, and event panels make `game.js` hard to
-  reason about.
-- WebSocket message shapes need shared types and safer refactors.
-- UI state bugs start consuming more time than the migration would.
-- The client needs focused component tests.
-
-Until then, improve the current client in place.
-
-## Preferred Shape Later
+## Current Shape
 
 ```text
-frontend/
+frontend-react/src/
   net/      socket setup and message routing
   store/    server-state mirror plus local UI state
   grid/     grid renderer and grid input
   ui/       panels for dialogue, inventory, lore, events
-  main.ts
+  main.tsx
 ```
 
 Keep server messages boring and structured. The client should not infer game
 rules from text.
+
+## Development And Production
+
+- `npm run dev` starts Vite on port 5173 and proxies `/login`, `/register`, and
+  `/ws` to FastAPI on port 8000.
+- `npm run build` type-checks the client and emits `frontend-react/dist`.
+- FastAPI serves that build at `/`, including fingerprinted assets under
+  `/assets`.
+- The production build is generated rather than committed. A missing build
+  returns a setup-oriented 503 response instead of silently serving the legacy
+  client.
 
 ## Canvas Decision
 
@@ -73,7 +56,7 @@ Project note: treat canvas as a "millionaire-budget exception." Only reconsider
 it if the project has a much larger rendering budget, dedicated frontend time,
 and a proven DOM performance problem.
 
-Reasoning:
+Reasons:
 
 - Canvas would make layout, hit testing, accessibility, responsive text, and UI
   panels more custom than they need to be.
@@ -87,13 +70,6 @@ Also defer Phaser, Pixi, and other rendering engines for the same reason.
 
 ## Near-Term Rule
 
-Build the playable loop first:
-
-1. Door and portal traversal. (done)
-2. Exploration movement timing.
-3. Server-owned object effects when needed.
-4. Basic NPC dialogue.
-5. Combat-room integration.
-
-Only then decide whether the current HTML/CSS/JS client has earned a React
-migration.
+Keep the client a typed renderer and input collector. New inventory and object
+interaction work must begin with a server-owned contract; the belt must render
+authoritative item state rather than inventing gameplay rules locally.

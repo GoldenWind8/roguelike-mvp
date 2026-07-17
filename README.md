@@ -71,7 +71,11 @@ ideas stay separate.
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+pip install -r requirements.lock.txt
+cd frontend-react
+npm ci
+npm run build
+cd ..
 ```
 
 On macOS/Linux, activate with:
@@ -86,13 +90,18 @@ source .venv/bin/activate
 uvicorn backend.main:app --host 0.0.0.0 --port 8000
 ```
 
-Then open two browser tabs to [http://localhost:8000](http://localhost:8000),
-enter a name in each, and play.
+FastAPI serves the production React build at
+[http://localhost:8000](http://localhost:8000). During frontend development,
+run `npm run dev` from `frontend-react` and use
+[http://localhost:5173](http://localhost:5173); Vite proxies API and WebSocket
+traffic to the backend on port 8000.
 
 ## Test
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest
+cd frontend-react
+npm run build
 ```
 
 ## How To Play
@@ -114,8 +123,8 @@ Each doc has one job:
 - [Current Architecture](docs/ARCHITECTURE.md): how the app works today —
   runtime, backend boundaries, and persistence.
 - [Database Schema](docs/DB_SCHEMA.md): current and planned data model.
-- [Frontend Design](docs/FRONTEND_DESIGN.md): current client direction and
-  future React/TypeScript/Vite notes.
+- [Frontend Design](docs/FRONTEND_DESIGN.md): the React client structure and
+  client/server boundary.
 - [NPC And Actor Design](docs/NPCS.md): design source of truth for NPCs,
   actors, dialogue, and followers.
 - [Accounts & Identity](docs/archive/ACCOUNTS.md): design source of truth for the

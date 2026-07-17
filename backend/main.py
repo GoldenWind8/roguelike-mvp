@@ -6,6 +6,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from backend import auth
@@ -79,17 +80,27 @@ dialogue_provider = build_provider()
 # spamming client can't fan out provider calls (the grid caps 30 req/min/IP).
 talking_players: set[str] = set()
 
-FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend-react" / "dist"
+
+# Vite emits fingerprinted JS/CSS into dist/assets. check_dir=False keeps
+# backend-only commands (including tests) importable before the frontend has
+# been built; requesting the UI gives a clear error below instead.
+app.mount(
+    "/assets",
+    StaticFiles(directory=FRONTEND_DIST / "assets", check_dir=False),
+    name="frontend-assets",
+)
 
 
 @app.get("/")
 async def serve_index():
-    return FileResponse(FRONTEND_DIR / "index.html")
-
-
-@app.get("/game.js")
-async def serve_js():
-    return FileResponse(FRONTEND_DIR / "game.js", media_type="application/javascript")
+    index = FRONTEND_DIST / "index.html"
+    if not index.is_file():
+        raise HTTPException(
+            503,
+            "Frontend is not built. Run `npm ci` and `npm run build` in frontend-react.",
+        )
+    return FileResponse(index)
 
 
 # --- accounts (ACCOUNTS.md M8) ------------------------------------------------

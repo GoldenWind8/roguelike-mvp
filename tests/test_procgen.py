@@ -35,7 +35,7 @@ _DOORS = ("south", "north_south", "four", "random_two")
 _PILLARS = ("none", "grid", "scatter")
 
 
-@pytest.mark.parametrize("w,h,doors,pillars", itertools.product(_W, _H, _DOORS, _PILLARS))
+@pytest.mark.parametrize("w,h,doors,pillars", list(itertools.product(_W, _H, _DOORS, _PILLARS)))
 def test_generated_rooms_always_pass_the_real_gate(w, h, doors, pillars):
     for seed in range(4):
         res = generate("dungeon", {
@@ -51,7 +51,7 @@ def test_generated_rooms_always_pass_the_real_gate(w, h, doors, pillars):
 # ruin) and the damage-happy house lean on the retry net — the assertion here
 # is that the net plus the technique ALWAYS lands on a valid room.
 
-_CAVE = itertools.product((12, 20, 32), (10, 16, 24), (30, 44, 55), (0, 2, 5))
+_CAVE = list(itertools.product((12, 20, 32), (10, 16, 24), (30, 44, 55), (0, 2, 5)))
 
 
 @pytest.mark.parametrize("w,h,wall_chance,steps", _CAVE)
@@ -64,7 +64,7 @@ def test_cave_sweep(w, h, wall_chance, steps):
         assert res.ok, f"cave {w}x{h}/fill{wall_chance}/steps{steps}/seed{seed}: {res.error}"
 
 
-_CASTLE = itertools.product((18, 24, 34), (12, 16, 24), ("small", "medium", "large"))
+_CASTLE = list(itertools.product((18, 24, 34), (12, 16, 24), ("small", "medium", "large")))
 
 
 @pytest.mark.parametrize("w,h,chambers", _CASTLE)
@@ -77,7 +77,7 @@ def test_castle_sweep(w, h, chambers):
         assert res.ok, f"castle {w}x{h}/{chambers}/seed{seed}: {res.error}"
 
 
-_HOUSE = itertools.product(("cottage", "longhouse", "l_house"), (0, 45, 100))
+_HOUSE = list(itertools.product(("cottage", "longhouse", "l_house"), (0, 45, 100)))
 
 
 @pytest.mark.parametrize("plan,ruin", _HOUSE)
@@ -89,7 +89,7 @@ def test_broken_house_sweep(plan, ruin):
         assert res.ok, f"house {plan}/ruin{ruin}/seed{seed}: {res.error}"
 
 
-_LAND = itertools.product(("meadow", "forest", "rocky"), (1, 4), (0, 3))
+_LAND = list(itertools.product(("meadow", "forest", "rocky"), (1, 4), (0, 3)))
 
 
 @pytest.mark.parametrize("terrain,paths,pois", _LAND)
@@ -102,7 +102,7 @@ def test_open_land_sweep(terrain, paths, pois):
         assert res.ok, f"land {terrain}/paths{paths}/pois{pois}/seed{seed}: {res.error}"
 
 
-_RUIN = itertools.product(("sparse", "classic", "dense"), (12, 18, 26), (10, 20))
+_RUIN = list(itertools.product(("sparse", "classic", "dense"), (12, 18, 26), (10, 20)))
 
 
 @pytest.mark.parametrize("density,w,h", _RUIN)
