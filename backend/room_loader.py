@@ -27,13 +27,22 @@ class EnemySpawn:
 
 @dataclass
 class RoomObject:
-    """A client-safe view of an object placed in a room."""
+    """A client-safe view of an object placed in a room.
+
+    Chest lifecycle state lives here as LIVE state, not design data: `opened`
+    flips when the first player opens it (contents are rolled at that moment,
+    docs/LOOT.md), and `contents` holds rolled item_views nobody could carry
+    yet (opener's pack was full) — anyone may claim them later. Like fungible
+    enemies, this state is forgotten on room eviction: a reloaded room's
+    chests are closed again (respawn is a feature)."""
     id: str
     type: str
     position: tuple[int, int]
     label: str
     description: str
     details: list[str] = field(default_factory=list)
+    opened: bool = False
+    contents: list = field(default_factory=list)
 
     def to_summary_dict(self) -> dict:
         return {
@@ -41,6 +50,10 @@ class RoomObject:
             "type": self.type,
             "position": [self.position[0], self.position[1]],
             "label": self.label,
+            "opened": self.opened,
+            # A count, not the items — walking past a chest tells you THAT
+            # something waits inside, inspecting tells you what.
+            "contents_count": len(self.contents),
         }
 
     def to_dict(self) -> dict:
@@ -51,6 +64,8 @@ class RoomObject:
             "label": self.label,
             "description": self.description,
             "details": list(self.details),
+            "opened": self.opened,
+            "contents": list(self.contents),
         }
 
 

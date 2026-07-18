@@ -92,7 +92,10 @@ class ExplorationMode(RoomMode):
 
     turn_based = False
 
-    ALLOWED = {ActionType.MOVE}
+    # Peaceful-mode verbs: walking, and spending your own items (a potion
+    # between fights, a practice throw). Attacking stays combat-only — there
+    # is nothing hostile here to hit, and the message below says so.
+    ALLOWED = {ActionType.MOVE, ActionType.CONSUME, ActionType.THROW}
 
     def submit(self, engine, player_id: str, action_data: dict) -> tuple[list[GameEvent], bool]:
         room = engine.room

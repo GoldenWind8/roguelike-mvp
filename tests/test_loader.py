@@ -37,6 +37,8 @@ async def test_load_room_maps_terrain_and_enemies(session):
         "type": "chest",
         "position": [1, 1],
         "label": "Chest",
+        "opened": False,
+        "contents_count": 0,
     }
     assert chest.description
     assert "loot" not in chest.to_summary_dict()
@@ -64,6 +66,8 @@ async def test_room_state_built_from_template(session):
         "type": "chest",
         "position": [1, 1],
         "label": "Chest",
+        "opened": False,
+        "contents_count": 0,
     }
     assert room.get_object("object_1").description
 

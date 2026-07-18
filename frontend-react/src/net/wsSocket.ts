@@ -34,7 +34,6 @@ export class RealGameSocket implements GameSocket {
   }
 
   send(msg: ClientMessage): void {
-    if (msg.type === "mock_use_item") return; // mock-only; never on the wire
     if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(msg));
     else this.queue.push(msg);
   }

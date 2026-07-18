@@ -898,6 +898,250 @@ button {
   :root { --cell: 42px; }
 }
 
+/* --- loot system (docs/LOOT.md) --------------------------------------------- */
+
+/* Equipped gear stays in its slot and glows instead of leaving the belt. */
+.slot-equipped {
+  border-color: rgba(126, 200, 148, 0.75);
+  box-shadow: inset 0 0 0 1px rgba(126, 200, 148, 0.5), 0 0 10px rgba(126, 200, 148, 0.18);
+}
+.slot-worn {
+  position: absolute;
+  top: 1px;
+  right: 4px;
+  font-size: 10px;
+  color: #7ec894;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+/* Rarity rims: quiet for common, warmer as the find improves. */
+.slot-rare:not(.slot-held) { border-color: rgba(122, 162, 247, 0.55); }
+.slot-legendary:not(.slot-held) {
+  border-color: rgba(232, 168, 78, 0.8);
+  box-shadow: 0 0 12px rgba(232, 168, 78, 0.25);
+}
+
+/* Ticking buffs/debuffs under the You panel. */
+.you-effects {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(77, 58, 38, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.effect-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+.effect-row em { color: var(--faint); font-style: normal; }
+.effect-good { color: #7ec894; }
+.effect-bad { color: #d47a6a; }
+
+/* What waits inside an opened chest (inspection panel). */
+.inspection-contents {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(77, 58, 38, 0.35);
+}
+.contents-title { font-size: 12px; color: var(--dim); margin-bottom: 4px; }
+.contents-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  padding: 2px 0;
+}
+.contents-row em { font-style: normal; font-size: 11px; color: var(--faint); }
+.contents-row.rarity-rare em { color: #7aa2f7; }
+.contents-row.rarity-legendary em { color: var(--amber); }
+.contents-take {
+  margin-top: 8px;
+  width: 100%;
+  padding: 6px 0;
+  background: var(--amber-soft);
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12.5px;
+}
+.contents-take:hover { border-color: var(--amber); }
+
+.you-worn { display: flex; flex-direction: column; gap: 2px; }
+
+/* --- hunger (LOOT.md Decision 5) --------------------------------------------- */
+
+.you-hunger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.hunger-icon { font-size: 13px; }
+.hunger-bar {
+  flex: 1;
+  height: 7px;
+  border-radius: 5px;
+  border: 1px solid var(--edge-soft);
+  background: rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+.hunger-fill {
+  height: 100%;
+  border-radius: 5px;
+  background: linear-gradient(90deg, #b8763a, var(--amber));
+  transition: width 0.6s ease;
+}
+.hunger-low .hunger-fill { background: linear-gradient(90deg, var(--ember-deep), var(--ember)); }
+.hunger-low .you-vigor-num { color: var(--ember); }
+.hunger-starving .hunger-icon { animation: starve-pulse 1.2s ease-in-out infinite; }
+.hunger-starving .you-vigor-num { color: var(--ember); font-weight: bold; }
+
+@keyframes starve-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+
+/* --- the chest reveal (loot popup) -------------------------------------------- */
+
+.loot-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at center, rgba(20, 12, 6, 0.55), rgba(10, 6, 3, 0.82));
+  animation: veil-in 0.35s ease;
+}
+
+.loot-modal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  max-width: min(92vw, 760px);
+  padding: 22px 26px 18px;
+  border-radius: 12px;
+  border: 1px solid var(--edge);
+  background: linear-gradient(180deg, #362818, var(--panel));
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.65), 0 0 40px rgba(232, 168, 78, 0.08);
+  animation: loot-rise 0.4s ease;
+}
+
+@keyframes loot-rise {
+  from { opacity: 0; transform: translateY(14px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+.loot-title {
+  font-size: 17px;
+  font-style: italic;
+  color: var(--amber);
+  letter-spacing: 1px;
+}
+
+.loot-cards {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.loot-card {
+  position: relative;
+  width: 190px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 16px 12px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--edge-soft);
+  background: linear-gradient(180deg, var(--panel2), var(--panel));
+  text-align: center;
+  animation: loot-rise 0.5s ease backwards;
+}
+.loot-card:nth-child(2) { animation-delay: 0.12s; }
+.loot-card:nth-child(3) { animation-delay: 0.24s; }
+
+.loot-card.loot-rare {
+  border-color: rgba(122, 162, 247, 0.55);
+  box-shadow: 0 0 18px rgba(122, 162, 247, 0.12);
+}
+.loot-card.loot-legendary {
+  border-color: rgba(232, 168, 78, 0.8);
+  box-shadow: 0 0 22px rgba(232, 168, 78, 0.22);
+}
+
+.loot-card-icon { font-size: 40px; filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.6)); }
+.loot-card-name { font-size: 14.5px; color: var(--text); }
+.loot-card-rarity {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--faint);
+}
+.loot-rare .loot-card-rarity { color: #7aa2f7; }
+.loot-legendary .loot-card-rarity { color: var(--amber); }
+
+.loot-card-desc { font-size: 11.5px; font-style: italic; color: var(--dim); }
+.loot-card-effects {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 11.5px;
+  color: var(--sage);
+}
+.loot-card-fate { margin-top: 4px; font-size: 10.5px; }
+.fate-held { color: #7ec894; }
+.fate-left { color: var(--ember); }
+
+.loot-minted {
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 10px;
+  letter-spacing: 1px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--amber);
+  background: #241505;
+  color: var(--amber);
+}
+
+.loot-close {
+  padding: 7px 22px;
+  border-radius: 7px;
+  border: 1px solid var(--edge);
+  background: var(--amber-soft);
+  color: var(--amber);
+  font-size: 13px;
+  cursor: pointer;
+}
+.loot-close:hover { background: rgba(232, 168, 78, 0.24); }
+
+.loot-actions { display: flex; gap: 10px; }
+
+.loot-take {
+  margin-top: 4px;
+  padding: 5px 26px;
+  border-radius: 6px;
+  border: 1px solid #a8722c;
+  background: linear-gradient(180deg, #f0b25c, #d99539);
+  color: #241505;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.loot-take:hover { filter: brightness(1.08); }
+
+.loot-card-taken {
+  opacity: 0.55;
+  filter: saturate(0.4);
+}
+
 @media (max-width: 700px) {
   .sidebar-left, .sidebar-right { width: min(100%, 560px); }
 }

@@ -54,11 +54,49 @@ class LeaveParty:
     source_id: str | None = None
 
 
-Effect = Damage | Kill | SetDisposition | JoinParty | LeaveParty
+@dataclass
+class Heal:
+    """Restore hp, clamped to the target's EFFECTIVE max_hp at apply time.
+    Damage's happier twin: items are the first tenant (a drunk potion, a
+    thrown healing flask), but nothing here is item-shaped — a future shrine
+    or an NPC's blessing emits this same effect."""
+    target_id: str
+    amount: int
+    source_id: str | None = None
+
+
+@dataclass
+class RestoreHunger:
+    """Refill a hunger meter, clamped to its ceiling. Heal's kitchen twin.
+    Deliberately a silent no-op on actors WITHOUT a hunger field (enemies):
+    the restore_hunger atom is generic data, and what it means is the
+    target's business — throwing bread at a skeleton wastes the bread."""
+    target_id: str
+    amount: int
+    source_id: str | None = None
+
+
+@dataclass
+class TimedStat:
+    """A stat change that rides the world clock (docs/LOOT.md Decision 3):
+    lands as an active_effect on the target and falls off at expires_at.
+    `source` is a human label ("Potion of Fury") for the client's buff list."""
+    target_id: str
+    stat: str
+    amount: int
+    duration_s: float
+    source: str
+    source_id: str | None = None
+
+
+Effect = Damage | Kill | SetDisposition | JoinParty | LeaveParty | Heal | RestoreHunger | TimedStat
 
 def compute_damage(base_amount: int, target) -> int:
-    """Damage a target actually takes: base amount minus defense, min 1."""
-    return max(1, base_amount - target.defense)
+    """Damage a target actually takes: base amount minus EFFECTIVE defense
+    (base + equipped armor + timed effects, backend/inventory.py), min 1 —
+    so a poison-softened goblin and an armored player both resolve here."""
+    from backend.inventory import effective_stat
+    return max(1, base_amount - effective_stat(target, "defense"))
 
 def apply_effect(room: RoomState, effect: Effect) -> list[GameEvent]:
     if isinstance(effect, Damage):
@@ -71,7 +109,59 @@ def apply_effect(room: RoomState, effect: Effect) -> list[GameEvent]:
         return _apply_join_party(room, effect)
     if isinstance(effect, LeaveParty):
         return _apply_leave_party(room, effect)
+    if isinstance(effect, Heal):
+        return _apply_heal(room, effect)
+    if isinstance(effect, RestoreHunger):
+        return _apply_restore_hunger(room, effect)
+    if isinstance(effect, TimedStat):
+        return _apply_timed_stat(room, effect)
     return []
+
+
+def _apply_heal(room: RoomState, effect: Heal) -> list[GameEvent]:
+    from backend.inventory import effective_stat
+    target = room.get_entity(effect.target_id)
+    if not target or not target.is_alive:
+        return []
+    ceiling = effective_stat(target, "max_hp")
+    healed = max(0, min(effect.amount, ceiling - target.hp))
+    target.hp += healed
+    return [GameEvent(
+        EventType.ENTITY_HEALED,
+        {"target_id": target.id, "amount": healed, "hp": target.hp,
+         "source_id": effect.source_id},
+        room.round,
+    )]
+
+
+def _apply_restore_hunger(room: RoomState, effect: RestoreHunger) -> list[GameEvent]:
+    from backend.config import HUNGER_MAX
+    target = room.get_entity(effect.target_id)
+    if not target or not target.is_alive or not hasattr(target, "hunger"):
+        return []
+    fed = max(0, min(effect.amount, HUNGER_MAX - target.hunger))
+    target.hunger += fed
+    return [GameEvent(
+        EventType.HUNGER_RESTORED,
+        {"target_id": target.id, "amount": round(fed),
+         "hunger": round(target.hunger), "source_id": effect.source_id},
+        room.round,
+    )]
+
+
+def _apply_timed_stat(room: RoomState, effect: TimedStat) -> list[GameEvent]:
+    from backend.inventory import add_timed_effect
+    target = room.get_entity(effect.target_id)
+    if not target or not target.is_alive:
+        return []
+    add_timed_effect(target, effect.stat, effect.amount, effect.duration_s, effect.source)
+    return [GameEvent(
+        EventType.EFFECT_APPLIED,
+        {"target_id": target.id, "stat": effect.stat, "amount": effect.amount,
+         "duration_s": effect.duration_s, "source": effect.source,
+         "source_id": effect.source_id},
+        room.round,
+    )]
 
 def _apply_set_disposition(room: RoomState, effect: SetDisposition) -> list[GameEvent]:
     target = room.get_entity(effect.target_id)

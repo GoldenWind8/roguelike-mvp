@@ -63,3 +63,27 @@ async def init_db() -> None:
     async with engine.begin() as conn:
         # run_sync bridges the sync create_all into the async connection.
         await conn.run_sync(lambda c: Base.metadata.create_all(c))
+        # create_all never ALTERs an existing table, so columns added to a
+        # model after a db file exists must be backfilled by hand. This is the
+        # entire "migration tool" until there's data worth a real one — each
+        # entry is (table, column, DDL type, default SQL literal).
+        await conn.run_sync(_backfill_columns)
+
+
+_COLUMN_BACKFILLS = [
+    ("players", "inventory", "JSON", "'[]'"),  # M9 loot: the 10-slot pack
+    ("players", "hunger", "REAL", "100"),      # hunger meter (LOOT.md Decision 5)
+]
+
+
+def _backfill_columns(conn) -> None:
+    from sqlalchemy import inspect, text
+    inspector = inspect(conn)
+    for table, column, ddl_type, default in _COLUMN_BACKFILLS:
+        if not inspector.has_table(table):
+            continue
+        existing = {c["name"] for c in inspector.get_columns(table)}
+        if column not in existing:
+            conn.execute(text(
+                f"ALTER TABLE {table} ADD COLUMN {column} {ddl_type} DEFAULT {default}"
+            ))

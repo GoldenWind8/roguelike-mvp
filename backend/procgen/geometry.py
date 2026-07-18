@@ -168,22 +168,19 @@ def take_free(reachable, occupied, n, rng) -> list[tuple[int, int]]:
     return chosen
 
 
-# Loot a generated chest may hold (the item ids the seeds already use).
-LOOT_TABLE = ("health_potion", "bomb", "coin")
-
-
 def populate_contents(reachable, occupied, params, rng) -> tuple[list, list]:
     """The standard decoration pass: enemies, chests and fire barrels onto free
     reachable tiles, driven by the preset's counts. Returns (enemy_spawns,
-    objects) in the room-dict shape the validator expects."""
+    objects) in the room-dict shape the validator expects. Chests are bare
+    positions — contents are rolled when a player opens one (docs/LOOT.md),
+    so generation decides WHERE loot can be found, never WHAT it is."""
     enemy_spawns = [
         {"enemy_id": rng.choice(ENEMY_IDS), "x": x, "y": y}
         for (x, y) in take_free(reachable, occupied, params.get("enemies", 0), rng)
     ]
     objects = []
     for (x, y) in take_free(reachable, occupied, params.get("chests", 0), rng):
-        objects.append({"type": ObjectType.CHEST.value, "x": x, "y": y,
-                        "loot": [rng.choice(LOOT_TABLE)]})
+        objects.append({"type": ObjectType.CHEST.value, "x": x, "y": y})
     for (x, y) in take_free(reachable, occupied, params.get("barrels", 0), rng):
         objects.append({"type": ObjectType.FIRE_BARREL.value, "x": x, "y": y,
                         "hp": rng.randint(2, 4)})

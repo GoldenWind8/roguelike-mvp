@@ -14,6 +14,7 @@ import type {
   ClientMessage,
   ConnectionStatus,
   GameEvent,
+  ItemView,
   ServerMessage,
 } from "./types";
 import {
@@ -22,8 +23,10 @@ import {
   deriveMode,
   key,
   makeEvent,
+  mockLootRoll,
   npcReply,
   snapshot,
+  starterPack,
   type MockWorld,
 } from "../mock/world";
 
@@ -72,8 +75,15 @@ export class MockGameSocket implements GameSocket {
       case "inspect_object":
         this.handleInspect(msg.object_id);
         break;
-      case "mock_use_item":
-        this.handleUseItem(msg.item_id, msg.heal);
+      case "open_chest":
+        this.handleOpenChest(msg.object_id);
+        break;
+      case "take_item":
+        this.handleTakeItem(msg.object_id, msg.index, msg.item_id);
+        break;
+      case "equip":
+      case "unequip":
+        this.handleEquip(msg.slot, msg.type === "equip");
         break;
     }
   }
@@ -127,6 +137,10 @@ export class MockGameSocket implements GameSocket {
       attack_damage: 20,
       is_alive: true,
       disposition: "friendly",
+      inventory: starterPack(),
+      active_effects: [],
+      hunger: 64,
+      max_hunger: 100,
     };
     this.world.players.set(this.meId, me);
     const mara = this.world.npcs.get("npc-mara")!;
@@ -156,6 +170,33 @@ export class MockGameSocket implements GameSocket {
       this.timers.push(window.setTimeout(ambientTick, 25000 + Math.random() * 20000));
     };
     this.timers.push(window.setTimeout(ambientTick, 12000));
+
+    // The hunger clock, mock edition: a slow drain so the bar visibly moves,
+    // starvation chip damage at zero — same shape as the real world ticker.
+    const hungerTick = () => {
+      const me = this.me();
+      if (me?.is_alive && me.hunger !== undefined) {
+        const wasStarving = me.hunger <= 0;
+        me.hunger = Math.max(0, me.hunger - 1);
+        const events: GameEvent[] = [];
+        if (me.hunger <= 0) {
+          if (!wasStarving) events.push(this.event("player_starving", { target_id: me.id }));
+          me.hp = Math.max(0, me.hp - 1);
+          events.push(this.event("entity_damaged", { target_id: me.id, damage: 1, hp_remaining: me.hp }));
+          if (me.hp === 0) {
+            me.is_alive = false;
+            events.push(this.event("player_died", { target_id: me.id, killer_id: null }));
+            this.scheduleRevival();
+          }
+        } else if (me.hunger >= 80 && me.hp < me.max_hp) {
+          me.hp = Math.min(me.max_hp, me.hp + 1);
+          events.push(this.event("entity_healed", { target_id: me.id, amount: 1, hp: me.hp }));
+        }
+        this.emitState(events);
+      }
+      this.timers.push(window.setTimeout(hungerTick, 9000));
+    };
+    this.timers.push(window.setTimeout(hungerTick, 9000));
 
     const wrenTick = () => {
       const wren = this.world.players.get("player-wren");
@@ -199,12 +240,49 @@ export class MockGameSocket implements GameSocket {
         return;
       }
       this.dealDamage(me, target, me.attack_damage, events);
-    } else if (msg.action_type === "bomb") {
+    } else if (msg.action_type === "consume") {
+      const slot = me.inventory?.[msg.slot];
+      if (!slot || slot.item.type !== "consumable") {
+        this.emit({ type: "error", message: "No such inventory slot" });
+        return;
+      }
+      this.spendSlot(me, msg.slot);
+      events.push(this.event("item_consumed", { player_id: me.id, item: slot.item }));
+      for (const atom of slot.item.payload.effects ?? []) {
+        if (atom.kind === "restore_hp") {
+          const healed = Math.min(atom.amount, me.max_hp - me.hp);
+          me.hp += healed;
+          events.push(this.event("entity_healed", { target_id: me.id, amount: healed, hp: me.hp }));
+        } else if (atom.kind === "restore_hunger") {
+          const max = me.max_hunger ?? 100;
+          const fed = Math.min(atom.amount, max - (me.hunger ?? max));
+          me.hunger = (me.hunger ?? max) + fed;
+          events.push(this.event("hunger_restored", { target_id: me.id, amount: fed, hunger: me.hunger }));
+        } else if (atom.kind === "stat_mod" && atom.stat) {
+          (me.active_effects ??= []).push({
+            stat: atom.stat, amount: atom.amount,
+            source: slot.item.name, remaining_s: atom.duration_s ?? 60,
+          });
+          events.push(this.event("effect_applied", {
+            target_id: me.id, stat: atom.stat, amount: atom.amount,
+            duration_s: atom.duration_s, source: slot.item.name,
+          }));
+        }
+      }
+    } else if (msg.action_type === "throw") {
+      const slot = me.inventory?.[msg.slot];
+      if (!slot || slot.item.type !== "throwable") {
+        this.emit({ type: "error", message: "No such inventory slot" });
+        return;
+      }
       const [tx, ty] = msg.target_tile;
-      events.push(this.event("bomb_thrown", { player_id: me.id, tile: [tx, ty], radius: 1 }));
+      const radius = slot.item.payload.area?.size ?? 0;
+      this.spendSlot(me, msg.slot);
+      events.push(this.event("item_thrown", { player_id: me.id, item: slot.item, tile: [tx, ty], radius }));
+      const damage = slot.item.payload.effects?.find((a) => a.kind === "damage")?.amount ?? 0;
       for (const actor of this.allLiving()) {
-        if (Math.abs(actor.position[0] - tx) <= 1 && Math.abs(actor.position[1] - ty) <= 1) {
-          this.dealDamage(me, actor, 40, events, "bomb");
+        if (manhattan(actor.position, [tx, ty]) <= radius && damage > 0) {
+          this.dealDamage(me, actor, damage, events, "bomb");
         }
       }
     }
@@ -417,12 +495,129 @@ export class MockGameSocket implements GameSocket {
     }
   }
 
-  // --- mock-only: items ----------------------------------------------------------
+  // --- loot (docs/LOOT.md, mock edition) -----------------------------------------
 
-  private handleUseItem(itemId: string, heal: number) {
+  /** One copy out of a pack slot; the slot vanishes at zero. */
+  private spendSlot(me: ActorState, index: number) {
+    const pack = me.inventory ?? [];
+    const slot = pack[index];
+    if (!slot) return;
+    slot.quantity -= 1;
+    if (slot.quantity <= 0) pack.splice(index, 1);
+  }
+
+  private addToPack(me: ActorState, item: ItemView): boolean {
+    const pack = (me.inventory ??= []);
+    const stackable = item.type === "consumable" || item.type === "throwable";
+    if (stackable) {
+      const existing = pack.find((s) => s.item.id === item.id);
+      if (existing) {
+        existing.quantity += 1;
+        return true;
+      }
+    }
+    if (pack.length >= 10) return false;
+    pack.push({ item, quantity: 1, equipped: false });
+    return true;
+  }
+
+  private handleOpenChest(objectId: string) {
     const me = this.me();
-    if (!me || !me.is_alive) return;
-    me.hp = Math.min(me.max_hp, me.hp + heal);
-    this.emitState([this.event("item_used", { name: me.name, item_id: itemId, amount: heal })]);
+    const chest = this.world.objects.find((o) => o.id === objectId);
+    if (!me || !me.is_alive || !chest || chest.type !== "chest") {
+      this.emit({ type: "error", message: "There is no chest there." });
+      return;
+    }
+    if (manhattan(me.position, chest.position) > 1) {
+      this.emit({ type: "error", message: "You are too far from the chest." });
+      return;
+    }
+
+    if (chest.opened) {
+      // Peeking: show what still waits — the popup handles the taking.
+      if (!chest.contents?.length) {
+        this.emit({ type: "error", message: "The chest is empty." });
+        return;
+      }
+      this.emit({
+        type: "chest_contents",
+        object_id: chest.id,
+        items: chest.contents.map((item) => ({ item, minted: false })),
+      });
+      return;
+    }
+
+    // First-to-open: roll 1-3 finds INTO the chest, with a beat of suspense
+    // like the real LLM path (weights mirror CHEST_ITEM_COUNT_WEIGHTS).
+    chest.opened = true;
+    this.timers.push(
+      window.setTimeout(() => {
+        const roll = Math.random();
+        const count = roll < 0.6 ? 1 : roll < 0.9 ? 2 : 3;
+        const events: GameEvent[] = [];
+        const finds = Array.from({ length: count }, () => {
+          const item = mockLootRoll();
+          const minted = Math.random() < 0.1;
+          if (minted) events.push(this.event("item_generated", { item }));
+          (chest.contents ??= []).push(item);
+          return { item, minted };
+        });
+        events.push(this.event("chest_opened", {
+          player_id: me.id, object_id: chest.id, items: finds,
+        }));
+        this.emitState(events);
+      }, 400 + Math.random() * 600),
+    );
+  }
+
+  private handleTakeItem(objectId: string, index: number, itemId: number) {
+    const me = this.me();
+    const chest = this.world.objects.find((o) => o.id === objectId);
+    if (!me || !me.is_alive || !chest || chest.type !== "chest" || !chest.opened) {
+      this.emit({ type: "error", message: "There is no chest there." });
+      return;
+    }
+    if (manhattan(me.position, chest.position) > 1) {
+      this.emit({ type: "error", message: "You are too far from the chest." });
+      return;
+    }
+    const contents = chest.contents ?? [];
+    if (!(index >= 0 && index < contents.length) || contents[index].id !== itemId) {
+      this.emit({ type: "error", message: "That's already been taken." });
+      return;
+    }
+    if (!this.addToPack(me, contents[index])) {
+      this.emit({ type: "error", message: "Your pack is full." });
+      return;
+    }
+    const [item] = contents.splice(index, 1);
+    this.emitState([this.event("chest_looted", { player_id: me.id, object_id: chest.id, item })]);
+  }
+
+  private handleEquip(index: number, equipping: boolean) {
+    const me = this.me();
+    const pack = me?.inventory ?? [];
+    const slot = pack[index];
+    if (!me || !slot) {
+      this.emit({ type: "error", message: "No such inventory slot" });
+      return;
+    }
+    if (slot.item.type !== "weapon" && slot.item.type !== "wearable") {
+      this.emit({ type: "error", message: `You can't equip a ${slot.item.type}` });
+      return;
+    }
+    if (equipping) {
+      if (slot.item.type === "weapon") {
+        for (const other of pack) {
+          if (other.equipped && other.item.type === "weapon") other.equipped = false;
+        }
+      }
+      slot.equipped = true;
+    } else {
+      slot.equipped = false;
+    }
+    this.emitState([this.event(equipping ? "item_equipped" : "item_unequipped", {
+      player_id: me.id, slot: index, item: slot.item,
+    })]);
   }
 }

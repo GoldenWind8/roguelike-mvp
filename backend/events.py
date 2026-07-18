@@ -33,7 +33,32 @@ class EventType(Enum):
     INVALID_ACTION = "invalid_action"
     PLAYER_LEFT = "player_left"
     PLAYER_ENTERED_DOOR = "player_entered_door"
-    BOMB_THROWN = "bomb_thrown"
+    # --- loot system (docs/LOOT.md) ---
+    # A chest's contents were rolled (first-to-open): `items` is the list of
+    # finds `[{item, minted}]`, all still IN the chest — the opener's client
+    # renders it as the selection popup; nothing is taken automatically.
+    CHEST_OPENED = "chest_opened"
+    # A player chose and took one item out of an opened chest (take_item).
+    CHEST_LOOTED = "chest_looted"
+    # A never-before-seen item was minted by the premium LLM at open time —
+    # its own event because the client gives it fanfare.
+    ITEM_GENERATED = "item_generated"
+    ITEM_EQUIPPED = "item_equipped"
+    ITEM_UNEQUIPPED = "item_unequipped"
+    ITEM_CONSUMED = "item_consumed"
+    # A throwable landed: tile, area, and the thrown item for narration.
+    ITEM_THROWN = "item_thrown"
+    # An actor healed (restore_hp atom) — damage's happier twin.
+    ENTITY_HEALED = "entity_healed"
+    # A hungry actor ate (restore_hunger atom): amount + new meter value.
+    HUNGER_RESTORED = "hunger_restored"
+    # A player's hunger meter hit 0 — emitted at the crossing, not every
+    # starvation tick (the ongoing damage speaks through entity_damaged).
+    PLAYER_STARVING = "player_starving"
+    # A timed stat effect landed on an actor (buff drunk, debuff splashed).
+    EFFECT_APPLIED = "effect_applied"
+    # A timed stat effect ran out on the world clock.
+    EFFECT_EXPIRED = "effect_expired"
 
 
 @dataclass

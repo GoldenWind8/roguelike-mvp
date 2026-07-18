@@ -6,6 +6,7 @@ import { PartyPanel } from "./ui/PartyPanel";
 import { PlayerPanel } from "./ui/PlayerPanel";
 import { Hotbar } from "./ui/Hotbar";
 import { InspectionPanel } from "./ui/InspectionPanel";
+import { ChestLootModal } from "./ui/ChestLootModal";
 import { EventLog } from "./ui/EventLog";
 import { DialoguePanel } from "./ui/DialoguePanel";
 import { LoginScreen } from "./ui/LoginScreen";
@@ -81,18 +82,21 @@ export default function App() {
       } else if (/^[0-9]$/.test(e.key)) {
         // 1–9 are slots 0–8; 0 is the tenth slot, Minecraft-style.
         api.selectSlot(e.key === "0" ? 9 : Number(e.key) - 1);
-      } else if (e.key.toLowerCase() === "b") {
-        api.selectBombSlot();
+      } else if (e.key.toLowerCase() === "e") {
+        // Equip/stow the held slot (gear only; the api explains otherwise).
+        if (state.selectedSlot !== null) api.toggleEquip(state.selectedSlot);
       } else if (e.key === "Escape") {
-        // Chat closes first: it's the thing you most often want out of the way.
-        if (state.dialogue) api.closeDialogue();
+        // The loot reveal sits on top of everything, so it closes first;
+        // then chat — the thing you most often want out of the way.
+        if (state.lootReveal) api.closeLoot();
+        else if (state.dialogue) api.closeDialogue();
         else if (state.selectedSlot !== null) api.selectSlot(null);
         else if (state.inspection) api.closeInspection();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [api, state.screen, state.selectedSlot, state.dialogue, state.inspection]);
+  }, [api, state.screen, state.selectedSlot, state.dialogue, state.inspection, state.lootReveal]);
 
   if (state.screen === "login") {
     return (
@@ -131,6 +135,7 @@ export default function App() {
       </main>
 
       <Hotbar />
+      <ChestLootModal />
 
       {me && !me.is_alive && (
         <div className="death-veil">

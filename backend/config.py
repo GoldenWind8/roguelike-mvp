@@ -56,9 +56,51 @@ TURN_TIMEOUT = 30
 ENEMY_CHASE_RANGE = 5
 
 
-BOMB_DAMAGE = 3
-BOMB_RADIUS = 1
-BOMB_THROW_RANGE = 4
+# Loot system (docs/LOOT.md).
+INVENTORY_SLOTS = 10
+# Rarity weights for the DEFAULT spawn_loot roll — a DATA table, not
+# constants, because callers may pass their own (a boss chest wants better
+# odds) and depth-scaling will want to derive variants of it.
+LOOT_WEIGHTS = {"common": 60, "rare": 35, "legendary": 5}
+# Chance a chest mints a brand-new LLM item instead of drawing the pool —
+# only taken when the premium tier is configured; failures silently fall
+# back to a pool draw, so this can never break a chest.
+LOOT_LLM_CHANCE = float(os.getenv("LOOT_LLM_CHANCE", "0.10"))
+# Generous on purpose, unlike DIALOGUE_TIMEOUT's hard 8s: a chest-open is a
+# rare (LOOT_LLM_CHANCE) moment where waiting IS the suspense, and premium
+# bindings are often reasoning models (gemini-pro measured >8s). On timeout
+# the player silently gets a pool draw instead — never a broken chest.
+LOOT_LLM_TIMEOUT = float(os.getenv("LOOT_LLM_TIMEOUT", "20.0"))
+# Reasoning models spend hidden thinking tokens from this same budget (see
+# DIALOGUE_MAX_TOKENS) — too small truncates the JSON mid-payload, which
+# reads as "the LLM wrote garbage" but is really "we cut it off". Measured
+# on gemini-pro: ~1.1-1.3k thinking + ~200 of item JSON, with high variance;
+# 4096 leaves the long-thinking rolls room. The item is small — the budget
+# is almost entirely for thoughts we never see.
+LOOT_LLM_MAX_TOKENS = int(os.getenv("LOOT_LLM_MAX_TOKENS", "4096"))
+# How often the world-clock ticker sweeps rooms for expired timed effects.
+# Coarse on purpose: expiry is ALSO checked lazily at every stat read, so
+# this only bounds how long a stale buff can linger on screen.
+WORLD_TICK_INTERVAL = 2.0
+
+# How many items a chest rolls at open time — a weights table like
+# LOOT_WEIGHTS, and data for the same reason: a vault chest passes its own.
+CHEST_ITEM_COUNT_WEIGHTS = {1: 60, 2: 30, 3: 10}
+
+# Hunger (docs/LOOT.md Decision 5): a 0-100 meter on players, drained by the
+# world ticker ONLY while its owner is connected and alive — offline time
+# costs nothing (logging in starved would punish having a life; Minecraft
+# pauses, we do the equivalent). Full-to-empty in ~15 minutes of play.
+HUNGER_MAX = 100
+HUNGER_DRAIN_PER_S = 100 / 900
+# Well fed (the Minecraft rule): at/above this the meter slowly knits wounds —
+# 1 hp per tick, each hp costing extra hunger on top of the base drain.
+HUNGER_REGEN_THRESHOLD = 80
+HUNGER_REGEN_COST = 0.4
+# Starving (the Don't Starve rule): at 0 the meter eats you instead — base
+# damage per tick, routed through the normal Damage effect (its min-1 clamp
+# means armor cannot make starvation free). It CAN kill you.
+HUNGER_STARVE_DAMAGE = 1
 
 
 # NPC dialogue (NPCS.md "LLM Dialogue Source"). Key/model/URL from env, never

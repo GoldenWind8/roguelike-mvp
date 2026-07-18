@@ -101,8 +101,11 @@ def validate_room(data: dict) -> None:
         place(o["x"], o["y"], f"object '{o['type']}'")
         # Minimal per-type metadata (deep behavior validation lands with each
         # object's own issue — here we only guarantee the shape is sane).
-        if otype is ObjectType.CHEST and not isinstance(o.get("loot"), list):
-            raise ValueError(f"chest at ({o['x']}, {o['y']}) needs a 'loot' list")
+        # Chests need nothing beyond a position: contents are rolled at open
+        # (loot.spawn_loot), never designed into the room (docs/LOOT.md).
+        if otype is ObjectType.CHEST and "loot" in o:
+            raise ValueError(f"chest at ({o['x']}, {o['y']}) must not carry a 'loot' "
+                             "list — loot is rolled when a player opens it")
         if otype is ObjectType.FIRE_BARREL and not isinstance(o.get("hp"), int):
             raise ValueError(f"fire_barrel at ({o['x']}, {o['y']}) needs an int 'hp'")
 

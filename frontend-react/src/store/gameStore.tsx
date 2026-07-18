@@ -20,8 +20,11 @@ import { MockGameSocket } from "../net/mockSocket";
 import { RealGameSocket } from "../net/wsSocket";
 import type { GameSocket } from "../net/socket";
 import type {
+  ChestFind,
   ConnectionStatus,
   GameEvent,
+  InventorySlot,
+  ItemView,
   NpcState,
   ObjectDetail,
   RoomStatePayload,
@@ -87,6 +90,8 @@ function formatEvents(events: GameEvent[], state: RoomStatePayload): (LogLine | 
   );
   const line = (kind: LogKind, text: string): LogLine => ({ id: ++logSeq, kind, text });
 
+  const itemOf = (e: GameEvent): ItemView => e.data.item as ItemView;
+
   return events.map((e) => {
     const d = e.data as Record<string, string | number | null>;
     switch (e.event_type) {
@@ -121,8 +126,39 @@ function formatEvents(events: GameEvent[], state: RoomStatePayload): (LogLine | 
         return d.mode === "combat"
           ? line("danger", "Steel is drawn. The warmth drains from the hall.")
           : line("calm", "The hall grows quiet again. The hearth settles.");
-      case "bomb_thrown":
-        return line("danger", `${nameOf(d.player_id)} lobs a bomb — fire blooms across the floorboards!`);
+      // --- loot system (docs/LOOT.md) ---
+      case "chest_opened": {
+        const finds = (e.data.items as ChestFind[]) ?? [];
+        const names = finds.map((f) => `${f.item.art.value} ${f.item.name}`).join(", ");
+        return line("item", `${nameOf(d.player_id)} pries the chest open — ${names}!`);
+      }
+      case "chest_looted":
+        return line("item", `${nameOf(d.player_id)} takes the ${itemOf(e).art.value} ${itemOf(e).name} from the chest.`);
+      case "item_generated":
+        return line("danger", `✨ Something never seen before takes shape: ${itemOf(e).art.value} ${itemOf(e).name} (${itemOf(e).rarity})!`);
+      case "item_consumed":
+        return line("item", `${nameOf(d.player_id)} uses the ${itemOf(e).name}.`);
+      case "item_thrown":
+        return line("danger", `${nameOf(d.player_id)} hurls the ${itemOf(e).name}!`);
+      case "item_equipped":
+        return line("item", `${nameOf(d.player_id)} readies the ${itemOf(e).name}.`);
+      case "item_unequipped":
+        return line("item", `${nameOf(d.player_id)} stows the ${itemOf(e).name}.`);
+      case "entity_healed":
+        if (!d.amount) return null;
+        return line("heal", `${nameOf(d.target_id)} recovers ${d.amount} vigor.`);
+      case "hunger_restored":
+        if (!d.amount) return null;
+        return line("heal", `${nameOf(d.target_id)} eats well (+${d.amount} belly).`);
+      case "player_starving":
+        return line("danger", `${nameOf(d.target_id)} is starving! Find food, fast.`);
+      case "effect_applied": {
+        const sign = Number(d.amount) > 0 ? "+" : "";
+        const kind: LogKind = Number(d.amount) > 0 ? "heal" : "danger";
+        return line(kind, `The ${d.source} takes hold of ${nameOf(d.target_id)} (${sign}${d.amount} ${String(d.stat).replace("_", " ")}).`);
+      }
+      case "effect_expired":
+        return line("ambient", `The ${d.source} fades from ${nameOf(d.target_id)}.`);
 
       // Mock-only events (no backend counterpart yet — see net/types.ts).
       case "ambient":
@@ -142,59 +178,25 @@ function formatEvents(events: GameEvent[], state: RoomStatePayload): (LogLine | 
   });
 }
 
-// --- the belt (mock-only: no backend contract yet) --------------------------------
-// Ten fixed slots, Minecraft-style. This is design-ahead for the intended
-// action model: EVERY act on the world is "select an item, then click a
-// target" — a sword swing included. Slots keep their position; an emptied
-// slot goes null rather than compacting.
+// --- the belt ---------------------------------------------------------------------
+// Ten fixed slots (config.INVENTORY_SLOTS server-side). The pack itself is
+// SERVER state — it rides on your player in every broadcast; the only local
+// piece is which slot you're holding (selectedSlot). The action model:
+// hold an item (1–0 or click), then click a target — yourself to drink,
+// a tile to throw. Equip/unequip is a right-click (or E), no holding needed.
 
 export const SLOT_COUNT = 10;
 
-export interface InventoryItem {
-  id: string;
-  icon: string;
-  name: string;
-  count: number;
-  description: string;
-  use: "sword" | "heal" | "bomb" | "passive";
-  healAmount?: number;
-  /** Shown above the belt while this item is in hand. */
-  hint: string;
+/** A popup card: a chest find plus who has taken it (name), if anyone. */
+export interface LootFind extends ChestFind {
+  takenBy?: string;
 }
 
-const STARTING_SLOTS: (InventoryItem | null)[] = [
-  {
-    id: "sword", icon: "🗡️", name: "Rusted Sword", count: 1,
-    description: "It has seen better decades, but it still argues convincingly.",
-    use: "sword",
-    hint: "click an enemy beside you to strike",
-  },
-  {
-    id: "draught", icon: "🧪", name: "Healing Draught", count: 2,
-    description: "Herbs, honey, and something Mara won't name. Restores 30 vigor.",
-    use: "heal", healAmount: 30,
-    hint: "click yourself to drink it",
-  },
-  {
-    id: "bread", icon: "🍞", name: "Hearthbread", count: 3,
-    description: "Still warm from Gorrik's oven. Restores 10 vigor and most moods.",
-    use: "heal", healAmount: 10,
-    hint: "click yourself to eat it",
-  },
-  {
-    id: "bomb", icon: "💣", name: "Ember Bomb", count: 2,
-    description: "Choose it, then choose a tile. Loud. Final.",
-    use: "bomb",
-    hint: "click any tile to throw it",
-  },
-  {
-    id: "cloak", icon: "🧥", name: "Woolen Cloak", count: 1,
-    description: "Worn, patched, beloved. Keeps out drafts and dread alike.",
-    use: "passive",
-    hint: "click yourself to pull it tighter",
-  },
-  ...Array.from({ length: SLOT_COUNT - 5 }, () => null),
-];
+/** The local player's pack out of a room payload ([] before join). */
+export function packOf(room: RoomStatePayload | null, playerId: string | null): InventorySlot[] {
+  if (!room || !playerId) return [];
+  return room.players[playerId]?.inventory ?? [];
+}
 
 // --- state ------------------------------------------------------------------------
 
@@ -218,8 +220,13 @@ export interface GameState {
   log: LogLine[];
   dialogue: DialogueState | null;
   inspection: ObjectDetail | null;
-  slots: (InventoryItem | null)[];
+  /** Held pack slot index (local UI state; the pack itself lives in `room`). */
   selectedSlot: number | null;
+  /** The chest selection popup: what waits in the chest you just opened (or
+   * peeked into), with per-item taken state kept live by chest_looted
+   * broadcasts — so two players at one chest see each other's grabs.
+   * Local UI state; closing it never talks to the server. */
+  lootReveal: { objectId: string; finds: LootFind[] } | null;
   musicOn: boolean;
   /** Turn-based combat: your action is submitted; the round hasn't resolved. */
   actionLocked: boolean;
@@ -238,8 +245,8 @@ const initialState: GameState = {
   log: [],
   dialogue: null,
   inspection: null,
-  slots: STARTING_SLOTS,
   selectedSlot: null,
+  lootReveal: null,
   musicOn: true,
   actionLocked: false,
   waitingFor: [],
@@ -255,8 +262,8 @@ type Action =
   | { type: "close_dialogue" }
   | { type: "player_said"; text: string }
   | { type: "close_inspection" }
+  | { type: "close_loot" }
   | { type: "select_slot"; index: number | null }
-  | { type: "consume_slot"; index: number; note?: string }
   | { type: "set_music"; on: boolean }
   | { type: "log"; kind: LogKind; text: string };
 
@@ -296,22 +303,13 @@ function reduce(state: GameState, action: Action): GameState {
       };
     case "close_inspection":
       return { ...state, inspection: null };
+    case "close_loot":
+      return { ...state, lootReveal: null };
     case "select_slot": {
       // Clicking the held slot puts it away; empty slots can't be held.
-      if (action.index !== null && !state.slots[action.index]) return state;
+      if (action.index !== null && !packOf(state.room, state.playerId)[action.index]) return state;
       const index = action.index === state.selectedSlot ? null : action.index;
       return { ...state, selectedSlot: index };
-    }
-    case "consume_slot": {
-      const slots = state.slots.map((it, i) => {
-        if (i !== action.index || !it) return it;
-        return it.count > 1 ? { ...it, count: it.count - 1 } : null;
-      });
-      const log = action.note
-        ? appendLog(state.log, [{ id: ++logSeq, kind: "item", text: action.note }])
-        : state.log;
-      const selectedSlot = slots[state.selectedSlot ?? -1] ? state.selectedSlot : null;
-      return { ...state, slots, selectedSlot, log };
     }
     case "set_music":
       return { ...state, musicOn: action.on };
@@ -336,9 +334,38 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
         actionLocked: false,
         waitingFor: [],
       };
+      // Chest popup lifecycle rides in the broadcasts everyone gets: YOUR
+      // open raises it; ANYONE's take marks a card taken (players at one
+      // chest watch each other grab).
+      for (const e of msg.events) {
+        if (e.event_type === "chest_opened" && e.data.player_id === state.playerId) {
+          next = {
+            ...next,
+            lootReveal: {
+              objectId: String(e.data.object_id),
+              finds: ((e.data.items as ChestFind[]) ?? []).map((f) => ({ ...f })),
+            },
+            inspection: null,
+          };
+        } else if (e.event_type === "chest_looted"
+            && next.lootReveal
+            && next.lootReveal.objectId === e.data.object_id) {
+          const taken = e.data.item as ItemView;
+          const taker = msg.state.players[String(e.data.player_id)]?.name ?? "someone";
+          const finds = [...next.lootReveal.finds];
+          const idx = finds.findIndex((f) => !f.takenBy && f.item.id === taken.id);
+          if (idx >= 0) finds[idx] = { ...finds[idx], takenBy: taker };
+          next = { ...next, lootReveal: { ...next.lootReveal, finds } };
+        }
+      }
       // If the NPC we're talking to died, the conversation is over.
       if (next.dialogue && !msg.state.npcs[next.dialogue.npcId]?.is_alive) {
         next = { ...next, dialogue: null };
+      }
+      // The pack is server state: if the held slot vanished (last potion
+      // drunk, stack spent), the hand empties with it.
+      if (next.selectedSlot !== null && !packOf(msg.state, state.playerId)[next.selectedSlot]) {
+        next = { ...next, selectedSlot: null };
       }
       return next;
     }
@@ -355,6 +382,13 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
     }
     case "object_inspection":
       return { ...state, inspection: msg.object, dialogue: null };
+    case "chest_contents":
+      // Peeking into an already-opened chest: same popup, current leftovers.
+      return {
+        ...state,
+        lootReveal: { objectId: msg.object_id, finds: msg.items.map((f) => ({ ...f })) },
+        inspection: null,
+      };
     case "error":
       return {
         ...state,
@@ -388,18 +422,25 @@ interface GameApi {
   move(dx: number, dy: number): void;
   attack(targetId: string): void;
   wait(): void;
-  /** Throw the held bomb at a tile; consumes one from its slot. */
-  bomb(x: number, y: number): void;
+  /** Drink/eat pack slot N on yourself (a real round action). */
+  consume(slot: number): void;
+  /** Arc pack slot N at a tile (a real round action; range is item data). */
+  throwItem(slot: number, x: number, y: number): void;
+  /** Equip or unequip slot N (free, outside the round economy). */
+  toggleEquip(slot: number): void;
+  /** Open a chest (first open rolls; later opens show what's left). */
+  openChest(objectId: string): void;
+  /** Take one chosen item from an opened chest (the popup's Take button).
+   * `index` is the item's current position among the chest's leftovers. */
+  takeItem(objectId: string, index: number, itemId: number): void;
   /** Hold/put away a belt slot (toggle). Pass null to empty your hands. */
   selectSlot(index: number | null): void;
-  /** Shortcut: hold whichever slot has bombs (the B key). */
-  selectBombSlot(): void;
-  /** Use the held consumable on yourself (drink/eat/wear). */
-  useSelectedOnSelf(): void;
   inspect(objectId: string): void;
   openDialogue(npc: NpcState): void;
   closeDialogue(): void;
   closeInspection(): void;
+  /** Dismiss the chest-reveal popup. */
+  closeLoot(): void;
   talk(text: string): void;
   toggleMusic(): void;
   /** Local flavor/hint line in the chronicle; never touches the server. */
@@ -516,53 +557,34 @@ export function GameProvider({ children }: { children: ReactNode }) {
         if (lockedThisRound()) return;
         socket().send({ type: "action", action_type: "wait" });
       },
-      bomb(x, y) {
+      consume(slot) {
         if (lockedThisRound()) return;
-        const { slots } = stateRef.current;
-        const index = slots.findIndex((it) => it?.use === "bomb");
-        if (index < 0) return;
-        socket().send({ type: "action", action_type: "bomb", target_tile: [x, y] });
-        dispatch({ type: "consume_slot", index });
+        socket().send({ type: "action", action_type: "consume", slot });
         dispatch({ type: "select_slot", index: null });
+      },
+      throwItem(slot, x, y) {
+        if (lockedThisRound()) return;
+        socket().send({ type: "action", action_type: "throw", slot, target_tile: [x, y] });
+        dispatch({ type: "select_slot", index: null });
+      },
+      toggleEquip(slot) {
+        const pack = packOf(stateRef.current.room, stateRef.current.playerId);
+        const held = pack[slot];
+        if (!held) return;
+        if (held.item.type !== "weapon" && held.item.type !== "wearable") {
+          dispatch({ type: "log", kind: "ambient", text: `The ${held.item.name} isn't something you wear.` });
+          return;
+        }
+        socket().send({ type: held.equipped ? "unequip" : "equip", slot });
+      },
+      openChest(objectId) {
+        socket().send({ type: "open_chest", object_id: objectId });
+      },
+      takeItem(objectId, index, itemId) {
+        socket().send({ type: "take_item", object_id: objectId, index, item_id: itemId });
       },
       selectSlot(index) {
         dispatch({ type: "select_slot", index });
-      },
-      selectBombSlot() {
-        const index = stateRef.current.slots.findIndex((it) => it?.use === "bomb");
-        if (index < 0) {
-          dispatch({ type: "log", kind: "error", text: "You are out of bombs." });
-          return;
-        }
-        dispatch({ type: "select_slot", index });
-      },
-      useSelectedOnSelf() {
-        const { slots, selectedSlot } = stateRef.current;
-        const item = selectedSlot !== null ? slots[selectedSlot] : null;
-        if (!item || selectedSlot === null) return;
-        if (item.use === "heal" && item.healAmount) {
-          if (!USE_MOCK) {
-            // Inventory has no server contract yet (kept as visible debt —
-            // see README "mock-only"); don't burn the item on a no-op.
-            dispatch({
-              type: "log",
-              kind: "item",
-              text: `The ${item.name} waits for its moment — only sword and bomb reach the real world so far.`,
-            });
-            dispatch({ type: "select_slot", index: null });
-            return;
-          }
-          socket().send({ type: "mock_use_item", item_id: item.id, heal: item.healAmount });
-          dispatch({
-            type: "consume_slot",
-            index: selectedSlot,
-            note: `You use the ${item.name} (+${item.healAmount} vigor).`,
-          });
-          dispatch({ type: "select_slot", index: null });
-        } else if (item.use === "passive") {
-          dispatch({ type: "log", kind: "item", text: "You pull the cloak tighter. Better already." });
-          dispatch({ type: "select_slot", index: null });
-        }
       },
       inspect(objectId) {
         socket().send({ type: "inspect_object", object_id: objectId });
@@ -575,6 +597,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       },
       closeInspection() {
         dispatch({ type: "close_inspection" });
+      },
+      closeLoot() {
+        dispatch({ type: "close_loot" });
       },
       talk(text) {
         const d = stateRef.current.dialogue;

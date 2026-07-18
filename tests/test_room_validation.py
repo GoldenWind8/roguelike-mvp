@@ -89,9 +89,11 @@ def test_rejects_overlap():
         validate_room(_broken(spawn_points=[[4, 8], [4, 8]]))
 
 
-def test_rejects_chest_without_loot():
+def test_rejects_chest_with_designed_loot():
+    # Inverted with the loot system (docs/LOOT.md): contents are rolled at
+    # open time, so a chest carrying a designed "loot" list is the error now.
     with pytest.raises(ValueError, match="loot"):
-        validate_room(_broken(objects=[{"type": "chest", "x": 1, "y": 1}]))
+        validate_room(_broken(objects=[{"type": "chest", "x": 1, "y": 1, "loot": ["coin"]}]))
 
 
 def test_rejects_unknown_enemy_ref():
@@ -135,7 +137,9 @@ async def test_enemy_stats_loaded_from_db(session):
     goblin = await session.get(EnemyDef, placement["enemy_id"])
     assert goblin.name == "Goblin"
     assert (goblin.hp, goblin.attack_damage, goblin.defense) == (6, 1, 1)
-    assert goblin.on_death == [{"effect": "drop_loot", "items": ["coin"]}]
+    # on_death is an empty hook until a system reads it — the future "enemies
+    # drop loot" seam will call loot.spawn_loot, not carry item lists here.
+    assert goblin.on_death == []
 
 
 async def test_door_links_to_second_room(session):

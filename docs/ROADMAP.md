@@ -34,9 +34,24 @@ and its production build is now the client FastAPI serves. The former
 HTML/JavaScript client remains only as historical reference. See
 [Frontend Design](FRONTEND_DESIGN.md).
 
-The next gameplay milestone will be selected after defining the server-owned
-inventory and object-interaction contract; implementation is intentionally not
-started until those design decisions are made.
+## Now: Loot System Complete
+
+The loot arc has landed — the server-owned inventory and object-interaction
+contract, implemented end to end. In one line: items are pure data (identity
++ validated payload + delivery system), chests roll their contents at open
+time through one `spawn_loot()` entry point, a small chance mints a
+never-before-seen premium-LLM item into the growing global pool, timed
+effects ride one global wall-clock, and the React client speaks the whole
+contract (pack, equip highlights, chest states, buff timers). Design source
+of truth, with every decision's rejected alternatives and revisit-triggers:
+[Loot](LOOT.md).
+
+Two follow-ons have since landed (LOOT.md updated in place): **hunger**
+(Decision 5 — a 0–100 meter drained by the world ticker, Minecraft-style
+regen when well fed, Don't-Starve-style starvation damage at zero, food
+items carrying the `restore_hunger` atom) and **multi-item chests** (1–3
+finds per open through the same `spawn_loot`, revealed to the opener in a
+popup).
 
 ## Parallel Track: Room Generation
 
@@ -50,19 +65,41 @@ store → load) only once the presets are worth walking through.
 ## Later: Good Ideas To Defer
 
 These belong in the project, but not before the next milestone works. The
-design thinking for all of them lives in [Future Ideas](FUTURE.md):
+design thinking for most lives in [Future Ideas](FUTURE.md); loot-specific
+deferrals carry named revisit-triggers in [Loot](LOOT.md):
 
 - Per-room locks and the fuller room runtime architecture.
 - Account hardening (password reset, email verification, login rate limiting,
   session expiry — deferred with named triggers in
   [Accounts & Identity](archive/ACCOUNTS.md)).
-- Inventory that follows players between rooms.
-- Object pickup, opening, destruction, and item effects.
 - NPC traversal (followers crossing rooms) and per-player relationships.
-- World clock and time pressure.
 - Redis routing and pub/sub.
 - Gateway/lobby service.
 - Multiple room workers.
+
+Loot follow-ons (the system is built to receive these — each is a caller of
+existing seams, not a rework; see LOOT.md for the triggers):
+
+- **More loot sources**: NPCs handing over items in dialogue, and enemy
+  `on_death` drops — both are one call to `loot.spawn_loot()` with their own
+  weights; the `enemy_defs.on_spawn/on_death` hook columns are the waiting
+  seam.
+- **Depth-scaled rarity**: `LOOT_WEIGHTS` is already a data table passed per
+  call — deeper floors pass richer weights when floors exist.
+- **Image-gen item art**: swap `art.kind` from `"emoji"` to `"url"` per item
+  in `item_gen.py`; the typed reference means no migration, and the client
+  already switches on `kind`.
+- **Hunger**: done (LOOT.md Decision 5). Remaining clock tenants — torches,
+  spoilage — follow the same ticker pattern when wanted.
+- **Ground/tile effects** (fire burning on a floor tile): a separate system
+  (state on tiles + checks on movement and ticks) — deliberately NOT bolted
+  onto the throw model.
+- **Persistent chest state** (`object_instances`): only if chest-farming by
+  room-cycling becomes a real exploit; today re-arming chests on room reload
+  is a feature, like enemy respawns.
+- **Drops-on-death / stack caps / line-of-sight for ranged & thrown /
+  per-item friendly-fire ("hits") / per-player inventory privacy**: each
+  deferred with its trigger noted in LOOT.md "Known accepted costs".
 
 ## Senior-Dev Rule Of Thumb
 

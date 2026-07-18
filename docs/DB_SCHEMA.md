@@ -67,7 +67,25 @@ erDiagram
         json on_spawn "future effect list"
         json on_death "future effect list"
     }
+
+    ITEMS {
+        int id PK
+        string name
+        string description
+        string rarity "common | rare | legendary"
+        string item_type "wearable | consumable | throwable | weapon"
+        json art "typed ref: emoji now, url when image-gen lands"
+        json payload "validated effect data (items.validate_item)"
+        string origin "seed | llm"
+        datetime created_at
+    }
 ```
+
+`items` (docs/LOOT.md) is the **global item pool** — no relationships on
+purpose: chests roll from it at open time, and held copies are denormalized
+snapshots inside `players.inventory`, so nothing joins against it at play
+time. Rows are immutable once minted (editing one would fork it from every
+held copy); both provenances pass the same `validate_item` gate.
 
 ## Current Tables
 
@@ -77,7 +95,8 @@ erDiagram
 | `room_connections` | Directed world graph edges | Traversal uses these: `load_room` reads a room's outgoing edges into `RoomTemplate.connections`, and stepping onto a connected tile transfers the player. Arrival uses the destination's first free spawn (`to_x`/`to_y` are still future columns). |
 | `enemy_defs` | Reusable enemy catalog | Rooms reference enemy ids from JSON and load stats from this table. Planned: runtime-appendable by LLM world generation, gated by schema/bounds validation (stat ranges; effect lists drawn from the closed vocabulary). |
 | `npcs` | NPC instance rows (individuals) | One row per NPC that exists in the world; play edits it (hp, position, disposition, memory, party membership) and it survives room resets and restarts. Loaded/saved by `npc_store.py`; eviction is "save individuals, unload". Full stats are columns because an individual's wounds and buffs are instance state. `persona` is validated by `persona.validate_persona` on insert *and* load. `party_owner_id` (M6) is a nullable String holding the `players.id` of the account this NPC follows (M8) — stable across sessions, so followers rebind on the next login. Still a plain String, not a FK: promotion waits one milestone, until eviction ordering provably never saves an NPC before its owner exists (ACCOUNTS.md). |
-| `players` | Account + character rows (individuals) | One row per account, and the row *is* the character (ACCOUNTS.md Decision 1). `id` is an opaque `player_<uuid>` string everything else references; `username`/`password_hash` (bcrypt)/`email` are the auth columns, never sent to clients. Game state (`room_id`, `x`, `y`, `hp`) is written at the edges — disconnect and shutdown — by `player_store.py`, the `npc_store` rhythm. NULL `room_id` means "spawn at the default room", the fallback whenever a saved location stops making sense. |
+| `players` | Account + character rows (individuals) | One row per account, and the row *is* the character (ACCOUNTS.md Decision 1). `id` is an opaque `player_<uuid>` string everything else references; `username`/`password_hash` (bcrypt)/`email` are the auth columns, never sent to clients. Game state (`room_id`, `x`, `y`, `hp`, `inventory`, `hunger`) is written at the edges — disconnect and shutdown — by `player_store.py`, the `npc_store` rhythm. NULL `room_id` means "spawn at the default room", the fallback whenever a saved location stops making sense. `inventory` is the 10-slot pack as JSON (docs/LOOT.md): a list of `{item, quantity, equipped}` where `item` is a full snapshot, so restoring a pack never queries `items`. `hunger` is the 0–100 meter (LOOT.md Decision 5), stored as the raw float; it only drains while connected, so a returning player resumes as hungry as they left. |
+| `items` | The global item pool (docs/LOOT.md) | Hand-authored seeds (`origin="seed"`, backfilled once when the table has never held a row) plus premium-LLM inventions minted at chest-open (`origin="llm"`). Append-only in practice: play draws from it and adds to it, never edits it. `payload` is validated by `items.validate_item` — the DB can't check JSON, so the gate lives in code, like rooms. |
 
 ## Important Boundary
 
@@ -100,8 +119,14 @@ Examples:
 - Fungible enemy died: ephemeral — respawns on next room load.
 - Player moved or took damage: individual state — persists.
 - NPC joined a party: individual state — persists.
-- Chest opened: ephemeral today; becomes individual state when
-  `object_instances` exists.
+- Player looted or equipped an item: individual state (`players.inventory`)
+  — persists.
+- LLM minted a new item at a chest: template-ish pool data — appends to
+  `items` through the validation gate, exactly like an LLM room.
+- Chest opened: ephemeral (deliberate — chests re-arm when the room
+  reloads, like enemy respawns); becomes individual state if
+  `object_instances` ever exists (revisit-trigger: chest-farming by
+  room-cycling).
 - Room terrain generated and accepted: template data.
 - LLM invents a new enemy type: template data (append to `enemy_defs`
   through the validation gate).
@@ -211,9 +236,9 @@ erDiagram
 | `room_connections.to_x`, `to_y` | Place players at a specific destination tile after traversal. |
 | `room_connections.kind` | Distinguish door, portal, path, stairs, etc. |
 | `npcs` | **Done**, now including `party_owner_id` (M6), which since M8 holds a real `players.id`. Promoting it to a FK waits until eviction ordering provably never saves an NPC before its owner exists. |
-| `players` | **Done** (M8): username + password login resolves to the row, everything references its opaque id, state survives disconnect and restart — see [Accounts & Identity](archive/ACCOUNTS.md). Inventory/progression now have a stable owner to hang off. |
-| `items` | Store generated or hand-authored item definitions. |
-| `player_inventory` | Let items follow players between rooms. |
+| `players` | **Done** (M8): username + password login resolves to the row, everything references its opaque id, state survives disconnect and restart — see [Accounts & Identity](archive/ACCOUNTS.md). |
+| `items` | **Done** (loot system): the global pool, seed + LLM provenance behind one validation gate — see [Loot](LOOT.md). |
+| `player_inventory` | **Superseded**: the pack landed as `players.inventory` JSON (snapshots, no joins at play time — LOOT.md). A join table returns only if cross-player item queries ("who holds the Dragonfang?") ever matter more than snapshot simplicity. |
 
 Do not add all of these at once. Add the smallest table/column needed by the
 next milestone.

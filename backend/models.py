@@ -16,7 +16,7 @@ from enum import Enum
 from sqlalchemy import DateTime, ForeignKey, Integer, String, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
-from backend.config import PLAYER_MAX_HP
+from backend.config import HUNGER_MAX, PLAYER_MAX_HP
 from backend.db import Base
 
 
@@ -59,6 +59,33 @@ class EnemyDef(Base):
     defense: Mapped[int] = mapped_column(Integer)
     on_spawn: Mapped[list] = mapped_column(JSON, default=list)   # list[effect]
     on_death: Mapped[list] = mapped_column(JSON, default=list)   # list[effect]
+
+
+class ItemDef(Base):
+    """One loot item the world can dispense — the GLOBAL ITEM POOL
+    (docs/LOOT.md). Rows are immutable once minted: held copies are
+    denormalized snapshots (items.item_view), so editing a row would silently
+    fork it from every copy in a player's pack. New power enters as new rows.
+
+    Two provenances share the table on purpose: hand-authored seeds
+    (origin="seed") and premium-LLM inventions minted at chest-open time
+    (origin="llm"). Both pass items.validate_item before insert — the DB
+    can't check a JSON payload, so the gate lives in code, same as rooms.
+    """
+    __tablename__ = "items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String)
+    description: Mapped[str] = mapped_column(String)
+    rarity: Mapped[str] = mapped_column(String, index=True)   # items.Rarity
+    # "type" is a soft keyword everywhere — the column says what it holds.
+    item_type: Mapped[str] = mapped_column(String)            # items.ItemType
+    art: Mapped[dict] = mapped_column(JSON)                   # {"kind": "emoji"|"url", "value": ...}
+    payload: Mapped[dict] = mapped_column(JSON)               # validated effect data
+    origin: Mapped[str] = mapped_column(String, default="seed")  # "seed" | "llm"
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc)
+    )
 
 
 class NPCRow(Base):
@@ -125,6 +152,14 @@ class PlayerRow(Base):
     x: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
     y: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
     hp: Mapped[int] = mapped_column(Integer, default=PLAYER_MAX_HP)
+    # The 10-slot pack, saved at the same edges as position/hp: a list of
+    # {"item": <items.item_view dict>, "quantity": int, "equipped": bool}.
+    # Denormalized snapshots on purpose — restoring a pack never queries the
+    # items table, and a later change to a pool row can't mutate a held copy.
+    inventory: Mapped[list] = mapped_column(JSON, default=list)
+    # The hunger meter, saved at the same edges as hp. Stored as the raw
+    # float (the ticker drains fractions); a fresh account starts full.
+    hunger: Mapped[float] = mapped_column(default=float(HUNGER_MAX))
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )

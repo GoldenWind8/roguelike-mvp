@@ -10,11 +10,89 @@ import type {
   ActorState,
   Disposition,
   GameEvent,
+  InventorySlot,
+  ItemView,
   NpcState,
   ObjectDetail,
   RoomMode,
   RoomStatePayload,
 } from "../net/types";
+
+// --- mock loot (the real pool lives in backend/seeds.py) ----------------------
+
+export const MOCK_ITEMS: Record<string, ItemView> = {
+  potion: {
+    id: 1, name: "Health Potion", rarity: "common", type: "consumable",
+    description: "A stoppered vial of red liquid. Tastes like copper, works like magic.",
+    art: { kind: "emoji", value: "🧪" },
+    payload: { effects: [{ kind: "restore_hp", amount: 12 }] }, origin: "seed",
+  },
+  bread: {
+    id: 2, name: "Traveler's Bread", rarity: "common", type: "consumable",
+    description: "Dense, dry, and dependable. A bite steadies the hands.",
+    art: { kind: "emoji", value: "🍞" },
+    payload: { effects: [{ kind: "restore_hunger", amount: 25 }, { kind: "restore_hp", amount: 4 }] }, origin: "seed",
+  },
+  bomb: {
+    id: 3, name: "Bomb", rarity: "common", type: "throwable",
+    description: "A fist of black powder with a short fuse and shorter patience.",
+    art: { kind: "emoji", value: "💣" },
+    payload: { throw_range: 4, area: { shape: "radius", size: 1 }, effects: [{ kind: "damage", amount: 40 }] },
+    origin: "seed",
+  },
+  sword: {
+    id: 4, name: "Rusty Dagger", rarity: "common", type: "weapon",
+    description: "The edge is honest even if the metal isn't.",
+    art: { kind: "emoji", value: "🗡️" },
+    payload: { damage: 25, range: 1 }, origin: "seed",
+  },
+  bow: {
+    id: 5, name: "Hunter's Bow", rarity: "rare", type: "weapon",
+    description: "Yew and sinew, patient as winter. Strikes from across the hall.",
+    art: { kind: "emoji", value: "🏹" },
+    payload: { damage: 22, range: 4 }, origin: "seed",
+  },
+  cap: {
+    id: 6, name: "Leather Cap", rarity: "common", type: "wearable",
+    description: "Smells of old rain. Keeps your skull where you left it.",
+    art: { kind: "emoji", value: "🪖" },
+    payload: { effects: [{ kind: "stat_mod", stat: "defense", amount: 1 }] }, origin: "seed",
+  },
+  fury: {
+    id: 7, name: "Potion of Fury", rarity: "rare", type: "consumable",
+    description: "Drink, and for a minute the world slows down to be hit.",
+    art: { kind: "emoji", value: "🧉" },
+    payload: { effects: [{ kind: "stat_mod", stat: "attack_damage", amount: 8, duration_s: 60 }] },
+    origin: "seed",
+  },
+  aegis: {
+    id: 8, name: "Titan's Aegis", rarity: "legendary", type: "wearable",
+    description: "A breastplate sized for something larger. It makes room for you.",
+    art: { kind: "emoji", value: "⚜️" },
+    payload: { effects: [{ kind: "stat_mod", stat: "defense", amount: 5 }, { kind: "stat_mod", stat: "max_hp", amount: 20 }] },
+    origin: "seed",
+  },
+};
+
+/** A chest roll in the mock: mostly common, sometimes better — a stand-in for
+ * loot.spawn_loot's 60/35/5. */
+export function mockLootRoll(): ItemView {
+  const r = Math.random();
+  if (r < 0.05) return MOCK_ITEMS.aegis;
+  if (r < 0.2) return Math.random() < 0.5 ? MOCK_ITEMS.bow : MOCK_ITEMS.fury;
+  const commons = [MOCK_ITEMS.potion, MOCK_ITEMS.bread, MOCK_ITEMS.bomb, MOCK_ITEMS.sword, MOCK_ITEMS.cap];
+  return commons[Math.floor(Math.random() * commons.length)];
+}
+
+export function starterPack(): InventorySlot[] {
+  return [
+    { item: MOCK_ITEMS.sword, quantity: 1, equipped: true },
+    { item: MOCK_ITEMS.potion, quantity: 2, equipped: false },
+    { item: MOCK_ITEMS.bread, quantity: 3, equipped: false },
+    { item: MOCK_ITEMS.bomb, quantity: 2, equipped: false },
+    { item: MOCK_ITEMS.cap, quantity: 1, equipped: false },
+  ];
+}
 
 export interface MockWorld {
   room: { id: string; name: string; width: number; height: number };
@@ -81,6 +159,16 @@ export function buildWorld(): MockWorld {
       label: "Oaken Door",
       description: "The way out into the night. The bolt is drawn and the wind howls beyond.",
       details: ["Room traversal arrives when the real backend is wired in."],
+    },
+    {
+      id: "obj-chest",
+      type: "chest",
+      position: [15, 3],
+      label: "Chest",
+      description: "An old iron-bound chest with a stubborn latch.",
+      details: ["Latch: rusted", "Contents: sealed"],
+      opened: false,
+      contents: [],
     },
   ];
 
@@ -164,7 +252,9 @@ export function snapshot(world: MockWorld): RoomStatePayload {
     round: world.round,
     grid,
     walls: [...world.walls].map((k) => k.split(",").map(Number) as [number, number]),
-    objects: world.objects.map(({ id, type, position, label }) => ({ id, type, position, label })),
+    objects: world.objects.map(({ id, type, position, label, opened, contents }) => ({
+      id, type, position, label, opened, contents_count: contents?.length ?? 0,
+    })),
     players: Object.fromEntries([...world.players.entries()].map(([id, p]) => [id, { ...p }])),
     enemies: Object.fromEntries([...world.enemies.entries()].map(([id, e]) => [id, { ...e }])),
     npcs: Object.fromEntries([...world.npcs.entries()].map(([id, n]) => [id, { ...n }])),

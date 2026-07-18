@@ -24,11 +24,13 @@ from backend.models import EnemyDef, NPCRow, Room, RoomConnection
 
 
 # Reusable enemy catalog. Stable, explicit ids so rooms can reference them.
-# on_death on the Goblin is an illustrative effect-data hook — its shape is
-# validated/executed by the effect system later (#22/M0).
+# on_spawn/on_death stay empty until a system reads them — "enemies drop loot"
+# is the planned first tenant (it will call loot.spawn_loot like every other
+# loot source, docs/LOOT.md), and illustrative fake entries would only lie
+# about being implemented.
 ENEMY_DEFS = [
     {"id": 1, "name": "Goblin",      "hp": 6, "attack_damage": 1, "defense": 1,
-     "on_spawn": [], "on_death": [{"effect": "drop_loot", "items": ["coin"]}]},
+     "on_spawn": [], "on_death": []},
     {"id": 2, "name": "Skeleton",    "hp": 8, "attack_damage": 2, "defense": 1,
      "on_spawn": [], "on_death": []},
     {"id": 3, "name": "Rat",         "hp": 4, "attack_damage": 3, "defense": 3,
@@ -62,9 +64,12 @@ DEFAULT_ROOM = {
         {"enemy_id": 3, "x": 2, "y": 5},   # Rat
         {"enemy_id": 2, "x": 7, "y": 5},   # Skeleton
     ],
+    # Chests carry NO loot list: contents are rolled by loot.spawn_loot at the
+    # moment a player opens one (docs/LOOT.md Decision 1) — a chest is a dumb
+    # object whose only design data is where it stands.
     "objects": [
-        {"type": "chest", "x": 1, "y": 1, "loot": ["health_potion"]},
-        {"type": "chest", "x": 8, "y": 1, "loot": ["bomb"]},
+        {"type": "chest", "x": 1, "y": 1},
+        {"type": "chest", "x": 8, "y": 1},
         {"type": "fire_barrel", "x": 4, "y": 5, "hp": 3},
     ],
 }
@@ -257,6 +262,127 @@ async def reset_npcs(session) -> None:
     fungible enemies respawn from the template when rooms reload."""
     await session.execute(NPCRow.__table__.delete())
     await _insert_npc_seeds(session)
+    await session.commit()
+
+
+# --- the starter item pool (docs/LOOT.md) -------------------------------------
+# Hand-authored items in exactly the format the premium-LLM generator emits
+# later — every row passes items.validate_item on the way in, so seeds and
+# generated items live under one contract. The pool deliberately exercises
+# EVERY effect atom (stat_mod timed + untimed, restore_hp, damage) and every
+# type x rarity corner that exists, so no atom ships without a live item
+# using it. Numbers sit inside items.RARITY_CAPS; combat scale reference:
+# player attack 30 / hp 100, enemy hp 4-8.
+
+STARTER_ITEMS = [
+    # -- common ---------------------------------------------------------------
+    {"name": "Health Potion", "rarity": "common", "type": "consumable",
+     "description": "A stoppered vial of red liquid. Tastes like copper, works like magic.",
+     "art": {"kind": "emoji", "value": "🧪"},
+     "payload": {"effects": [{"kind": "restore_hp", "amount": 12}]}},
+    {"name": "Traveler's Bread", "rarity": "common", "type": "consumable",
+     "description": "Dense, dry, and dependable. A bite steadies the hands.",
+     "art": {"kind": "emoji", "value": "🍞"},
+     "payload": {"effects": [{"kind": "restore_hunger", "amount": 25},
+                             {"kind": "restore_hp", "amount": 4}]}},
+    {"name": "Wheel of Cheese", "rarity": "common", "type": "consumable",
+     "description": "Waxed rind, sharp heart. It has outlasted three owners already.",
+     "art": {"kind": "emoji", "value": "🧀"},
+     "payload": {"effects": [{"kind": "restore_hunger", "amount": 20}]}},
+    {"name": "Throwing Stone", "rarity": "common", "type": "throwable",
+     "description": "Fits the palm like it was quarried for spite.",
+     "art": {"kind": "emoji", "value": "🪨"},
+     "payload": {"throw_range": 4, "area": {"shape": "radius", "size": 0},
+                 "effects": [{"kind": "damage", "amount": 2}]}},
+    {"name": "Bomb", "rarity": "common", "type": "throwable",
+     "description": "A fist of black powder with a short fuse and shorter patience.",
+     "art": {"kind": "emoji", "value": "💣"},
+     "payload": {"throw_range": 4, "area": {"shape": "radius", "size": 1},
+                 "effects": [{"kind": "damage", "amount": 3}]}},
+    {"name": "Rusty Dagger", "rarity": "common", "type": "weapon",
+     "description": "The edge is honest even if the metal isn't.",
+     "art": {"kind": "emoji", "value": "🗡️"},
+     "payload": {"damage": 32, "range": 1}},
+    {"name": "Leather Cap", "rarity": "common", "type": "wearable",
+     "description": "Smells of old rain. Keeps your skull where you left it.",
+     "art": {"kind": "emoji", "value": "🪖"},
+     "payload": {"effects": [{"kind": "stat_mod", "stat": "defense", "amount": 1}]}},
+    {"name": "Wooden Buckler", "rarity": "common", "type": "wearable",
+     "description": "A round of scarred oak. It has stopped worse than you'd think.",
+     "art": {"kind": "emoji", "value": "🛡️"},
+     "payload": {"effects": [{"kind": "stat_mod", "stat": "defense", "amount": 2}]}},
+
+    # -- rare -----------------------------------------------------------------
+    {"name": "Greater Health Potion", "rarity": "rare", "type": "consumable",
+     "description": "The red of it glows faintly. Wounds close like doors.",
+     "art": {"kind": "emoji", "value": "⚗️"},
+     "payload": {"effects": [{"kind": "restore_hp", "amount": 35}]}},
+    {"name": "Potion of Fury", "rarity": "rare", "type": "consumable",
+     "description": "Drink, and for a minute the world slows down to be hit.",
+     "art": {"kind": "emoji", "value": "🧉"},
+     "payload": {"effects": [
+         {"kind": "stat_mod", "stat": "attack_damage", "amount": 8, "duration_s": 60}]}},
+    {"name": "Hunter's Bow", "rarity": "rare", "type": "weapon",
+     "description": "Yew and sinew, patient as winter. Strikes from across the hall.",
+     "art": {"kind": "emoji", "value": "🏹"},
+     "payload": {"damage": 34, "range": 4}},
+    {"name": "Steel Sword", "rarity": "rare", "type": "weapon",
+     "description": "Unremarkable, well-kept, and better than everything before it.",
+     "art": {"kind": "emoji", "value": "⚔️"},
+     "payload": {"damage": 42, "range": 1}},
+    {"name": "Hearty Stew", "rarity": "rare", "type": "consumable",
+     "description": "Still steaming, somehow. Whoever made it knew what hunger costs.",
+     "art": {"kind": "emoji", "value": "🍲"},
+     "payload": {"effects": [{"kind": "restore_hunger", "amount": 55},
+                             {"kind": "restore_hp", "amount": 15}]}},
+    {"name": "Poison Flask", "rarity": "rare", "type": "throwable",
+     "description": "Green fog on impact — flesh sickens and armor means less.",
+     "art": {"kind": "emoji", "value": "☠️"},
+     "payload": {"throw_range": 4, "area": {"shape": "radius", "size": 1},
+                 "effects": [
+                     {"kind": "damage", "amount": 2},
+                     {"kind": "stat_mod", "stat": "defense", "amount": -2, "duration_s": 120}]}},
+
+    # -- legendary ------------------------------------------------------------
+    {"name": "Phoenix Elixir", "rarity": "legendary", "type": "consumable",
+     "description": "Liquid dawn. Whatever you were before, you are whole now.",
+     "art": {"kind": "emoji", "value": "🔥"},
+     "payload": {"effects": [{"kind": "restore_hp", "amount": 100}]}},
+    {"name": "Dragonfang Blade", "rarity": "legendary", "type": "weapon",
+     "description": "Still warm. The forge that made it had a heartbeat.",
+     "art": {"kind": "emoji", "value": "🐉"},
+     "payload": {"damage": 60, "range": 1}},
+    {"name": "Titan's Aegis", "rarity": "legendary", "type": "wearable",
+     "description": "A breastplate sized for something larger. It makes room for you.",
+     "art": {"kind": "emoji", "value": "⚜️"},
+     "payload": {"effects": [
+         {"kind": "stat_mod", "stat": "defense", "amount": 5},
+         {"kind": "stat_mod", "stat": "max_hp", "amount": 20}]}},
+    {"name": "Feast of the Last King", "rarity": "legendary", "type": "consumable",
+     "description": "A banquet folded impossibly into one golden bite. You rise from it renewed.",
+     "art": {"kind": "emoji", "value": "🍗"},
+     "payload": {"effects": [{"kind": "restore_hunger", "amount": 100},
+                             {"kind": "restore_hp", "amount": 40}]}},
+    {"name": "Starfall Grenade", "rarity": "legendary", "type": "throwable",
+     "description": "A sliver of night sky in a glass shell. The landing is loud.",
+     "art": {"kind": "emoji", "value": "💥"},
+     "payload": {"throw_range": 5, "area": {"shape": "radius", "size": 2},
+                 "effects": [{"kind": "damage", "amount": 12}]}},
+]
+
+
+async def seed_items_if_missing(session) -> None:
+    """Backfill the global item pool when the items table has NEVER held a row
+    (the seed_npcs_if_missing rhythm). A pool the players have grown with LLM
+    inventions has rows — reseeding must never dilute or duplicate it. When
+    the STARTER_ITEMS list itself changes, delete the db and restart: the
+    data is proof-of-concept and disposable by policy (no migration code for
+    content that hasn't earned it)."""
+    from backend.item_store import insert_item, pool_is_empty
+    if not await pool_is_empty(session):
+        return
+    for data in STARTER_ITEMS:
+        await insert_item(session, data, origin="seed")
     await session.commit()
 
 

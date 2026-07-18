@@ -14,7 +14,7 @@ without hitting the "non-default argument follows default" dataclass trap.
 from dataclasses import dataclass, field
 from enum import Enum
 
-from backend.config import PLAYER_ATTACK_DAMAGE, PLAYER_DEFENSE
+from backend.config import HUNGER_MAX, PLAYER_ATTACK_DAMAGE, PLAYER_DEFENSE
 
 
 class Disposition(str, Enum):
@@ -43,18 +43,31 @@ class Actor:
     attack_damage: int
     is_alive: bool = True
     disposition: Disposition = Disposition.NEUTRAL
+    # Timed stat changes from the loot system (a drunk potion, a poison
+    # splash): {"stat", "amount", "expires_at", "source"} dicts stamped
+    # against the world clock. On ACTOR, not Player — a thrown flask debuffs
+    # a goblin exactly as it buffs you (the atoms are generic; docs/LOOT.md).
+    # The base stat fields above never change; inventory.effective_stat adds
+    # these (and a player's equipment) at every read site.
+    active_effects: list = field(default_factory=list)
 
     def to_dict(self) -> dict:
+        # Stats are reported EFFECTIVE — the numbers combat will actually use
+        # (base + equipment + unexpired buffs) — because a client showing a
+        # number the engine won't honor is a lie. Import here to keep the
+        # dataclass module cycle-free (inventory imports entities).
+        from backend.inventory import active_effects_view, effective_stat
         return {
             "id": self.id,
             "name": self.name,
             "position": [self.position.x, self.position.y],
             "hp": self.hp,
-            "max_hp": self.max_hp,
-            "defense": self.defense,
-            "attack_damage": self.attack_damage,
+            "max_hp": effective_stat(self, "max_hp"),
+            "defense": effective_stat(self, "defense"),
+            "attack_damage": effective_stat(self, "attack_damage"),
             "is_alive": self.is_alive,
             "disposition": self.disposition.value,
+            "active_effects": active_effects_view(self),
         }
 
 
@@ -82,6 +95,25 @@ class Player(Actor):
     defense: int = PLAYER_DEFENSE
     attack_damage: int = PLAYER_ATTACK_DAMAGE
     disposition: Disposition = Disposition.FRIENDLY
+    # The 10-slot pack (docs/LOOT.md): [{"item": <item_view>, "quantity": int,
+    # "equipped": bool}]. Pure data — every rule about it (stacking, the slot
+    # cap, one-weapon-equipped) lives in backend/inventory.py, keeping this
+    # dataclass as behavior-free as the module docstring demands. Persists on
+    # PlayerRow.inventory at the same edges as position/hp.
+    inventory: list = field(default_factory=list)
+    # The hunger meter (docs/LOOT.md Decision 5): 0..HUNGER_MAX, drained by
+    # the world ticker, refilled by restore_hunger atoms. A float so the
+    # coarse tick can drain fractions; clients see it rounded. On Player, not
+    # Actor: enemies are fungible and hunt nobody's larder — an actor without
+    # the field simply ignores food (the atom stays generic).
+    hunger: float = HUNGER_MAX
+
+    def to_dict(self) -> dict:
+        d = super().to_dict()
+        d["inventory"] = self.inventory
+        d["hunger"] = round(self.hunger)
+        d["max_hunger"] = HUNGER_MAX
+        return d
 
 
 @dataclass(kw_only=True)

@@ -1,9 +1,11 @@
 from abc import ABC, abstractmethod
 
 from backend.actions import ActionType, Action
-from backend.config import BOMB_THROW_RANGE, BOMB_RADIUS, BOMB_DAMAGE
 from backend.effects import apply_effect, compute_damage, Damage
 from backend.entities import Disposition, NPC, Position
+from backend.inventory import attack_power, attack_range, remove_one
+from backend.item_effects import atom_effects
+from backend.items import ItemType
 from backend.room_state import RoomState
 from backend.events import GameEvent, EventType
 
@@ -122,21 +124,27 @@ class AttackHandler(ActionHandler):
         target = room.get_entity(action.target_id)
         if not target or not target.is_alive:
             return _invalid(room, f"Target {action.target_id} is not found or dead")
-        if _manhattan(player.position, target.position) != 1:
-            return _invalid(room,  "Target not adjacent")
+        # Reach comes from the equipped weapon (a bow strikes across the
+        # hall); bare hands and melee weapons keep the old adjacency rule.
+        if _manhattan(player.position, target.position) > attack_range(player):
+            return _invalid(room, "Target out of reach")
         return None
 
     def resolve(self, room: RoomState, action: Action) -> list[GameEvent]:
         player = room.get_player(action.player_id)
         target = room.get_entity(action.target_id)
-        damage = compute_damage(player.attack_damage, target)
+        # Weapon damage replaces bare hands; wearable/potion attack bonuses
+        # stack on top (inventory.attack_power) — the delivery half of the
+        # weapon type, docs/LOOT.md.
+        power = attack_power(player)
+        damage = compute_damage(power, target)
 
         events = [GameEvent(
             EventType.PLAYER_ATTACKED,
             {"attacker_id": player.id, "target_id": target.id, "damage": damage},
             room.round,
         )]
-        events.extend(apply_effect(room, Damage(target.id, player.attack_damage, player.id)))
+        events.extend(apply_effect(room, Damage(target.id, power, player.id)))
         return events
 
 class WaitHandler(ActionHandler):
@@ -146,36 +154,86 @@ class WaitHandler(ActionHandler):
     def resolve(self, room: RoomState, action: Action) -> list[GameEvent]:
         return []
 
-class BombHandler(ActionHandler):
+def _spendable_slot(room: RoomState, action: Action, wanted: ItemType) -> GameEvent | None:
+    """Shared consume/throw validation: living player, real slot, right item
+    type. Returns the invalid-action event, or None when the slot is good."""
+    player = room.get_player(action.player_id)
+    if not player or not player.is_alive:
+        return _invalid(room, f"Player {action.player_id} is not found or dead")
+    if action.slot is None or not (0 <= action.slot < len(player.inventory)):
+        return _invalid(room, "No such inventory slot")
+    held = player.inventory[action.slot]["item"]
+    if held["type"] != wanted.value:
+        return _invalid(room, f"{held['name']} is not a {wanted.value}")
+    return None
+
+
+class ConsumeHandler(ActionHandler):
+    """Drink/eat slot N: its atoms land on YOURSELF through the same engine
+    effects a throwable delivers at range — one vocabulary, two deliveries
+    (docs/LOOT.md). Spends one copy from the stack."""
     resolve_order = ACTION_ORDER
+
     def validate(self, room: RoomState, action: Action) -> GameEvent | None:
+        return _spendable_slot(room, action, ItemType.CONSUMABLE)
+
+    def resolve(self, room: RoomState, action: Action) -> list[GameEvent]:
         player = room.get_player(action.player_id)
-        if not player or not player.is_alive:
-            return _invalid(room, f"Player {action.player_id} is not found or dead")
+        item = remove_one(player, action.slot)
+        events = [GameEvent(
+            EventType.ITEM_CONSUMED,
+            {"player_id": player.id, "item": item},
+            room.round,
+        )]
+        for effect in atom_effects(player.id, item["payload"]["effects"],
+                                   source_id=player.id, source_name=item["name"]):
+            events.extend(apply_effect(room, effect))
+        return events
+
+
+class ThrowHandler(ActionHandler):
+    """Arc slot N at a tile; its atoms land on every living actor in the
+    item's area. The generalization of the old hard-coded bomb: range, area
+    and payload are ITEM data now, the resolution loop is unchanged."""
+    resolve_order = ACTION_ORDER
+
+    def validate(self, room: RoomState, action: Action) -> GameEvent | None:
+        error = _spendable_slot(room, action, ItemType.THROWABLE)
+        if error:
+            return error
+        player = room.get_player(action.player_id)
         if not action.target_tile:
             return _invalid(room, "No target tile")
         tx, ty = action.target_tile
         if not room.is_valid_position(tx, ty):
             return _invalid(room, "Can't target there")
-        if _manhattan(player.position, Position(tx, ty)) > BOMB_THROW_RANGE:
+        payload = player.inventory[action.slot]["item"]["payload"]
+        if _manhattan(player.position, Position(tx, ty)) > payload["throw_range"]:
             return _invalid(room, "Out of throwing range")
         return None
 
     def resolve(self, room: RoomState, action: Action) -> list[GameEvent]:
         player = room.get_player(action.player_id)
+        item = remove_one(player, action.slot)
+        payload = item["payload"]
         tx, ty = action.target_tile
         center = Position(tx, ty)
+        radius = payload["area"]["size"]
         events = [GameEvent(
-            EventType.BOMB_THROWN,
-            {"player_id": player.id, "tile": [tx, ty], "radius": BOMB_RADIUS},
+            EventType.ITEM_THROWN,
+            {"player_id": player.id, "item": item, "tile": [tx, ty], "radius": radius},
             room.round,
         )]
-        # Friendly fire is intentional: the blast hits every living actor in
-        # radius, including the thrower, allies, and NPCs. Defense/clamp math
-        # lives in apply_effect, so the handler only emits intent.
+        # Friendly fire is intentional and GLOBAL to thrown things: atoms land
+        # on every living actor in the area, thrower and allies included —
+        # what makes throwables tactically interesting. (A per-item "hits"
+        # field is the revisit if an item ever needs to discriminate.)
+        # Defense/clamp math lives in apply_effect; this loop only emits intent.
         for entity in room.living_actors():
-            if _manhattan(center, entity.position) <= BOMB_RADIUS:
-                events.extend(apply_effect(room, Damage(entity.id, BOMB_DAMAGE, source_id=player.id)))
+            if _manhattan(center, entity.position) <= radius:
+                for effect in atom_effects(entity.id, payload["effects"],
+                                           source_id=player.id, source_name=item["name"]):
+                    events.extend(apply_effect(room, effect))
         return events
 
 
@@ -183,5 +241,6 @@ HANDLERS: dict[ActionType, ActionHandler] = {
     ActionType.MOVE: MoveHandler(),
     ActionType.WAIT: WaitHandler(),
     ActionType.ATTACK: AttackHandler(),
-    ActionType.BOMB: BombHandler(),
+    ActionType.CONSUME: ConsumeHandler(),
+    ActionType.THROW: ThrowHandler(),
 }

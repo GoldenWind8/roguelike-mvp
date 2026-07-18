@@ -4,6 +4,7 @@ from backend.effects import apply_effect, Damage, compute_damage
 from backend.entities import Actor, NPC, Position
 from backend.events import GameEvent, EventType
 from backend.handlers import HANDLERS
+from backend.inventory import effective_stat
 from backend.room_state import RoomState
 
 
@@ -103,9 +104,12 @@ def resolve_actor_phase(room: RoomState) -> list[GameEvent]:
             continue
         if _manhattan(actor.position, target.position) != 1:
             continue
-        damage = compute_damage(actor.attack_damage, target)
+        # Effective, not base: a poison-flask debuff weakens an enemy's swing
+        # exactly as a potion strengthens a player's (inventory.effective_stat).
+        power = effective_stat(actor, "attack_damage")
+        damage = compute_damage(power, target)
         events.append(_actor_attacked_event(room, actor, target, damage))
-        events.extend(apply_effect(room, Damage(target.id, actor.attack_damage, actor.id)))
+        events.extend(apply_effect(room, Damage(target.id, power, actor.id)))
     return events
 
 

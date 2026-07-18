@@ -60,5 +60,9 @@ def apply_placement(room: dict, proposal: dict) -> dict:
             out["enemy_spawns"].append(e)
     for o in proposal.get("objects") or []:
         if isinstance(o, dict):
+            # Models that learned the pre-loot-system schema still emit a
+            # chest "loot" list; contents are rolled at open time now, so the
+            # key is dropped as harmless noise rather than failing the room.
+            o = {k: v for k, v in o.items() if k != "loot"}
             out["objects"].append(o)
     return out

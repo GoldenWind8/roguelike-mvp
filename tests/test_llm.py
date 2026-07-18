@@ -11,8 +11,17 @@ from backend.persona import validate_persona
 from tests.test_npcs import make_npc, make_persona
 
 
-def test_every_tier_defaults_to_the_grid():
+def _clear_tier_env(monkeypatch):
+    """Remove any real .env tier bindings (the dev machine legitimately has
+    some) so these tests observe true defaults, not the developer's config."""
+    for tier in TIERS:
+        for field in ("MODEL", "BASE_URL", "API_KEY", "AUTH"):
+            monkeypatch.delenv(f"LLM_{tier.upper()}_{field}", raising=False)
+
+
+def test_every_tier_defaults_to_the_grid(monkeypatch):
     # An unconfigured checkout behaves exactly as before tiers existed.
+    _clear_tier_env(monkeypatch)
     for tier in TIERS:
         spec = spec_for(tier)
         assert spec.base_url == GRID_BASE_URL
@@ -20,6 +29,7 @@ def test_every_tier_defaults_to_the_grid():
 
 
 def test_env_rebinds_one_tier_without_touching_the_others(monkeypatch):
+    _clear_tier_env(monkeypatch)
     monkeypatch.setenv("LLM_STANDARD_MODEL", "gemini-2.5-flash")
     monkeypatch.setenv("LLM_STANDARD_BASE_URL", "https://example.test/openai")
     monkeypatch.setenv("LLM_STANDARD_AUTH", "bearer")

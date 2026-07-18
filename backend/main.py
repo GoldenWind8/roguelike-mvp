@@ -10,11 +10,21 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from backend import auth
-from backend.config import DEV_MODE, NPC_TRANSCRIPT_LIMIT, TALK_TEXT_LIMIT, TURN_TIMEOUT
+from backend.config import (
+    DEV_MODE,
+    NPC_TRANSCRIPT_LIMIT,
+    TALK_TEXT_LIMIT,
+    TURN_TIMEOUT,
+    WORLD_TICK_INTERVAL,
+)
 from backend.db import SessionMaker, init_db
 from backend.dialogue import build_provider
 from backend.entities import NPC, Player, Position
-from backend.events import EventType
+from backend.events import EventType, GameEvent
+from backend.hunger import tick_room_hunger
+from backend.inventory import add_item, equip, prune_expired, unequip
+from backend.loot import roll_item_count, spawn_loot
+from backend.models import ObjectType
 from backend.npc_store import load_npcs, save_npcs
 from backend.player_store import (
     UsernameTaken,
@@ -26,7 +36,7 @@ from backend.player_store import (
 )
 from backend.room_engine import RoomEngine
 from backend.room_loader import load_room
-from backend.seeds import get_or_seed_default_room, reset_npcs
+from backend.seeds import get_or_seed_default_room, reset_npcs, seed_items_if_missing
 
 
 @dataclass
@@ -53,7 +63,15 @@ async def lifespan(app: FastAPI):
     async with SessionMaker() as session:
         room = await get_or_seed_default_room(session)
         default_room_id = room.id
+        # The global item pool (docs/LOOT.md): backfilled only when the items
+        # table has never held a row — LLM-grown pools are never diluted.
+        await seed_items_if_missing(session)
+    # The world-clock sweep (docs/LOOT.md Decision 3): expiry is checked
+    # lazily at every stat read, so this ticker only bounds how long a
+    # lapsed buff can linger on screen before clients hear about it.
+    ticker = asyncio.create_task(world_ticker())
     yield
+    ticker.cancel()
     # Shutdown: rooms still live (players connected) never went through
     # eviction, so their individuals must be saved here or a restart would
     # be the one remaining way to destroy an NPC's state.
@@ -468,6 +486,197 @@ async def handle_talk(websocket: WebSocket, player_id: str, data: dict) -> None:
     })
 
 
+# --- loot: chests, packs, the world tick (docs/LOOT.md) --------------------------
+
+
+async def world_ticker() -> None:
+    """Sweep live rooms every tick: expire lapsed timed effects, then advance
+    the hunger clock (drain / well-fed regen / starvation — backend/hunger.py
+    owns what a tick means; this task only owns when it runs). One coarse
+    global task, never per-effect timers (world_clock.py)."""
+    while True:
+        await asyncio.sleep(WORLD_TICK_INTERVAL)
+        try:
+            async with state_lock:
+                for runtime in list(active_rooms.values()):
+                    events = [
+                        GameEvent(EventType.EFFECT_EXPIRED,
+                                  {"target_id": actor.id, "stat": e["stat"],
+                                   "amount": e["amount"], "source": e["source"]},
+                                  runtime.engine.room.round)
+                        for actor in runtime.engine.room.living_actors()
+                        for e in prune_expired(actor)
+                    ]
+                    hunger_events, hunger_visible = tick_room_hunger(
+                        runtime.engine.room, WORLD_TICK_INTERVAL)
+                    events.extend(hunger_events)
+                    if events or hunger_visible:
+                        await broadcast_state_and_events(runtime, events)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            # The clock must keep ticking whatever one sweep hits.
+            logging.exception("world ticker sweep failed")
+
+
+def _adjacent_chest(room, player, object_id):
+    """Validate 'this player can touch this chest right now'. Returns
+    (chest, None) or (None, error message) — shared by both open paths."""
+    if not player or not player.is_alive:
+        return None, "The dead loot nothing."
+    obj = room.get_object(object_id) if isinstance(object_id, str) else None
+    if obj is None or obj.type != ObjectType.CHEST.value:
+        return None, "There is no chest there."
+    dx = abs(player.position.x - obj.position[0])
+    dy = abs(player.position.y - obj.position[1])
+    if dx + dy > 1:
+        # Same rule as attack/talk: walk up to it, then interact.
+        return None, "You are too far from the chest."
+    return obj, None
+
+
+async def handle_open_chest(websocket: WebSocket, player_id: str, data: dict) -> None:
+    """Opening a chest is a REQUEST outside the action economy (the talk
+    pattern, NPCS.md Decision 1): it needs the DB and maybe a premium LLM
+    call, so it can't run inside synchronous round resolution — and standing
+    at a chest mid-combat is its own punishment, so a free action is fair.
+
+    First-to-open is decided under the lock by flipping `opened` BEFORE the
+    slow roll; the roll itself runs outside the lock (rounds keep resolving
+    during a slow LLM call), and the result lands under a re-validated lock
+    — the handle_talk lock discipline, exactly.
+
+    Nothing is auto-taken: the roll lands in `chest.contents` and the finds
+    go back in the chest_opened broadcast, which the opener's client renders
+    as the selection popup — take what you want, leave the rest
+    (handle_take_item). Re-opening an already-opened chest just shows what
+    still waits inside (the same popup, for anyone).
+    """
+    async with state_lock:
+        runtime = runtime_for(player_id)
+        room = runtime.engine.room if runtime else None
+        player = room.get_player(player_id) if room else None
+        chest, error = _adjacent_chest(room, player, data.get("object_id")) if room else (None, "Not in a room")
+        if error:
+            await websocket.send_json({"type": "error", "message": error})
+            return
+
+        if chest.opened:
+            # Viewing, not claiming: show what still waits. 1:1 on purpose —
+            # looking inside a chest is not a world-visible act.
+            if not chest.contents:
+                await websocket.send_json({"type": "error", "message": "The chest is empty."})
+                return
+            await websocket.send_json({
+                "type": "chest_contents",
+                "object_id": chest.id,
+                "items": [{"item": item, "minted": False} for item in chest.contents],
+            })
+            return
+
+        # The claim that decides first-to-open: later requests hit the branch
+        # above (or "empty"), never a second roll.
+        chest.opened = True
+
+    # A chest holds 1-3 finds (weighted toward 1); each is its own
+    # spawn_loot roll, so each independently gets the LLM-mint chance.
+    rolled: list[tuple[dict, bool]] = []
+    try:
+        async with SessionMaker() as session:
+            for _ in range(roll_item_count()):
+                item, minted = await spawn_loot(session)
+                if item is not None:
+                    rolled.append((item, minted))
+    except Exception:
+        logging.exception("spawn_loot failed for chest %s", data.get("object_id"))
+
+    async with state_lock:
+        if active_rooms.get(runtime.room_id) is not runtime:
+            # Room evicted mid-roll (everyone left) — the chest state is gone;
+            # a minted item stays in the pool for future chests. Nothing to do.
+            return
+        if not rolled:
+            # Roll failed entirely (empty pool / DB down): re-arm the chest so
+            # the world never holds a permanently-eaten one.
+            chest.opened = False
+            await websocket.send_json({"type": "error", "message": "The latch refuses to budge."})
+            return
+
+        events = []
+        finds = []
+        for item, minted in rolled:
+            if minted:
+                events.append(GameEvent(
+                    EventType.ITEM_GENERATED, {"item": item}, runtime.engine.room.round,
+                ))
+            # Everything lands IN the chest — taking is the player's choice,
+            # made through take_item, never the server's.
+            chest.contents.append(item)
+            finds.append({"item": item, "minted": minted})
+        events.append(GameEvent(
+            EventType.CHEST_OPENED,
+            {"player_id": player_id, "object_id": chest.id, "items": finds},
+            runtime.engine.room.round,
+        ))
+        await broadcast_state_and_events(runtime, events)
+
+
+async def handle_take_item(websocket: WebSocket, player_id: str, data: dict) -> None:
+    """Take ONE chosen item out of an opened chest — the selection popup's
+    Take button. The client sends the item's current `index` in the chest
+    plus its `item_id` as a guard: contents shift as others take, so a stale
+    click must fail loud ("already taken"), never grab the wrong thing."""
+    async with state_lock:
+        runtime = runtime_for(player_id)
+        room = runtime.engine.room if runtime else None
+        player = room.get_player(player_id) if room else None
+        chest, error = _adjacent_chest(room, player, data.get("object_id")) if room else (None, "Not in a room")
+        if error:
+            await websocket.send_json({"type": "error", "message": error})
+            return
+        if not chest.opened:
+            await websocket.send_json({"type": "error", "message": "The chest is still shut."})
+            return
+        index = data.get("index")
+        if (not isinstance(index, int) or not (0 <= index < len(chest.contents))
+                or chest.contents[index].get("id") != data.get("item_id")):
+            await websocket.send_json({"type": "error", "message": "That's already been taken."})
+            return
+        if add_item(player, chest.contents[index]) is None:
+            await websocket.send_json({"type": "error", "message": "Your pack is full."})
+            return
+        item = chest.contents.pop(index)
+        await broadcast_state_and_events(runtime, [GameEvent(
+            EventType.CHEST_LOOTED,
+            {"player_id": player_id, "object_id": chest.id, "item": item},
+            room.round,
+        )])
+
+
+async def handle_equip_toggle(websocket: WebSocket, player_id: str, data: dict,
+                              *, equipping: bool) -> None:
+    """Equip/unequip slot N — free actions outside the round economy (gear
+    fiddling is instant; revisit if mid-combat armor swapping gets abusive).
+    All rules live in backend/inventory.py; this is transport."""
+    async with state_lock:
+        runtime = runtime_for(player_id)
+        player = runtime.engine.room.get_player(player_id) if runtime else None
+        if player is None or not player.is_alive:
+            await websocket.send_json({"type": "error", "message": "You can't do that now."})
+            return
+        slot = data.get("slot")
+        error = equip(player, slot) if equipping else unequip(player, slot)
+        if error:
+            await websocket.send_json({"type": "error", "message": error})
+            return
+        held = player.inventory[slot]["item"]
+        await broadcast_state_and_events(runtime, [GameEvent(
+            EventType.ITEM_EQUIPPED if equipping else EventType.ITEM_UNEQUIPPED,
+            {"player_id": player_id, "slot": slot, "item": held},
+            runtime.engine.room.round,
+        )])
+
+
 # --- dev affordances ------------------------------------------------------------
 
 
@@ -650,6 +859,25 @@ async def websocket_endpoint(websocket: WebSocket):
                     await websocket.send_json({"type": "error", "message": "Join first"})
                     continue
                 await handle_talk(websocket, player_id, data)
+
+            elif msg_type == "open_chest":
+                if not player_id:
+                    await websocket.send_json({"type": "error", "message": "Join first"})
+                    continue
+                await handle_open_chest(websocket, player_id, data)
+
+            elif msg_type == "take_item":
+                if not player_id:
+                    await websocket.send_json({"type": "error", "message": "Join first"})
+                    continue
+                await handle_take_item(websocket, player_id, data)
+
+            elif msg_type in ("equip", "unequip"):
+                if not player_id:
+                    await websocket.send_json({"type": "error", "message": "Join first"})
+                    continue
+                await handle_equip_toggle(websocket, player_id, data,
+                                          equipping=(msg_type == "equip"))
 
             elif msg_type == "dev_reset":
                 # World-wide reset — deliberately does NOT require a player_id

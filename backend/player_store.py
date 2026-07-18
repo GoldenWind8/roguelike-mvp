@@ -74,13 +74,24 @@ def make_live_player(row: PlayerRow) -> Player:
     the *preferred* spawn). A character saved dead respawns fresh: hp<=0 must
     never enter play, so it comes back at full health (and the caller sends
     it to the default room)."""
-    hp = row.hp if row.hp > 0 else PLAYER_MAX_HP
+    respawning = row.hp <= 0
+    hp = row.hp if not respawning else PLAYER_MAX_HP
+    from backend.config import HUNGER_MAX
+    saved_hunger = row.hunger if row.hunger is not None else HUNGER_MAX
     return Player(
         id=row.id,
         name=row.username,
         position=Position(0, 0),
         hp=hp,
         max_hp=PLAYER_MAX_HP,
+        # The pack survives death and disconnect alike (dying costs you your
+        # position, not your stuff — revisit if drops-on-death becomes a
+        # design goal). list() guards the ORM's mutable JSON default.
+        inventory=list(row.inventory or []),
+        # Death resets the belly with the body; a survivor resumes as hungry
+        # as they left (hunger only drains while connected — offline time is
+        # free, docs/LOOT.md Decision 5).
+        hunger=float(HUNGER_MAX) if respawning else float(saved_hunger),
     )
 
 
@@ -99,4 +110,9 @@ async def save_players(
         row.x = player.position.x
         row.y = player.position.y
         row.hp = max(player.hp, 0)
+        row.hunger = max(player.hunger, 0.0)
+        # Whole-column swap, never in-place mutation: SQLAlchemy only sees
+        # JSON changes when the attribute is REASSIGNED. active_effects are
+        # deliberately not saved — a buff is session-scoped, gear is forever.
+        row.inventory = list(player.inventory)
     await session.commit()

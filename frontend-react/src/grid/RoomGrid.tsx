@@ -10,7 +10,7 @@
  * camera recentres on your next step.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useGame, useGameApi } from "../store/gameStore";
+import { packOf, useGame, useGameApi } from "../store/gameStore";
 import type { ActorState, NpcState, ObjectSummary } from "../net/types";
 
 type ActorKind = "player" | "enemy" | "npc";
@@ -50,6 +50,15 @@ const OBJECT_ICONS: Record<string, string> = {
   fire_barrel: "🛢️",
 };
 
+/** Chests wear their lifecycle (docs/LOOT.md): shut, emptied, or holding
+ * items nobody could carry when it was opened. */
+function objectIcon(obj: ObjectSummary): string {
+  if (obj.type === "chest" && obj.opened) {
+    return (obj.contents_count ?? 0) > 0 ? "💰" : "🕸️";
+  }
+  return OBJECT_ICONS[obj.type] ?? "✨";
+}
+
 // The server's targeting rule for attack AND talk: orthogonally adjacent
 // (Manhattan distance 1) — diagonals don't count. Mirrored here only to give
 // a friendly hint instead of a server error.
@@ -78,7 +87,7 @@ interface Camera {
 const NO_FADES = { left: false, right: false, top: false, bottom: false };
 
 export function RoomGrid() {
-  const { room, playerId, slots, selectedSlot, actionLocked, waitingFor } = useGame();
+  const { room, playerId, selectedSlot, actionLocked, waitingFor } = useGame();
   const api = useGameApi();
   const frameRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -86,8 +95,14 @@ export function RoomGrid() {
   const dragRef = useRef<{ sx: number; sy: number; cx: number; cy: number } | null>(null);
   const suppressClickRef = useRef(false);
 
-  const held = selectedSlot !== null ? slots[selectedSlot] : null;
+  const pack = packOf(room, playerId);
+  const held = selectedSlot !== null ? pack[selectedSlot] ?? null : null;
   const me = room && playerId ? room.players[playerId] : null;
+  // The client mirrors two server reach rules for friendly hints only (the
+  // server re-validates everything): thrown range is item data, attack reach
+  // comes from the equipped weapon (bare hands = 1).
+  const throwRange = held?.item.type === "throwable" ? held.item.payload.throw_range ?? 1 : null;
+  const weaponReach = pack.find((s) => s.equipped && s.item.type === "weapon")?.item.payload.range ?? 1;
 
   const walls = useMemo(() => {
     const set = new Set<string>();
@@ -186,9 +201,13 @@ export function RoomGrid() {
   };
 
   const onCellClick = (x: number, y: number) => {
-    // Held bomb wins: any tile is a throw.
-    if (held?.use === "bomb") {
-      api.bomb(x, y);
+    // Held throwable wins: any tile in range is a throw.
+    if (held && throwRange !== null && selectedSlot !== null) {
+      if (me && manhattan(me.position, [x, y]) <= throwRange) {
+        api.throwItem(selectedSlot, x, y);
+      } else {
+        api.note("ambient", `Too far — the ${held.item.name} carries ${throwRange} tiles.`);
+      }
       return;
     }
     const id = room.grid[y]?.[x];
@@ -197,19 +216,21 @@ export function RoomGrid() {
     if (hit) {
       const { kind, actor } = hit;
       if (actor.id === playerId) {
-        // Clicking yourself uses the held consumable (drink, eat, wear).
-        if (held && held.use !== "sword") api.useSelectedOnSelf();
+        // Clicking yourself uses the held item on yourself: drink/eat a
+        // consumable, or equip/stow held gear.
+        if (!held || selectedSlot === null) return;
+        if (held.item.type === "consumable") api.consume(selectedSlot);
+        else if (held.item.type !== "throwable") api.toggleEquip(selectedSlot);
         return;
       }
       const hostile = actor.disposition === "hostile";
       if (hostile) {
-        // The action model: no held sword, no swing.
-        if (held?.use !== "sword") {
-          api.note("ambient", `Your hands are empty. Hold your sword (1) to strike ${actor.name}.`);
-        } else if (me && manhattan(me.position, actor.position) === 1) {
+        // Weapons are EQUIPPED, not held: click a hostile in reach to strike
+        // with whatever is readied (bare hands included).
+        if (me && manhattan(me.position, actor.position) <= weaponReach) {
           api.attack(actor.id);
         } else {
-          api.note("ambient", `Too far to strike ${actor.name}. Stand beside it (no diagonals).`);
+          api.note("ambient", `Too far to strike ${actor.name}.${weaponReach === 1 ? " Stand beside it (no diagonals)." : ""}`);
         }
       } else if (kind === "npc") {
         if (me && manhattan(me.position, actor.position) === 1) api.openDialogue(actor as NpcState);
@@ -220,7 +241,14 @@ export function RoomGrid() {
       return;
     }
     const obj = objectsAt.get(`${x},${y}`);
-    if (obj) api.inspect(obj.id);
+    if (!obj) return;
+    // Chests open (or yield their waiting contents) on an adjacent click —
+    // rolled at that moment, first-to-open (docs/LOOT.md). From afar, look.
+    if (obj.type === "chest" && me && manhattan(me.position, obj.position) <= 1) {
+      api.openChest(obj.id);
+      return;
+    }
+    api.inspect(obj.id);
   };
 
   const cells = [];
@@ -235,9 +263,13 @@ export function RoomGrid() {
       const classes = ["cell"];
       if (wall) classes.push("cell-wall");
       if (isMe) classes.push("cell-me");
-      if (held?.use === "bomb" && !wall) classes.push("cell-bomb-target");
-      else if (isMe && held && held.use !== "sword") classes.push("cell-self-target");
-      else if (hit && !isMe) {
+      const inThrowRange =
+        throwRange !== null && me ? manhattan(me.position, [x, y]) <= throwRange : false;
+      if (throwRange !== null && !wall) {
+        if (inThrowRange) classes.push("cell-bomb-target");
+      } else if (isMe && held && held.item.type !== "throwable") {
+        classes.push("cell-self-target");
+      } else if (hit && !isMe) {
         classes.push(hit.actor.disposition === "hostile" ? "cell-hostile" : "cell-actionable");
       } else if (obj) classes.push("cell-actionable");
 
@@ -256,8 +288,11 @@ export function RoomGrid() {
           )}
           {obj && (
             <>
-              <span className="object-icon">{OBJECT_ICONS[obj.type] ?? "✨"}</span>
+              <span className="object-icon">{objectIcon(obj)}</span>
               <span className="object-name">{obj.label}</span>
+              {obj.type === "chest" && (obj.contents_count ?? 0) > 0 && (
+                <span className="slot-count" title="Items waiting inside">{obj.contents_count}</span>
+              )}
             </>
           )}
         </div>,

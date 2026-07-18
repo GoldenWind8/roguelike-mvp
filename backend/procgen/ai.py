@@ -16,7 +16,6 @@ import os
 
 from backend.llm import LLMError, complete_tier, spec_for, strip_code_fence, tier_available
 from backend.procgen.base import ENEMY_NAMES
-from backend.procgen.geometry import LOOT_TABLE
 
 # Default tiers per task, not per provider (backend/llm.py binds tiers to
 # models). Placement is mid-difficulty (pick coordinates, obey a schema);
@@ -114,7 +113,7 @@ def _catalog() -> str:
     return (
         f"Enemy catalog (the ONLY legal enemy_id values):\n{enemies}\n"
         f"Object types (the ONLY legal object types):\n"
-        f'  - {{"type": "chest", "x": <int>, "y": <int>, "loot": [<1-3 items from {list(LOOT_TABLE)}>]}}\n'
+        f'  - {{"type": "chest", "x": <int>, "y": <int>}}  (contents are rolled at open time — never write a "loot" key)\n'
         f'  - {{"type": "fire_barrel", "x": <int>, "y": <int>, "hp": <int 2-4>}}\n'
     )
 

@@ -89,7 +89,6 @@ def test_exploration_rejects_combat_actions(make_template):
 
     for action_data in (
         {"action_type": "attack", "target_id": "enemy_1"},
-        {"action_type": "bomb", "target_tile": [2, 2]},
         {"action_type": "wait"},
     ):
         events, resolved = engine.submit_action(hero.id, action_data)
