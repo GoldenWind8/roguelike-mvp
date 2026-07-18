@@ -1,9 +1,9 @@
 import type { ClientMessage, ConnectionStatus, ServerMessage } from "./types";
 
 /**
- * The one seam between the UI and the world. The mockup binds MockGameSocket;
- * integration binds a thin WebSocket adapter with the same interface. Nothing
- * above this interface may care which one it is talking to.
+ * The one seam between the UI and the world: a thin WebSocket adapter
+ * implements it, and nothing above this interface may care how messages
+ * travel.
  */
 export interface GameSocket {
   connect(

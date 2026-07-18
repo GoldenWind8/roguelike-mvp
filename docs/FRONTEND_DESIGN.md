@@ -6,18 +6,18 @@ This document is the source of truth for the browser client direction.
 
 The canonical client is React, TypeScript, and Vite in `frontend-react/`.
 FastAPI serves its production build from `frontend-react/dist`; the Vite dev
-server proxies login, registration, and WebSocket traffic to FastAPI. The old
-`frontend/` HTML/JavaScript client is retained only as historical reference
-and is no longer served.
+server proxies login, registration, and WebSocket traffic to FastAPI. (The
+original `frontend/` HTML/JavaScript client and the `?mock` demo socket have
+been removed.)
 
 It owns:
 
-- A typed `GameSocket` seam with live WebSocket and local mock implementations.
+- A typed `GameSocket` seam with a live WebSocket implementation.
 - Authentication and token-based reconnect state.
 - A variable-size DOM grid with movement, attack, bomb, wait, inspection, and
   dialogue input.
 - Room transitions, live combat/exploration mode, party state, event history,
-  and the current visual-only belt.
+  and the ten-slot belt backed by the server inventory.
 - A player-centred camera and responsive panel layout.
 
 The client remains a renderer and input collector. The server owns rules,

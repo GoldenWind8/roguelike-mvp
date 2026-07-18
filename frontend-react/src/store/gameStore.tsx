@@ -16,7 +16,6 @@ import {
   useRef,
   type ReactNode,
 } from "react";
-import { MockGameSocket } from "../net/mockSocket";
 import { RealGameSocket } from "../net/wsSocket";
 import type { GameSocket } from "../net/socket";
 import type {
@@ -31,12 +30,6 @@ import type {
   ServerMessage,
 } from "../net/types";
 import { ambient } from "../audio/ambient";
-
-// --- which world -------------------------------------------------------------
-// The live server is the default; ?mock keeps the self-contained design-mockup
-// world (no backend needed). Same UI, same protocol, different GameSocket.
-
-export const USE_MOCK = new URLSearchParams(location.search).has("mock");
 
 const TOKEN_KEY = "emberhollow.token";
 const NAME_KEY = "emberhollow.username";
@@ -159,16 +152,6 @@ function formatEvents(events: GameEvent[], state: RoomStatePayload): (LogLine | 
       }
       case "effect_expired":
         return line("ambient", `The ${d.source} fades from ${nameOf(d.target_id)}.`);
-
-      // Mock-only events (no backend counterpart yet — see net/types.ts).
-      case "ambient":
-        return line("ambient", String(d.text));
-      case "revive":
-        return line("heal", String(d.text));
-      case "enemy_spawned":
-        return line("danger", `A ${d.name} skitters up from the dark!`);
-      case "heal":
-        return line("heal", `${d.by} tends ${d.name}'s wounds (+${d.amount}).`);
 
       // player/enemy/npc_moved, round_started, invalid_action: visible on the
       // grid or delivered as a direct error — the chronicle stays quiet.
@@ -408,7 +391,7 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
 
 interface GameApi {
   /** Log in (HTTP → token → WS join). Resolves to an error message, or null
-   * on success. In mock mode any name gets in and it resolves immediately. */
+   * on success. */
   login(username: string, password: string): Promise<string | null>;
   /** Register a new account, then join. Same result contract as login. */
   register(username: string, password: string): Promise<string | null>;
@@ -479,8 +462,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     const socket = () => {
       if (!socketRef.current) {
-        // The integration seam: same interface, two worlds (see USE_MOCK).
-        socketRef.current = USE_MOCK ? new MockGameSocket() : new RealGameSocket();
+        socketRef.current = new RealGameSocket();
         socketRef.current.connect(handleMessage, (status) => dispatch({ type: "status", status }));
       }
       return socketRef.current;
@@ -497,10 +479,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
       username: string,
       password: string,
     ): Promise<string | null> => {
-      if (USE_MOCK) {
-        joinAs(username, username);
-        return null;
-      }
       const result = await postAuth(path, username, password);
       if (!result.ok) return result.message;
       localStorage.setItem(TOKEN_KEY, result.token);
@@ -525,7 +503,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
       login: (username, password) => authThenJoin("/login", username, password),
       register: (username, password) => authThenJoin("/register", username, password),
       resume() {
-        if (USE_MOCK) return false;
         const token = localStorage.getItem(TOKEN_KEY);
         if (!token) return false;
         joinAs(localStorage.getItem(NAME_KEY) ?? "…", token);
@@ -538,7 +515,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       },
       rejoin() {
         const token = localStorage.getItem(TOKEN_KEY);
-        if (USE_MOCK || !token) return;
+        if (!token) return;
         socketRef.current?.close();
         socketRef.current = null;
         // A beat between close and rejoin: the server saves the leaver and

@@ -1,8 +1,7 @@
 /**
- * The real thing: a thin WebSocket adapter behind the same GameSocket seam
- * the mock implements. Outgoing messages queue until the socket opens, so
- * callers can connect-and-send in one breath exactly as they do against the
- * mock (which is synchronous).
+ * A thin WebSocket adapter behind the GameSocket seam. Outgoing messages
+ * queue until the socket opens, so callers can connect-and-send in one
+ * breath.
  */
 import type { GameSocket } from "./socket";
 import type { ClientMessage, ConnectionStatus, ServerMessage } from "./types";

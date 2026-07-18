@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from "react";
-import { useGame, useGameApi, USE_MOCK } from "./store/gameStore";
+import { useGame, useGameApi } from "./store/gameStore";
 import { RoomGrid } from "./grid/RoomGrid";
 import { StatusBar } from "./ui/StatusBar";
 import { PartyPanel } from "./ui/PartyPanel";
@@ -48,17 +48,17 @@ export default function App() {
   const mode = state.room?.room.mode ?? "exploration";
   const me = state.playerId && state.room ? state.room.players[state.playerId] : null;
 
-  // A stored session skips the front door (real server only).
+  // A stored session skips the front door.
   useEffect(() => {
     api.resume();
   }, [api]);
 
-  // Death recovery against the real server: the mock revives you itself, but
-  // the live one respawns a dead character on the NEXT join — so after the
-  // blackout beat, quietly disconnect and rejoin with the same token.
+  // Death recovery: the server respawns a dead character on the NEXT join —
+  // so after the blackout beat, quietly disconnect and rejoin with the same
+  // token.
   const alive = me?.is_alive;
   useEffect(() => {
-    if (USE_MOCK || alive !== false) return;
+    if (alive !== false) return;
     const timer = window.setTimeout(() => api.rejoin(), 4500);
     return () => window.clearTimeout(timer);
   }, [alive, api]);

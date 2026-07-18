@@ -1,10 +1,9 @@
 /**
- * The front door. Against the real server this is the full M8 flow —
- * username + password over HTTP, then a token join over the socket.
- * In mock mode (?mock) any name still opens the door.
+ * The front door: the full M8 flow — username + password over HTTP, then a
+ * token join over the socket.
  */
 import { useState } from "react";
-import { useGame, useGameApi, USE_MOCK } from "../store/gameStore";
+import { useGame, useGameApi } from "../store/gameStore";
 
 export function LoginScreen() {
   const api = useGameApi();
@@ -20,15 +19,13 @@ export function LoginScreen() {
       setHint("Every traveler has a name. What's yours?");
       return;
     }
-    if (!USE_MOCK) {
-      if (name.length < 3) {
-        setHint("A name needs at least 3 characters.");
-        return;
-      }
-      if (password.length < 6) {
-        setHint("Your secret word needs at least 6 characters.");
-        return;
-      }
+    if (name.length < 3) {
+      setHint("A name needs at least 3 characters.");
+      return;
+    }
+    if (password.length < 6) {
+      setHint("Your secret word needs at least 6 characters.");
+      return;
     }
     setBusy(true);
     const error =
@@ -37,9 +34,7 @@ export function LoginScreen() {
     if (error) setHint(error);
   };
 
-  const defaultHint = USE_MOCK
-    ? "Mockup build — any name opens the door."
-    : "New here? Sign the ledger to make an account.";
+  const defaultHint = "New here? Sign the ledger to make an account.";
 
   return (
     <div className="login-screen">

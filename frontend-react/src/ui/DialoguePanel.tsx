@@ -9,8 +9,8 @@ import { useEffect, useRef, useState } from "react";
 import { useGame, useGameApi } from "../store/gameStore";
 import { npcIcon } from "../grid/RoomGrid";
 
-// Keyed by NAME, not id: the mock's ids ("npc-mara") and the real server's
-// row-derived ids differ, but Mara is Mara in both worlds.
+// Keyed by NAME, not id: server ids are row-derived and can change across
+// reseeds, but Mara is Mara.
 const SUGGESTIONS: Record<string, { neutral: string[]; hostile: string[] }> = {
   Mara: {
     neutral: ["Fight beside me?", "Can you heal me?", "What keeps you in this hall?"],

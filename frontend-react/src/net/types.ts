@@ -6,11 +6,6 @@
  *                        + backend/room_engine.py get_state (mode/started/phase)
  *   - Object shapes:     backend/room_loader.py to_summary_dict / to_dict
  *   - Messages:          backend/main.py websocket handlers
- *
- * The mock socket and (later) the real socket both speak exactly these
- * shapes, so binding the UI to the live server is a socket swap, not a
- * refactor. Anything that exists ONLY in the mockup lives at the bottom
- * under "mock-only extensions" so the integration debt is visible.
  */
 
 export type Disposition = "hostile" | "neutral" | "friendly";
@@ -82,7 +77,6 @@ export interface ActorState {
   attack_damage: number;
   is_alive: boolean;
   disposition: Disposition;
-  /** Always sent by the real server; optional so mock literals stay lean. */
   active_effects?: ActiveEffect[];
   /** Players only (their 10-slot pack). */
   inventory?: InventorySlot[];
@@ -129,8 +123,7 @@ export interface GameEvent {
 
 export interface RoomStatePayload {
   room: {
-    /** An int from the DB on the real server; the mock uses a slug. */
-    id: number | string;
+    id: number;
     name: string;
     width: number;
     height: number;
