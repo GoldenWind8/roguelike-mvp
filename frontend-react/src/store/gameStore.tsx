@@ -2,7 +2,7 @@
  * One store, two halves (FRONTEND_DESIGN.md "store/"):
  *   - a mirror of server state (room payload, dialogue transcript, inspection)
  *     that only ServerMessages may write, and
- *   - local UI state (armed bomb, music, selection) the server never sees.
+ *   - local UI state (held belt slot, music, selection) the server never sees.
  *
  * Components read via useGame() and act via useGameApi(); nobody touches the
  * socket directly.

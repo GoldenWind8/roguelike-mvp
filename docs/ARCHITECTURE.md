@@ -117,7 +117,7 @@ them — an NPC inside `RoomState` is just an `Actor`.
 
 In memory there is one actor shape (`entities.Actor`; NPCS.md Decision 4):
 `Player`, `Enemy`, and `NPC` are thin dataclass subclasses, and combat,
-bombs, and occupancy target `Actor` without caring which one they hit.
+thrown items, and occupancy target `Actor` without caring which one they hit.
 Disposition (`hostile | neutral | friendly`) is a field, not a class — a
 shopkeeper turning hostile is a field write.
 
@@ -140,8 +140,8 @@ Every room runs one of two timing models (the `RoomMode` seam, implemented in
 
 | Mode | Resolution | Allowed actions |
 |---|---|---|
-| `combat` (`TurnBasedMode`) | buffer actions, resolve when all players submit or the timeout fires | move, attack, bomb, wait |
-| `exploration` (`ExplorationMode`) | validate and resolve immediately, per action | move |
+| `combat` (`TurnBasedMode`) | buffer actions, resolve when all players submit or the timeout fires | move, attack, wait, consume, throw |
+| `exploration` (`ExplorationMode`) | validate and resolve immediately, per action | move, consume, throw |
 
 The mode decides *when* an action resolves, never *how*: both modes validate
 and resolve through the same `HANDLERS`, so movement rules, door traversal,
@@ -186,7 +186,7 @@ The round order is:
 
 1. Player actions are collected.
 2. Movement actions resolve first.
-3. Attack/bomb/wait actions resolve next.
+3. Attack/consume/throw/wait actions resolve next.
 4. Actor phase resolves (every non-player actor with a brain — hostiles chase,
    followers defend; the brain is chosen from data by `brains.select_brain`).
 5. The round increments.
@@ -212,7 +212,7 @@ flowchart LR
 | Concept | Role | Example |
 |---|---|---|
 | Action | A player's requested intent | move north, attack enemy, throw bomb |
-| Handler | Validates and resolves one action type | `AttackHandler`, `BombHandler` |
+| Handler | Validates and resolves one action type | `AttackHandler`, `ThrowHandler` |
 | Effect | Atomic state mutation | `Damage(target, amount)` |
 | Event | Record of what happened | `player_attacked`, `enemy_died` |
 

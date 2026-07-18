@@ -12,7 +12,6 @@ const HELP_LINES: [string, string][] = [
   ["Item, then target", "how everything is done — sword on an enemy, bomb on a tile, food on yourself"],
   ["Click a person", "talk (walk up close first)"],
   ["Click an object", "take a closer look"],
-  ["B", "hold your bomb"],
   ["Esc", "close the chat, put the item away"],
   ["♪", "hush or wake the music"],
 ];

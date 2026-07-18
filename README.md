@@ -19,7 +19,8 @@ ideas stay separate.
   are evicted when the last player leaves.
 - Door/portal traversal: walk onto a door and the server moves you (hp intact)
   into the connected room; broadcasts are scoped per room.
-- Turn-based combat on a grid: movement, attacks, waiting, bombs, enemy turns.
+- Turn-based combat on a grid: movement, attacks, waiting, item use
+  (consume/throw), enemy turns.
 - Live room modes: a room is in combat exactly while a living hostile actor
   is present, exploration otherwise — derived continuously, not set at load.
   Peaceful rooms resolve movement immediately; combat rooms run the
@@ -108,7 +109,8 @@ npm run build
 
 - Arrow keys or WASD to move.
 - Click an adjacent player or enemy to attack.
-- Press `B`, then click a tile, to throw a bomb.
+- Hold a belt item (`1`–`0` or click a slot), then click its target — an
+  enemy for the sword, a tile for a bomb, yourself for food or a potion.
 - Press Space to wait.
 - The server resolves a round when all living players act, or when the turn
   timeout fires.

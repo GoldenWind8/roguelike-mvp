@@ -14,7 +14,7 @@ It owns:
 
 - A typed `GameSocket` seam with a live WebSocket implementation.
 - Authentication and token-based reconnect state.
-- A variable-size DOM grid with movement, attack, bomb, wait, inspection, and
+- A variable-size DOM grid with movement, attack, throw, wait, inspection, and
   dialogue input.
 - Room transitions, live combat/exploration mode, party state, event history,
   and the ten-slot belt backed by the server inventory.
