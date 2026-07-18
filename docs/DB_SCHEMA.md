@@ -96,6 +96,7 @@ held copy); both provenances pass the same `validate_item` gate.
 | `enemy_defs` | Reusable enemy catalog | Rooms reference enemy ids from JSON and load stats from this table. Planned: runtime-appendable by LLM world generation, gated by schema/bounds validation (stat ranges; effect lists drawn from the closed vocabulary). |
 | `npcs` | NPC instance rows (individuals) | One row per NPC that exists in the world; play edits it (hp, position, disposition, memory, party membership) and it survives room resets and restarts. Loaded/saved by `npc_store.py`; eviction is "save individuals, unload". Full stats are columns because an individual's wounds and buffs are instance state. `persona` is validated by `persona.validate_persona` on insert *and* load. `party_owner_id` (M6) is a nullable String holding the `players.id` of the account this NPC follows (M8) — stable across sessions, so followers rebind on the next login. Still a plain String, not a FK: promotion waits one milestone, until eviction ordering provably never saves an NPC before its owner exists (ACCOUNTS.md). |
 | `players` | Account + character rows (individuals) | One row per account, and the row *is* the character (ACCOUNTS.md Decision 1). `id` is an opaque `player_<uuid>` string everything else references; `username`/`password_hash` (bcrypt)/`email` are the auth columns, never sent to clients. Game state (`room_id`, `x`, `y`, `hp`, `inventory`, `hunger`) is written at the edges — disconnect and shutdown — by `player_store.py`, the `npc_store` rhythm. NULL `room_id` means "spawn at the default room", the fallback whenever a saved location stops making sense. `inventory` is the 10-slot pack as JSON (docs/LOOT.md): a list of `{item, quantity, equipped}` where `item` is a full snapshot, so restoring a pack never queries `items`. `hunger` is the 0–100 meter (LOOT.md Decision 5), stored as the raw float; it only drains while connected, so a returning player resumes as hungry as they left. |
+| `object_instances` | Per-object play state (individuals) | What play did to one object in one room, layered over `Room.objects` design data on load — the object half of the `npcs` pattern. Today: chest lifecycle (`opened` + un-carried `contents` as item_view snapshots), written through at each open/take by `object_store.py`. A row exists only once play touches the object. `object_id` is the runtime id derived from the object's index in `Room.objects`, so design lists must never be reordered in place. Destroyed barrels / dropped items would join this table, not get new ones. |
 | `items` | The global item pool (docs/LOOT.md) | Hand-authored seeds (`origin="seed"`, backfilled once when the table has never held a row) plus premium-LLM inventions minted at chest-open (`origin="llm"`). Append-only in practice: play draws from it and adds to it, never edits it. `payload` is validated by `items.validate_item` — the DB can't check JSON, so the gate lives in code, like rooms. |
 
 ## Important Boundary
@@ -123,10 +124,9 @@ Examples:
   — persists.
 - LLM minted a new item at a chest: template-ish pool data — appends to
   `items` through the validation gate, exactly like an LLM room.
-- Chest opened: ephemeral (deliberate — chests re-arm when the room
-  reloads, like enemy respawns); becomes individual state if
-  `object_instances` ever exists (revisit-trigger: chest-farming by
-  room-cycling).
+- Chest opened: individual state (`object_instances`) — persists. Written
+  through at the open/take edges by `object_store.py`, overlaid on room
+  load, so a looted chest stays looted across evictions and restarts.
 - Room terrain generated and accepted: template data.
 - LLM invents a new enemy type: template data (append to `enemy_defs`
   through the validation gate).
@@ -251,7 +251,6 @@ These belong later:
 |---|---|
 | `events` | Append-only room/player event log for replay and debugging. |
 | `room_sessions` | Distinguish live mutable session state from room templates. |
-| `object_instances` | Track opened chests, destroyed barrels, dropped items, etc. |
 | `npc_memory` | Store durable NPC/player relationship summaries. |
 
 ## SQLite Now, Postgres Later

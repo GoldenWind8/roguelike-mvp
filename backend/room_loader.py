@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import EnemyDef, ObjectType, Room, RoomConnection, TileType
+from backend.object_store import apply_object_states
 
 
 @dataclass
@@ -32,9 +33,10 @@ class RoomObject:
     Chest lifecycle state lives here as LIVE state, not design data: `opened`
     flips when the first player opens it (contents are rolled at that moment,
     docs/LOOT.md), and `contents` holds rolled item_views nobody could carry
-    yet (opener's pack was full) — anyone may claim them later. Like fungible
-    enemies, this state is forgotten on room eviction: a reloaded room's
-    chests are closed again (respawn is a feature)."""
+    yet (opener's pack was full) — anyone may claim them later. Unlike
+    fungible enemies, this state PERSISTS: every open/take writes through to
+    `object_instances` (object_store.py) and load_room overlays it back, so
+    a looted chest stays looted across evictions and restarts."""
     id: str
     type: str
     position: tuple[int, int]
@@ -144,6 +146,9 @@ async def load_room(session: AsyncSession, room_id: int) -> RoomTemplate:
         _object_payload(raw, i)
         for i, raw in enumerate(room.objects or [])
     ]
+    # Overlay what play did to these objects (opened chests keep their state
+    # across evictions — object_store.py).
+    await apply_object_states(session, room_id, objects)
 
     connection_rows = (await session.execute(
         select(RoomConnection).where(RoomConnection.from_room_id == room_id)

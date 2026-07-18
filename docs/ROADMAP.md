@@ -94,9 +94,9 @@ existing seams, not a rework; see LOOT.md for the triggers):
 - **Ground/tile effects** (fire burning on a floor tile): a separate system
   (state on tiles + checks on movement and ticks) — deliberately NOT bolted
   onto the throw model.
-- **Persistent chest state** (`object_instances`): only if chest-farming by
-  room-cycling becomes a real exploit; today re-arming chests on room reload
-  is a feature, like enemy respawns.
+- **Persistent chest state** (`object_instances`): DONE (the revisit-trigger
+  fired) — chest lifecycle now writes through to the DB at open/take and
+  survives room reloads; see DB_SCHEMA.md and LOOT.md.
 - **Drops-on-death / stack caps / line-of-sight for ranged & thrown /
   per-item friendly-fire ("hits") / per-player inventory privacy**: each
   deferred with its trigger noted in LOOT.md "Known accepted costs".

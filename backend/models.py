@@ -165,6 +165,24 @@ class PlayerRow(Base):
     )
 
 
+class ObjectInstance(Base):
+    """Play-mutated object state layered over `Room.objects` design data —
+    the object half of the `npcs` pattern: rooms stay templates, this row is
+    what play did to one object in one room. Today that means chest
+    lifecycle: `opened` plus the rolled `contents` nobody has carried off
+    yet, so a looted chest stays looted across room evictions and restarts
+    (no re-arming by room-cycling). A row exists only once play first
+    touches the object; loaded and saved by `object_store.py`."""
+    __tablename__ = "object_instances"
+
+    room_id: Mapped[int] = mapped_column(ForeignKey("rooms.id"), primary_key=True)
+    # The runtime object id ("object_3"), derived from the object's index in
+    # Room.objects — stable as long as the design list is never reordered.
+    object_id: Mapped[str] = mapped_column(String, primary_key=True)
+    opened: Mapped[bool] = mapped_column(default=False)
+    contents: Mapped[list] = mapped_column(JSON, default=list)  # item_views awaiting takers
+
+
 class Room(Base):
     """A level as data. `terrain`/`objects`/`spawn_points`/`enemy_spawns` are
     JSON because their shape varies — which means *we* validate them on the way

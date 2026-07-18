@@ -81,9 +81,10 @@ fails — no forfeit rule needed.
 - First-to-open triggers the roll (decided under the state lock by flipping
   `opened` before the slow roll) and gets first pick; anything left waits
   in `chest.contents` for anyone adjacent to take.
-- Chest state is ephemeral like fungible enemies: room eviction closes and
-  re-arms chests. Revisit-trigger: if chest-farming by room-cycling becomes
-  a real exploit, chest state moves to an `object_instances` table.
+- Chest state PERSISTS in `object_instances` (this was originally ephemeral
+  with a revisit-trigger; the trigger fired): every open and take writes
+  through via `object_store.py`, and `load_room` overlays the saved state
+  back. An opened chest is opened forever — room-cycling can't re-arm it.
 - Opening is a REQUEST outside the action economy (the `talk` pattern): it
   needs the DB and maybe an LLM, so it can't run inside synchronous round
   resolution. Standing at a chest mid-combat is its own punishment.

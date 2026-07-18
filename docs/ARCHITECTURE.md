@@ -109,11 +109,13 @@ main.py       WebSocket and FastAPI boundary
 Rule of thumb: if a lower layer needs something from a higher layer, move the
 shared concept down instead of creating an import cycle.
 
-Three modules sit beside this stack at the `main.py` edge, not inside it:
+Four modules sit beside this stack at the `main.py` edge, not inside it:
 `npc_store.py` (rows ↔ NPC entities, the individual-persistence twin of
-`room_loader.py`), `persona.py` (the validation gate for persona documents),
-and `dialogue.py` (the `DialogueProvider` seam). The engine never imports
-them — an NPC inside `RoomState` is just an `Actor`.
+`room_loader.py`), `object_store.py` (rows ↔ object lifecycle state — opened
+chests and their leftovers, written through at open/take), `persona.py` (the
+validation gate for persona documents), and `dialogue.py` (the
+`DialogueProvider` seam). The engine never imports them — an NPC inside
+`RoomState` is just an `Actor`.
 
 In memory there is one actor shape (`entities.Actor`; NPCS.md Decision 4):
 `Player`, `Enemy`, and `NPC` are thin dataclass subclasses, and combat,
@@ -461,19 +463,18 @@ party members + escalation (Milestones 6-7, done)
 identity + accounts: players table, reconnect claims your row (Milestone 8, done)
         |
         v
-client migration + UI design (Milestones 9-10)
+client migration + UI design (Milestones 9-10, Done)
         |
         v
 room generation joins from its parallel track (preset registry -> traversal
 wiring -> AI config-picker)
         |
         v
-later, only if needed: per-room locks, workers, Redis
+Filling up the game with generated content, such as assets, more effects, more items, NPCs, and law, as well as the main areas and some semi-main areas
+        |
+        v
+later, when needed: Scaling plan, workers, Redis
 ```
 
-Avoid jumping straight to workers, Redis, or gateway routing. Identity (M8)
-is done — the `players` table, follower rebinding, and a stable owner for
-future inventory all exist; the next unlock is the client (migration, then
-UI). Room generation continues on a parallel track and is wired into
-traversal once its presets are workable. See [Roadmap](ROADMAP.md) and
+See [Roadmap](ROADMAP.md) and
 [Accounts & Identity](archive/ACCOUNTS.md).

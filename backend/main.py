@@ -26,6 +26,7 @@ from backend.inventory import add_item, equip, prune_expired, unequip
 from backend.loot import roll_item_count, spawn_loot
 from backend.models import ObjectType
 from backend.npc_store import load_npcs, save_npcs
+from backend.object_store import reset_objects, save_object_state
 from backend.player_store import (
     UsernameTaken,
     authenticate,
@@ -592,8 +593,9 @@ async def handle_open_chest(websocket: WebSocket, player_id: str, data: dict) ->
 
     async with state_lock:
         if active_rooms.get(runtime.room_id) is not runtime:
-            # Room evicted mid-roll (everyone left) — the chest state is gone;
-            # a minted item stays in the pool for future chests. Nothing to do.
+            # Room evicted mid-roll (everyone left) — the in-memory claim is
+            # gone and nothing was persisted, so the chest reloads closed; a
+            # minted item stays in the pool for future chests. Nothing to do.
             return
         if not rolled:
             # Roll failed entirely (empty pool / DB down): re-arm the chest so
@@ -618,6 +620,10 @@ async def handle_open_chest(websocket: WebSocket, player_id: str, data: dict) ->
             {"player_id": player_id, "object_id": chest.id, "items": finds},
             runtime.engine.room.round,
         ))
+        # Write-through (docs/LOOT.md): an opened chest is opened forever,
+        # even if the room is evicted before anyone takes the contents.
+        async with SessionMaker() as session:
+            await save_object_state(session, runtime.room_id, chest)
         await broadcast_state_and_events(runtime, events)
 
 
@@ -646,6 +652,8 @@ async def handle_take_item(websocket: WebSocket, player_id: str, data: dict) -> 
             await websocket.send_json({"type": "error", "message": "Your pack is full."})
             return
         item = chest.contents.pop(index)
+        async with SessionMaker() as session:
+            await save_object_state(session, runtime.room_id, chest)
         await broadcast_state_and_events(runtime, [GameEvent(
             EventType.CHEST_LOOTED,
             {"player_id": player_id, "object_id": chest.id, "item": item},
@@ -707,6 +715,7 @@ async def handle_dev_reset(websocket: WebSocket) -> None:
 
         async with SessionMaker() as session:
             await reset_npcs(session)
+            await reset_objects(session)
 
     # Clients reload and reconnect fresh — a full reload sidesteps any partial
     # state left on the old sockets.
