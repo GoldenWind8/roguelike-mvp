@@ -166,7 +166,7 @@ function formatEvents(events: GameEvent[], state: RoomStatePayload): (LogLine | 
 // SERVER state — it rides on your player in every broadcast; the only local
 // piece is which slot you're holding (selectedSlot). The action model:
 // hold an item (1–0 or click), then click a target — yourself to drink,
-// a tile to throw. Equip/unequip is a right-click (or E), no holding needed.
+// a tile to throw. Equip/unequip is a right-click (or R), no holding needed.
 
 export const SLOT_COUNT = 10;
 

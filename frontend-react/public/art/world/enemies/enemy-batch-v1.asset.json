@@ -1,0 +1,58 @@
+{
+  "shared_logical_footprint": [1, 1],
+  "anchor": "bottom-center",
+  "assets": [
+    {
+      "id": "rat_pack",
+      "family": "mundane",
+      "image": "/art/world/enemies/rat-pack-v1.png",
+      "visual_footprint": [2, 1]
+    },
+    {
+      "id": "feral_hound",
+      "family": "mundane",
+      "image": "/art/world/enemies/feral-hound-v1.png",
+      "visual_footprint": [1, 1]
+    },
+    {
+      "id": "road_bandit",
+      "family": "human",
+      "image": "/art/world/enemies/road-bandit-v1.png",
+      "visual_footprint": [1, 2]
+    },
+    {
+      "id": "barrow_revenant",
+      "family": "folklore",
+      "image": "/art/world/enemies/barrow-revenant-v1.png",
+      "visual_footprint": [1, 2]
+    },
+    {
+      "id": "homunculus_hound_bent",
+      "family": "homunculus",
+      "rarity": "basic",
+      "image": "/art/world/enemies/homunculus-hound-bent-v1.png",
+      "visual_footprint": [1, 2]
+    },
+    {
+      "id": "homunculus_rook_eyed",
+      "family": "homunculus",
+      "rarity": "basic",
+      "image": "/art/world/enemies/homunculus-rook-eyed-v1.png",
+      "visual_footprint": [1, 2]
+    },
+    {
+      "id": "homunculus_boarback",
+      "family": "homunculus",
+      "rarity": "uncommon",
+      "image": "/art/world/enemies/homunculus-boarback-v1.png",
+      "visual_footprint": [1, 2]
+    },
+    {
+      "id": "homunculus_many_born",
+      "family": "homunculus",
+      "rarity": "rare",
+      "image": "/art/world/enemies/homunculus-many-born-v1.png",
+      "visual_footprint": [2, 2]
+    }
+  ]
+}

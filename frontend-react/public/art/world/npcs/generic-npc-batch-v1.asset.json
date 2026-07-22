@@ -1,0 +1,47 @@
+{
+  "shared_logical_footprint": [1, 1],
+  "shared_visual_footprint": [1, 2],
+  "anchor": "bottom-center",
+  "assets": [
+    {
+      "id": "generic_innkeeper",
+      "image": "/art/world/npcs/innkeeper-v1.png",
+      "role_tags": ["inn", "lodging", "rumor"]
+    },
+    {
+      "id": "generic_stablehand",
+      "image": "/art/world/npcs/stablehand-v1.png",
+      "role_tags": ["stable", "horses", "local"]
+    },
+    {
+      "id": "generic_carriage_driver",
+      "image": "/art/world/npcs/carriage-driver-v1.png",
+      "role_tags": ["transport", "travel", "rumor"]
+    },
+    {
+      "id": "generic_road_courier",
+      "image": "/art/world/npcs/road-courier-v1.png",
+      "role_tags": ["courier", "news", "rumor"]
+    },
+    {
+      "id": "generic_orchard_keeper",
+      "image": "/art/world/npcs/orchard-keeper-v1.png",
+      "role_tags": ["orchard", "food", "local"]
+    },
+    {
+      "id": "generic_town_watch",
+      "image": "/art/world/npcs/town-watch-v1.png",
+      "role_tags": ["law", "safety", "authority"]
+    },
+    {
+      "id": "generic_travelling_peddler",
+      "image": "/art/world/npcs/travelling-peddler-v1.png",
+      "role_tags": ["vendor", "travel", "rumor"]
+    },
+    {
+      "id": "generic_road_weary_traveller",
+      "image": "/art/world/npcs/road-weary-traveller-v1.png",
+      "role_tags": ["traveller", "news", "rumor"]
+    }
+  ]
+}

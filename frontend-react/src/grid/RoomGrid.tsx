@@ -13,6 +13,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { packOf, useGame, useGameApi } from "../store/gameStore";
 import type { ActorState, NpcState, ObjectSummary } from "../net/types";
 
+export const RECENTER_ROOM_EVENT = "emberhollow:recenter-room";
+export const TOGGLE_FOOTPRINTS_EVENT = "emberhollow:toggle-footprints";
+
 type ActorKind = "player" | "enemy" | "npc";
 
 /** Presentation for an NPC by their role text; shared with the dialogue head. */
@@ -42,7 +45,7 @@ function actorIcon(kind: ActorKind, actor: ActorState, isMe: boolean): string {
 
 const OBJECT_ICONS: Record<string, string> = {
   hearth: "🔥",
-  notice_board: "📜",
+  noticeboard: "📜",
   crate: "📦",
   cellar_door: "🕳️",
   door: "🚪",
@@ -64,6 +67,72 @@ function objectIcon(obj: ObjectSummary): string {
 // a friendly hint instead of a server error.
 const manhattan = (a: [number, number], b: [number, number]) =>
   Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
+
+const objectCells = (obj: ObjectSummary): [number, number][] =>
+  obj.occupied_cells.length > 0 ? obj.occupied_cells : [obj.position];
+
+const distanceToObject = (position: [number, number], obj: ObjectSummary) =>
+  Math.min(...objectCells(obj).map((cell) => manhattan(position, cell)));
+
+/** The rectangle occupied by an object's artwork, expressed in grid cells.
+ * Images are bottom-aligned and centred on the logical footprint, matching
+ * the CSS renderer below. */
+function objectVisualBounds(obj: ObjectSummary) {
+  const occupied = objectCells(obj);
+  const xs = occupied.map(([x]) => x);
+  const ys = occupied.map(([, y]) => y);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const logicalWidth = maxX - minX + 1;
+  const logicalHeight = maxY - minY + 1;
+  const [visualWidth, visualHeight] = obj.visual_size;
+  const left = minX + (logicalWidth - visualWidth) / 2;
+  const bottom = maxY + 1;
+  return {
+    minX,
+    maxX,
+    minY,
+    maxY,
+    logicalWidth,
+    logicalHeight,
+    visualWidth,
+    visualHeight,
+    left,
+    right: left + visualWidth,
+    top: bottom - visualHeight,
+    bottom,
+  };
+}
+
+/** Fade scenery only when an actor's feet are behind its baseline and their
+ * cell falls under the visible artwork. An actor south of the baseline is in
+ * front and keeps the object opaque. */
+function objectOccludesActor(obj: ObjectSummary, actors: ActorState[]): boolean {
+  const bounds = objectVisualBounds(obj);
+  const occupied = new Set(objectCells(obj).map(([x, y]) => `${x},${y}`));
+  return actors.some((actor) => {
+    if (!actor.is_alive) return false;
+    const [x, y] = actor.position;
+    if (occupied.has(`${x},${y}`)) return false;
+    const centreX = x + 0.5;
+    const feetY = y + 0.8;
+    return centreX > bounds.left
+      && centreX < bounds.right
+      && feetY > bounds.top
+      && y <= bounds.maxY;
+  });
+}
+
+function exitPresentation(position: [number, number], width: number, height: number) {
+  const [x, y] = position;
+  if (y === 0) return { glyph: "↑", edge: "top" };
+  if (y === height - 1) return { glyph: "↓", edge: "bottom" };
+  if (x === 0) return { glyph: "←", edge: "left" };
+  if (x === width - 1) return { glyph: "→", edge: "right" };
+  return { glyph: "◇", edge: "portal" };
+}
 
 function HpBar({ actor }: { actor: ActorState }) {
   const pct = Math.max(0, Math.round((actor.hp / actor.max_hp) * 100));
@@ -92,6 +161,7 @@ export function RoomGrid() {
   const frameRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const [cam, setCam] = useState<Camera>({ x: 0, y: 0, animate: false, fades: NO_FADES });
+  const [debugFootprints, setDebugFootprints] = useState(false);
   const dragRef = useRef<{ sx: number; sy: number; cx: number; cy: number } | null>(null);
   const suppressClickRef = useRef(false);
 
@@ -112,9 +182,25 @@ export function RoomGrid() {
 
   const objectsAt = useMemo(() => {
     const map = new Map<string, ObjectSummary>();
-    room?.objects.forEach((o) => map.set(`${o.position[0]},${o.position[1]}`, o));
+    room?.objects.forEach((o) => {
+      objectCells(o).forEach(([x, y]) => map.set(`${x},${y}`, o));
+    });
     return map;
   }, [room?.objects]);
+
+  const exitsAt = useMemo(() => {
+    const map = new Map<string, NonNullable<typeof room>["exits"][number]>();
+    room?.exits.forEach((exit) => map.set(`${exit.position[0]},${exit.position[1]}`, exit));
+    return map;
+  }, [room?.exits]);
+
+  const livingActors = useMemo(
+    () => room
+      ? [...Object.values(room.players), ...Object.values(room.enemies), ...Object.values(room.npcs)]
+          .filter((actor) => actor.is_alive)
+      : [],
+    [room],
+  );
 
   // Clamp a camera offset so the frame never shows past the room's edge
   // (rooms smaller than the frame sit centred), and note which edges still
@@ -147,7 +233,7 @@ export function RoomGrid() {
   // The camera: keep me centred whenever I move (or revive elsewhere).
   const meX = me?.position[0] ?? 0;
   const meY = me?.position[1] ?? 0;
-  useEffect(() => {
+  const recenterCamera = useCallback((animate = true) => {
     const frame = frameRef.current;
     const grid = gridRef.current;
     if (!frame || !grid) return;
@@ -159,8 +245,23 @@ export function RoomGrid() {
       pad + meX * stride + stride / 2 - frame.clientWidth / 2,
       pad + meY * stride + stride / 2 - frame.clientHeight / 2,
     );
-    setCam({ ...target, animate: true });
+    setCam({ ...target, animate });
   }, [meX, meY, clampCam]);
+
+  useEffect(() => {
+    recenterCamera(true);
+  }, [recenterCamera]);
+
+  useEffect(() => {
+    const recenter = () => recenterCamera(true);
+    const toggleFootprints = () => setDebugFootprints((shown) => !shown);
+    window.addEventListener(RECENTER_ROOM_EVENT, recenter);
+    window.addEventListener(TOGGLE_FOOTPRINTS_EVENT, toggleFootprints);
+    return () => {
+      window.removeEventListener(RECENTER_ROOM_EVENT, recenter);
+      window.removeEventListener(TOGGLE_FOOTPRINTS_EVENT, toggleFootprints);
+    };
+  }, [recenterCamera]);
 
   // Drag to look around; a real drag swallows the click that would follow.
   // Pointer capture starts only once the drag threshold is crossed — capturing
@@ -184,6 +285,10 @@ export function RoomGrid() {
     dragRef.current = null;
   };
   const onClickCapture = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest(".camera-recenter")) {
+      suppressClickRef.current = false;
+      return;
+    }
     if (suppressClickRef.current) {
       suppressClickRef.current = false;
       e.stopPropagation();
@@ -198,6 +303,16 @@ export function RoomGrid() {
     if (room.enemies[id]) return { kind: "enemy", actor: room.enemies[id] };
     if (room.npcs[id]) return { kind: "npc", actor: room.npcs[id] };
     return null;
+  };
+
+  const interactObject = (obj: ObjectSummary) => {
+    // Chests open (or yield their waiting contents) on an adjacent click —
+    // rolled at that moment, first-to-open (docs/LOOT.md). From afar, look.
+    if (obj.type === "chest" && me && distanceToObject(me.position, obj) <= 1) {
+      api.openChest(obj.id);
+      return;
+    }
+    api.inspect(obj.id);
   };
 
   const onCellClick = (x: number, y: number) => {
@@ -242,13 +357,7 @@ export function RoomGrid() {
     }
     const obj = objectsAt.get(`${x},${y}`);
     if (!obj) return;
-    // Chests open (or yield their waiting contents) on an adjacent click —
-    // rolled at that moment, first-to-open (docs/LOOT.md). From afar, look.
-    if (obj.type === "chest" && me && manhattan(me.position, obj.position) <= 1) {
-      api.openChest(obj.id);
-      return;
-    }
-    api.inspect(obj.id);
+    interactObject(obj);
   };
 
   const cells = [];
@@ -258,10 +367,15 @@ export function RoomGrid() {
       const id = room.grid[y]?.[x];
       const hit = id ? findActor(id) : null;
       const obj = !hit ? objectsAt.get(`${x},${y}`) : undefined;
+      const exit = exitsAt.get(`${x},${y}`);
       const isMe = hit?.actor.id === playerId;
 
       const classes = ["cell"];
       if (wall) classes.push("cell-wall");
+      if (exit) classes.push("cell-exit");
+      if (obj) classes.push("cell-object-footprint");
+      if (obj?.blocks_movement) classes.push("cell-object-blocking");
+      if (hit) classes.push("cell-actor-footprint");
       if (isMe) classes.push("cell-me");
       const inThrowRange =
         throwRange !== null && me ? manhattan(me.position, [x, y]) <= throwRange : false;
@@ -274,10 +388,49 @@ export function RoomGrid() {
       } else if (obj) classes.push("cell-actionable");
 
       cells.push(
-        <div key={`${x},${y}`} className={classes.join(" ")} onClick={() => onCellClick(x, y)}>
+        <div
+          key={`${x},${y}`}
+          className={classes.join(" ")}
+          style={{ gridColumn: x + 1, gridRow: y + 1 }}
+          onClick={() => onCellClick(x, y)}
+        >
+          {exit && (() => {
+            const presentation = exitPresentation(exit.position, room.room.width, room.room.height);
+            return (
+              <span className={`exit-marker exit-${presentation.edge}`} aria-label={`Exit to ${exit.label}`}>
+                <span className="exit-glyph">{presentation.glyph}</span>
+                <span className="exit-label">{exit.label.replace(/^The\s+/i, "")}</span>
+              </span>
+            );
+          })()}
           {hit && (
             <>
-              <span className="entity-icon">{actorIcon(hit.kind, hit.actor, isMe)}</span>
+              {hit.actor.image ? (
+                <button
+                  className="entity-art-button"
+                  type="button"
+                  title={hit.kind === "npc" ? `Talk to ${hit.actor.name}` : hit.actor.name}
+                  aria-label={hit.kind === "npc" ? `Talk to ${hit.actor.name}` : hit.actor.name}
+                  style={{
+                    width: `calc(var(--cell) * ${hit.actor.visual_size[0]})`,
+                    height: `calc(var(--cell) * ${hit.actor.visual_size[1]})`,
+                  }}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onCellClick(x, y);
+                  }}
+                >
+                  <img
+                    className="entity-sprite"
+                    src={hit.actor.image}
+                    alt=""
+                    draggable={false}
+                  />
+                </button>
+              ) : (
+                <span className="entity-icon">{actorIcon(hit.kind, hit.actor, isMe)}</span>
+              )}
               <span className="entity-name">{hit.actor.name}</span>
               <HpBar actor={hit.actor} />
               <span className={`disp-dot disp-${hit.actor.disposition}`} />
@@ -286,19 +439,73 @@ export function RoomGrid() {
               )}
             </>
           )}
-          {obj && (
-            <>
-              <span className="object-icon">{objectIcon(obj)}</span>
-              <span className="object-name">{obj.label}</span>
-              {obj.type === "chest" && (obj.contents_count ?? 0) > 0 && (
-                <span className="slot-count" title="Items waiting inside">{obj.contents_count}</span>
-              )}
-            </>
-          )}
         </div>,
       );
     }
   }
+
+  // Objects are separate grid items laid over their logical footprint. Each
+  // sprite is drawn once, even when its collision spans several cells; image
+  // overhang is presentation only and never changes the server's rules.
+  const objectRenders = room.objects.map((obj) => {
+    const bounds = objectVisualBounds(obj);
+    const fadesForActor = objectOccludesActor(obj, livingActors);
+
+    return (
+      <div
+        key={obj.id}
+        className={`object-render ${fadesForActor ? "object-occluding-actor" : ""}`}
+        style={{
+          gridColumn: `${bounds.minX + 1} / span ${bounds.logicalWidth}`,
+          gridRow: `${bounds.minY + 1} / span ${bounds.logicalHeight}`,
+        }}
+      >
+        {obj.image ? (
+          <button
+            className="object-art-button"
+            type="button"
+            title={`Inspect ${obj.label}`}
+            aria-label={`Inspect ${obj.label}`}
+            style={{
+              width: `${(bounds.visualWidth / bounds.logicalWidth) * 100}%`,
+              height: `${(bounds.visualHeight / bounds.logicalHeight) * 100}%`,
+            }}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              interactObject(obj);
+            }}
+          >
+            <img
+              className="object-sprite"
+              src={obj.image}
+              alt=""
+              draggable={false}
+            />
+            <span className="sprite-tooltip">{obj.label}</span>
+          </button>
+        ) : (
+          <button
+            className="object-art-button object-fallback-button"
+            type="button"
+            title={`Inspect ${obj.label}`}
+            aria-label={`Inspect ${obj.label}`}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              interactObject(obj);
+            }}
+          >
+            <span className="object-icon">{objectIcon(obj)}</span>
+            <span className="object-name">{obj.label}</span>
+          </button>
+        )}
+        {obj.type === "chest" && (obj.contents_count ?? 0) > 0 && (
+          <span className="slot-count object-count" title="Items waiting inside">{obj.contents_count}</span>
+        )}
+      </div>
+    );
+  });
 
   const inCombat = room.room.mode === "combat";
 
@@ -314,16 +521,37 @@ export function RoomGrid() {
         onClickCapture={onClickCapture}
       >
         <div
-          className="grid"
+          className={`grid ${debugFootprints ? "debug-footprints" : ""}`}
           ref={gridRef}
           style={{
             gridTemplateColumns: `repeat(${room.room.width}, var(--cell))`,
+            gridTemplateRows: `repeat(${room.room.height}, var(--cell))`,
             transform: `translate3d(${-cam.x}px, ${-cam.y}px, 0)`,
             transition: cam.animate ? "transform 0.45s cubic-bezier(0.22, 1, 0.36, 1)" : "none",
           }}
         >
           {cells}
+          {objectRenders}
         </div>
+        <button
+          className="camera-recenter"
+          type="button"
+          title="Recenter on your character (Home)"
+          aria-label="Recenter on your character"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            recenterCamera(true);
+          }}
+        >
+          ◎
+        </button>
+        {debugFootprints && (
+          <div className="footprint-legend" aria-live="polite">
+            <span><i className="legend-collision" /> collision</span>
+            <span><i className="legend-visual" /> artwork</span>
+          </div>
+        )}
         <div className={`edge-fade fade-left ${cam.fades.left ? "on" : ""}`} />
         <div className={`edge-fade fade-right ${cam.fades.right ? "on" : ""}`} />
         <div className={`edge-fade fade-top ${cam.fades.top ? "on" : ""}`} />

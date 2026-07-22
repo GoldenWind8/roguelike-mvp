@@ -168,7 +168,62 @@ def take_free(reachable, occupied, n, rng) -> list[tuple[int, int]]:
     return chosen
 
 
-def populate_contents(reachable, occupied, params, rng) -> tuple[list, list]:
+def take_blocking_free(
+        reachable, occupied, blocked, protected, n, rng) -> list[tuple[int, int]]:
+    """Choose one-tile objects without cutting the floor graph in two.
+
+    Actors merely reserve a starting tile; objects remain static blockers. A
+    candidate is accepted only when all remaining floor tiles stay connected
+    after it and previously chosen objects are removed.
+    """
+    if n <= 0:
+        return []
+
+    floor = set(reachable)
+    free = [tile for tile in reachable if tile not in occupied and tile not in protected]
+    rng.shuffle(free)
+    chosen = []
+
+    for candidate in free:
+        remaining = floor - blocked - {candidate}
+        if not _tiles_connected(remaining):
+            continue
+
+        chosen.append(candidate)
+        occupied.add(candidate)
+        blocked.add(candidate)
+        if len(chosen) == n:
+            break
+    return chosen
+
+
+def blocking_candidates(reachable, occupied=(), blocked=(), protected=()):
+    """Free cells that one more static one-tile object may safely occupy."""
+    floor = set(reachable)
+    blocked = set(blocked)
+    unavailable = set(occupied) | set(protected)
+    return [
+        tile for tile in reachable
+        if tile not in unavailable and _tiles_connected(floor - blocked - {tile})
+    ]
+
+
+def _tiles_connected(tiles) -> bool:
+    if not tiles:
+        return True
+    start = next(iter(tiles))
+    seen = {start}
+    stack = [start]
+    while stack:
+        x, y = stack.pop()
+        for neighbour in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+            if neighbour in tiles and neighbour not in seen:
+                seen.add(neighbour)
+                stack.append(neighbour)
+    return len(seen) == len(tiles)
+
+
+def populate_contents(reachable, occupied, params, rng, passages=()) -> tuple[list, list]:
     """The standard decoration pass: enemies, chests and fire barrels onto free
     reachable tiles, driven by the preset's counts. Returns (enemy_spawns,
     objects) in the room-dict shape the validator expects. Chests are bare
@@ -179,9 +234,21 @@ def populate_contents(reachable, occupied, params, rng) -> tuple[list, list]:
         for (x, y) in take_free(reachable, occupied, params.get("enemies", 0), rng)
     ]
     objects = []
-    for (x, y) in take_free(reachable, occupied, params.get("chests", 0), rng):
+    floor = set(reachable)
+    # A border door has one interior floor neighbour; an interior portal may
+    # have several. Static props never take those approach cells.
+    protected = {
+        neighbour
+        for x, y in passages
+        for neighbour in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1))
+        if neighbour in floor
+    }
+    blocked: set[tuple[int, int]] = set()
+    for (x, y) in take_blocking_free(
+            reachable, occupied, blocked, protected, params.get("chests", 0), rng):
         objects.append({"type": ObjectType.CHEST.value, "x": x, "y": y})
-    for (x, y) in take_free(reachable, occupied, params.get("barrels", 0), rng):
+    for (x, y) in take_blocking_free(
+            reachable, occupied, blocked, protected, params.get("barrels", 0), rng):
         objects.append({"type": ObjectType.FIRE_BARREL.value, "x": x, "y": y,
                         "hp": rng.randint(2, 4)})
     return enemy_spawns, objects

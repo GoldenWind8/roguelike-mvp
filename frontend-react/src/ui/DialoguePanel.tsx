@@ -12,6 +12,18 @@ import { npcIcon } from "../grid/RoomGrid";
 // Keyed by NAME, not id: server ids are row-derived and can change across
 // reseeds, but Mara is Mara.
 const SUGGESTIONS: Record<string, { neutral: string[]; hostile: string[] }> = {
+  Basil: {
+    neutral: ["What do you know about the north road?", "What remedies do you make?", "How long have you lived in Oakrun?"],
+    hostile: ["I meant no threat. Let's speak plainly."],
+  },
+  "Elowen Pike": {
+    neutral: ["What news came through the inn?", "Who arrived from the north?", "Tell me about Oakrun."],
+    hostile: [],
+  },
+  "Rowan Hale": {
+    neutral: ["What did the northern report say?", "Why do the dates trouble you?", "Who sent you?"],
+    hostile: [],
+  },
   Mara: {
     neutral: ["Fight beside me?", "Can you heal me?", "What keeps you in this hall?"],
     hostile: [],
@@ -59,7 +71,13 @@ export function DialoguePanel() {
   return (
     <section className="panel panel-dialogue">
       <div className="dialogue-head">
-        <span className="dialogue-icon">{npcIcon(npc.role)}</span>
+        {npc.image ? (
+          <span className="dialogue-portrait">
+            <img src={npc.image} alt="" draggable={false} />
+          </span>
+        ) : (
+          <span className="dialogue-icon">{npcIcon(npc.role)}</span>
+        )}
         <div className="dialogue-who">
           <span className="dialogue-name">{npc.name}</span>
           <span className="dialogue-role">{npc.role}</span>

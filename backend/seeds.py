@@ -3,16 +3,16 @@
 ENEMY_DEFS is the reusable enemy catalog (stable ids). Rooms reference enemies
 by id and store only their placement — stats are loaded from enemy_defs.
 
-DEFAULT_ROOM is a 10x10 pillared hall that drops into the running 10x10
-frontend. Players ENTER through the south door and spawn clustered around it;
-a far door (north) and the south door both link to SECOND_ROOM, and walking
-through them traverses to it.
+Oakrun is the production starting slice. The older pillared-hall pair remains
+available to focused engine tests, but ``get_or_seed_default_room`` returns the
+town so a newly authenticated player wakes at its south road.
 
 Terrain is an ASCII grid (one char per tile, see TileType):
     #  wall      .  floor      +  door      O  portal
 """
 from sqlalchemy import select
 
+from backend.content import load_catalog, load_json
 from backend.persona import validate_persona
 from backend.room_validation import (
     validate_connection,
@@ -20,7 +20,7 @@ from backend.room_validation import (
     validate_npc_placement,
     validate_room,
 )
-from backend.models import EnemyDef, NPCRow, Room, RoomConnection
+from backend.models import EnemyDef, NPCRow, PlayerRow, Room, RoomConnection
 
 
 # Reusable enemy catalog. Stable, explicit ids so rooms can reference them.
@@ -28,15 +28,12 @@ from backend.models import EnemyDef, NPCRow, Room, RoomConnection
 # is the planned first tenant (it will call loot.spawn_loot like every other
 # loot source, docs/LOOT.md), and illustrative fake entries would only lie
 # about being implemented.
+_ENEMY_CONTENT_FIELDS = {
+    "id", "name", "hp", "attack_damage", "defense", "on_spawn", "on_death",
+}
 ENEMY_DEFS = [
-    {"id": 1, "name": "Goblin",      "hp": 6, "attack_damage": 1, "defense": 1,
-     "on_spawn": [], "on_death": []},
-    {"id": 2, "name": "Skeleton",    "hp": 8, "attack_damage": 2, "defense": 1,
-     "on_spawn": [], "on_death": []},
-    {"id": 3, "name": "Rat",         "hp": 4, "attack_damage": 3, "defense": 3,
-     "on_spawn": [], "on_death": []},
-    {"id": 4, "name": "Angry bunny", "hp": 7, "attack_damage": 0, "defense": 2,
-     "on_spawn": [], "on_death": []},
+    {key: value for key, value in entry.items() if key in _ENEMY_CONTENT_FIELDS}
+    for entry in load_json("enemies.json")
 ]
 
 
@@ -91,6 +88,13 @@ SECOND_ROOM = {
     "enemy_spawns": [],
     "objects": [],
 }
+
+
+# --- Oakrun: the actual player-facing starting slice -------------------------
+
+_OAKRUN_CONTENT = load_json("world/oakrun.json")
+OAKRUN_ROOM = _OAKRUN_CONTENT["rooms"]["oakrun"]
+NORTH_ROAD_ROOM = _OAKRUN_CONTENT["rooms"]["north_road"]
 
 
 # The first individual (NPCS.md Decision 9): seeded ONCE as an instance row
@@ -152,6 +156,24 @@ MARA_PERSONA = {
     "grants": ["join_party"],
 }
 
+
+# Production NPC definitions live in content/npcs.json. The old prototype
+# personas (Gorrik and Mara) remain local test fixtures.
+_AUTHORED_NPCS = load_catalog("npcs.json")
+
+
+def _persona_from_content(entry: dict) -> dict:
+    return {key: value for key, value in entry.items() if key not in {"spawn", "stats"}}
+
+
+BASIL_PERSONA = _persona_from_content(_AUTHORED_NPCS["basil-oakrun"])
+ELOWEN_PERSONA = _persona_from_content(_AUTHORED_NPCS["elowen-wayfarers-rest"])
+TOM_PERSONA = _persona_from_content(_AUTHORED_NPCS["tom-oakrun-stable"])
+HESTER_PERSONA = _persona_from_content(_AUTHORED_NPCS["hester-oakrun-carriage"])
+ROWAN_PERSONA = _persona_from_content(_AUTHORED_NPCS["rowan-oakrun-courier"])
+MAUD_PERSONA = _persona_from_content(_AUTHORED_NPCS["maud-oakrun-orchard"])
+ALYS_PERSONA = _persona_from_content(_AUTHORED_NPCS["alys-oakrun-watch"])
+
 # (room_key, persona, x, y, hp, defense, attack_damage) — placement is
 # validated against the room like every other seeded thing. Gorrik is a
 # caretaker (modest stats, harmless, no grants); Mara is a combatant (more hp,
@@ -162,6 +184,17 @@ NPC_SEEDS = [
     ("default", MARA_PERSONA, 2, 8, 40, 1, 8),
 ]
 
+OAKRUN_NPC_SEEDS = []
+for _entry in _AUTHORED_NPCS.values():
+    _spawn = _entry["spawn"]
+    if _spawn["region"] != "oakrun":
+        continue
+    _stats = _entry["stats"]
+    OAKRUN_NPC_SEEDS.append((
+        _spawn["room"], _persona_from_content(_entry), _spawn["x"], _spawn["y"],
+        _stats["hp"], _stats["defense"], _stats["attack_damage"],
+    ))
+
 
 # Edges of the world graph: (from_room_key, to_room_key, from_x, from_y).
 # Resolved to real room ids at seed time once the rows have been flushed.
@@ -169,6 +202,11 @@ _CONNECTIONS = [
     ("default", "second", 4, 0),   # far door
     ("default", "second", 4, 9),   # entry door
     ("second", "default", 0, 2),   # door back
+]
+
+_OAKRUN_CONNECTIONS = [
+    (connection["from"], connection["to"], connection["x"], connection["y"])
+    for connection in _OAKRUN_CONTENT["connections"]
 ]
 
 
@@ -217,6 +255,80 @@ async def seed_default_rooms(session) -> Room:
     return models["default"]
 
 
+async def _ensure_enemy_defs(session) -> None:
+    """Synchronize authored respawnable definitions by stable numeric id."""
+    for data in ENEMY_DEFS:
+        row = await session.get(EnemyDef, data["id"])
+        if row is None:
+            session.add(EnemyDef(**data))
+            continue
+        for key, value in data.items():
+            if key != "id":
+                setattr(row, key, value)
+
+
+async def seed_oakrun_world(session) -> Room:
+    """Insert Oakrun + its north road and return the player starting room.
+
+    The operation also upgrades a local prototype database safely: old room
+    rows remain intact, while characters saved in those unreachable demo rooms
+    are moved to Oakrun with no preferred tile so login chooses a valid spawn.
+    """
+    rooms = {"oakrun": OAKRUN_ROOM, "north_road": NORTH_ROAD_ROOM}
+    known_enemy_ids = {d["id"] for d in ENEMY_DEFS}
+
+    for data in rooms.values():
+        validate_room(data)
+        validate_enemy_refs(data, known_enemy_ids)
+    for from_key, _to, fx, fy in _OAKRUN_CONNECTIONS:
+        validate_connection(rooms[from_key], {"from_x": fx, "from_y": fy})
+    for room_key, persona, x, y, _hp, _defense, _atk in OAKRUN_NPC_SEEDS:
+        validate_persona(persona)
+        validate_npc_placement(rooms[room_key], x, y)
+
+    await _ensure_enemy_defs(session)
+
+    legacy_rooms = (await session.execute(
+        select(Room).where(Room.name.in_((DEFAULT_ROOM["name"], SECOND_ROOM["name"])))
+    )).scalars().all()
+    legacy_ids = {room.id for room in legacy_rooms}
+
+    models = {
+        key: Room(
+            content_id=data.get("id"),
+            name=data["name"], width=data["width"], height=data["height"],
+            terrain=data["terrain"], objects=data["objects"],
+            spawn_points=data["spawn_points"], enemy_spawns=data["enemy_spawns"],
+        )
+        for key, data in rooms.items()
+    }
+    session.add_all(models.values())
+    await session.flush()
+
+    for from_key, to_key, fx, fy in _OAKRUN_CONNECTIONS:
+        session.add(RoomConnection(
+            from_room_id=models[from_key].id,
+            to_room_id=models[to_key].id,
+            from_x=fx,
+            from_y=fy,
+        ))
+
+    for room_key, persona, x, y, hp, defense, atk in OAKRUN_NPC_SEEDS:
+        session.add(_npc_row(persona, models[room_key].id, x, y, hp, defense, atk))
+
+    if legacy_ids:
+        players = (await session.execute(
+            select(PlayerRow).where(PlayerRow.room_id.in_(legacy_ids))
+        )).scalars().all()
+        for player in players:
+            player.room_id = models["oakrun"].id
+            player.x = None
+            player.y = None
+
+    await session.commit()
+    return models["oakrun"]
+
+
 def _npc_row(persona: dict, room_id: int, x: int, y: int, hp: int, defense: int, attack_damage: int) -> NPCRow:
     return NPCRow(
         room_id=room_id,
@@ -230,38 +342,66 @@ def _npc_row(persona: dict, room_id: int, x: int, y: int, hp: int, defense: int,
     )
 
 
-async def _insert_npc_seeds(session) -> None:
-    """Add one row per NPC_SEEDS entry, resolving the room by name (rooms already
-    exist by the time this runs). Does NOT commit — the caller owns the unit of
-    work, so a reseed is atomic with whatever else it does."""
-    key_to_name = {"default": DEFAULT_ROOM["name"], "second": SECOND_ROOM["name"]}
-    for room_key, persona, x, y, hp, defense, atk in NPC_SEEDS:
+async def _insert_npc_seeds(session, seeds, key_to_name, *, existing_ids=()) -> int:
+    """Insert missing individuals from one authored seed group.
+
+    Persona ids are stable content identity. A dead row still counts as
+    existing, so a restart never resurrects someone merely because they died.
+    """
+    inserted = 0
+    existing_ids = set(existing_ids)
+    for room_key, persona, x, y, hp, defense, atk in seeds:
         validate_persona(persona)
+        if persona["id"] in existing_ids:
+            continue
         room = (await session.execute(
             select(Room).where(Room.name == key_to_name[room_key]))).scalars().first()
         if room is not None:
             session.add(_npc_row(persona, room.id, x, y, hp, defense, atk))
+            existing_ids.add(persona["id"])
+            inserted += 1
+    return inserted
+
+
+def _persona_id(row: NPCRow) -> str | None:
+    return row.persona.get("id") if isinstance(row.persona, dict) else None
 
 
 async def seed_npcs_if_missing(session) -> None:
-    """Backfill for databases seeded before the npcs table existed. Runs only
-    when the table has NEVER held a row — an empty-because-everyone-died table
-    still has rows (is_alive=False), and individuals must stay dead."""
-    existing = (await session.execute(select(NPCRow))).scalars().first()
-    if existing is not None:
-        return
-    await _insert_npc_seeds(session)
-    await session.commit()
+    """Backfill any authored individual whose stable persona id is absent."""
+    existing_rows = (await session.execute(select(NPCRow))).scalars().all()
+    existing_ids = {_persona_id(row) for row in existing_rows}
+    inserted = 0
+    inserted += await _insert_npc_seeds(
+        session,
+        NPC_SEEDS,
+        {"default": DEFAULT_ROOM["name"], "second": SECOND_ROOM["name"]},
+        existing_ids=existing_ids,
+    )
+    existing_ids.update(persona["id"] for _, persona, *_ in NPC_SEEDS)
+    inserted += await _insert_npc_seeds(
+        session,
+        OAKRUN_NPC_SEEDS,
+        {"oakrun": OAKRUN_ROOM["name"], "north_road": NORTH_ROAD_ROOM["name"]},
+        existing_ids=existing_ids,
+    )
+    if inserted:
+        await session.commit()
 
 
 async def reset_npcs(session) -> None:
-    """DEV: wipe ALL npc individual state and re-seed from NPC_SEEDS — restoring
-    a living, friendly Mara and a neutral Gorrik to their starting rows. This is
-    the one place that deliberately destroys individuals (Decision 10's opposite,
-    behind DEV_MODE). Template data (rooms, connections, enemy defs) is untouched;
-    fungible enemies respawn from the template when rooms reload."""
+    """DEV: wipe all individual state and restore every present seed group."""
     await session.execute(NPCRow.__table__.delete())
-    await _insert_npc_seeds(session)
+    await _insert_npc_seeds(
+        session,
+        NPC_SEEDS,
+        {"default": DEFAULT_ROOM["name"], "second": SECOND_ROOM["name"]},
+    )
+    await _insert_npc_seeds(
+        session,
+        OAKRUN_NPC_SEEDS,
+        {"oakrun": OAKRUN_ROOM["name"], "north_road": NORTH_ROAD_ROOM["name"]},
+    )
     await session.commit()
 
 
@@ -387,11 +527,62 @@ async def seed_items_if_missing(session) -> None:
 
 
 async def get_or_seed_default_room(session) -> Room:
-    """Idempotent startup helper: return the default room, seeding the world on
-    first boot if the rooms table is empty (Decision A — zero-touch startup)."""
+    """Synchronize authored Oakrun definitions and return its start room.
+
+    Only definition-owned fields are updated. NPC lives, player positions,
+    dialogue memory, and object-instance state remain database-owned.
+    """
+    start_content_id = OAKRUN_ROOM["id"]
     existing = (await session.execute(
-        select(Room).where(Room.name == DEFAULT_ROOM["name"]))).scalars().first()
+        select(Room).where(
+            (Room.content_id == start_content_id) | (Room.name == OAKRUN_ROOM["name"])
+        ))).scalars().first()
     if existing is None:
-        return await seed_default_rooms(session)
+        return await seed_oakrun_world(session)
+
+    rows_by_key = {}
+    for key, data in _OAKRUN_CONTENT["rooms"].items():
+        row = (await session.execute(
+            select(Room).where(
+                (Room.content_id == data["id"]) | (Room.name == data["name"])
+            ))).scalars().first()
+        if row is None:
+            row = Room(
+                content_id=data["id"], name=data["name"], width=data["width"],
+                height=data["height"], terrain=data["terrain"], objects=data["objects"],
+                spawn_points=data["spawn_points"], enemy_spawns=data.get("enemy_spawns", []),
+            )
+            session.add(row)
+        else:
+            row.content_id = data["id"]
+            row.name = data["name"]
+            row.width = data["width"]
+            row.height = data["height"]
+            row.terrain = data["terrain"]
+            row.objects = data.get("objects", [])
+            row.spawn_points = data["spawn_points"]
+            row.enemy_spawns = data.get("enemy_spawns", [])
+        rows_by_key[key] = row
+
+    await session.flush()
+    for from_key, to_key, x, y in _OAKRUN_CONNECTIONS:
+        source = rows_by_key[from_key]
+        target = rows_by_key[to_key]
+        connection = (await session.execute(
+            select(RoomConnection).where(
+                RoomConnection.from_room_id == source.id,
+                RoomConnection.from_x == x,
+                RoomConnection.from_y == y,
+            )
+        )).scalars().first()
+        if connection is None:
+            session.add(RoomConnection(
+                from_room_id=source.id, to_room_id=target.id, from_x=x, from_y=y,
+            ))
+        else:
+            connection.to_room_id = target.id
+
+    await _ensure_enemy_defs(session)
     await seed_npcs_if_missing(session)
-    return existing
+    await session.commit()
+    return rows_by_key[_OAKRUN_CONTENT["start_room"]]

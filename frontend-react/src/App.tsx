@@ -1,6 +1,11 @@
 import { useEffect, useMemo } from "react";
 import { useGame, useGameApi } from "./store/gameStore";
-import { RoomGrid } from "./grid/RoomGrid";
+import {
+  RECENTER_ROOM_EVENT,
+  RoomGrid,
+  TOGGLE_FOOTPRINTS_EVENT,
+} from "./grid/RoomGrid";
+import type { ObjectSummary } from "./net/types";
 import { StatusBar } from "./ui/StatusBar";
 import { PartyPanel } from "./ui/PartyPanel";
 import { PlayerPanel } from "./ui/PlayerPanel";
@@ -10,6 +15,15 @@ import { ChestLootModal } from "./ui/ChestLootModal";
 import { EventLog } from "./ui/EventLog";
 import { DialoguePanel } from "./ui/DialoguePanel";
 import { LoginScreen } from "./ui/LoginScreen";
+
+const manhattan = (a: [number, number], b: [number, number]) =>
+  Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
+
+const distanceToObject = (position: [number, number], object: ObjectSummary) =>
+  Math.min(...(object.occupied_cells.length > 0 ? object.occupied_cells : [object.position])
+    .map((cell) => manhattan(position, cell)));
+
+const LOCAL_FOOTPRINT_DEBUG = ["localhost", "127.0.0.1"].includes(window.location.hostname);
 
 /** A drift of embers rising past the panels; pure decoration. */
 function Embers() {
@@ -79,12 +93,49 @@ export default function App() {
       if (dir) {
         e.preventDefault();
         api.move(dir[0], dir[1]);
+      } else if (e.key === " ") {
+        e.preventDefault();
+        api.wait();
       } else if (/^[0-9]$/.test(e.key)) {
         // 1–9 are slots 0–8; 0 is the tenth slot, Minecraft-style.
         api.selectSlot(e.key === "0" ? 9 : Number(e.key) - 1);
       } else if (e.key.toLowerCase() === "e") {
+        e.preventDefault();
+        if (state.dialogue || state.lootReveal) return;
+        const room = state.room;
+        const me = room && state.playerId ? room.players[state.playerId] : null;
+        if (!room || !me) return;
+
+        // People win ties over scenery, then stable names/ids keep the choice
+        // predictable when several things are beside the player.
+        const npc = Object.values(room.npcs)
+          .filter((candidate) => candidate.is_alive
+            && candidate.disposition !== "hostile"
+            && manhattan(me.position, candidate.position) === 1)
+          .sort((a, b) => a.name.localeCompare(b.name))[0];
+        if (npc) {
+          api.openDialogue(npc);
+          return;
+        }
+
+        const object = room.objects
+          .filter((candidate) => distanceToObject(me.position, candidate) <= 1)
+          .sort((a, b) => a.label.localeCompare(b.label))[0];
+        if (object) {
+          if (object.type === "chest") api.openChest(object.id);
+          else api.inspect(object.id);
+          return;
+        }
+        api.note("ambient", "Nothing nearby asks for your attention.");
+      } else if (e.key.toLowerCase() === "r") {
         // Equip/stow the held slot (gear only; the api explains otherwise).
         if (state.selectedSlot !== null) api.toggleEquip(state.selectedSlot);
+      } else if (e.key === "Home") {
+        e.preventDefault();
+        window.dispatchEvent(new Event(RECENTER_ROOM_EVENT));
+      } else if (e.key === "F2" && LOCAL_FOOTPRINT_DEBUG) {
+        e.preventDefault();
+        window.dispatchEvent(new Event(TOGGLE_FOOTPRINTS_EVENT));
       } else if (e.key === "Escape") {
         // The loot reveal sits on top of everything, so it closes first;
         // then chat — the thing you most often want out of the way.
@@ -96,7 +147,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [api, state.screen, state.selectedSlot, state.dialogue, state.inspection, state.lootReveal]);
+  }, [api, state.screen, state.room, state.playerId, state.selectedSlot, state.dialogue, state.inspection, state.lootReveal]);
 
   if (state.screen === "login") {
     return (

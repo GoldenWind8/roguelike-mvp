@@ -1,0 +1,16 @@
+{
+  "id": "great_oak",
+  "kind": "landmark",
+  "image": "/art/world/landmarks/great-oak-v2.png",
+  "logical_footprint": {
+    "width": 1,
+    "height": 1,
+    "anchor": "bottom-center"
+  },
+  "visual_footprint": {
+    "width_cells": 3,
+    "height_cells": 3
+  },
+  "suggested_interaction": "inspect",
+  "notes": "The trunk occupies the logical tile; the canopy is decorative overhang. No generated ground is included."
+}

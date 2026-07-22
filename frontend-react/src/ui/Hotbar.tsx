@@ -1,7 +1,7 @@
 /**
  * The belt: ten fixed slots docked at the bottom of the screen, mirroring the
  * server's 10-slot pack (backend/inventory.py) straight off your player in
- * every broadcast. Left-click (or 1–0) holds an item; right-click (or E)
+ * every broadcast. Left-click (or 1–0) holds an item; right-click (or R)
  * equips/unequips gear in place — equipped gear stays in its slot with a
  * highlight, per the design.
  */
@@ -21,7 +21,7 @@ function hintFor(slot: InventorySlot): string {
       return `click a tile within ${slot.item.payload.throw_range ?? 1} to throw it`;
     case "weapon":
     case "wearable":
-      return slot.equipped ? "right-click (or E) to stow it" : "right-click (or E) to equip it";
+      return slot.equipped ? "right-click (or R) to stow it" : "right-click (or R) to equip it";
   }
 }
 

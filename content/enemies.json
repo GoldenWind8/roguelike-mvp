@@ -1,0 +1,14 @@
+[
+  {"id": 1, "key": "goblin", "name": "Goblin", "hp": 6, "attack_damage": 1, "defense": 1, "on_spawn": [], "on_death": []},
+  {"id": 2, "key": "skeleton", "name": "Skeleton", "hp": 8, "attack_damage": 2, "defense": 1, "on_spawn": [], "on_death": []},
+  {"id": 3, "key": "rat", "name": "Rat", "hp": 4, "attack_damage": 3, "defense": 3, "on_spawn": [], "on_death": []},
+  {"id": 4, "key": "angry_bunny", "name": "Angry bunny", "hp": 7, "attack_damage": 0, "defense": 2, "on_spawn": [], "on_death": []},
+  {"id": 5, "key": "rat_pack", "name": "Rat Pack", "hp": 7, "attack_damage": 2, "defense": 0, "on_spawn": [], "on_death": [], "image": "/art/world/enemies/rat-pack-v1.png", "visual_size": [2, 1]},
+  {"id": 6, "key": "feral_hound", "name": "Feral Hound", "hp": 11, "attack_damage": 3, "defense": 1, "on_spawn": [], "on_death": [], "image": "/art/world/enemies/feral-hound-v1.png", "visual_size": [1, 1]},
+  {"id": 7, "key": "road_bandit", "name": "Road Bandit", "hp": 16, "attack_damage": 4, "defense": 2, "on_spawn": [], "on_death": [], "image": "/art/world/enemies/road-bandit-v1.png", "visual_size": [1, 2]},
+  {"id": 8, "key": "barrow_revenant", "name": "Barrow Revenant", "hp": 20, "attack_damage": 5, "defense": 3, "on_spawn": [], "on_death": [], "image": "/art/world/enemies/barrow-revenant-v1.png", "visual_size": [1, 2]},
+  {"id": 9, "key": "homunculus_hound_bent", "name": "Hound-Bent Homunculus", "hp": 13, "attack_damage": 4, "defense": 1, "on_spawn": [], "on_death": [], "image": "/art/world/enemies/homunculus-hound-bent-v1.png", "visual_size": [1, 2]},
+  {"id": 10, "key": "homunculus_rook_eyed", "name": "Rook-Eyed Homunculus", "hp": 12, "attack_damage": 3, "defense": 2, "on_spawn": [], "on_death": [], "image": "/art/world/enemies/homunculus-rook-eyed-v1.png", "visual_size": [1, 2]},
+  {"id": 11, "key": "homunculus_boarback", "name": "Boarback Homunculus", "hp": 22, "attack_damage": 5, "defense": 3, "on_spawn": [], "on_death": [], "image": "/art/world/enemies/homunculus-boarback-v1.png", "visual_size": [1, 2]},
+  {"id": 12, "key": "homunculus_many_born", "name": "Many-Born Homunculus", "hp": 28, "attack_damage": 6, "defense": 3, "on_spawn": [], "on_death": [], "image": "/art/world/enemies/homunculus-many-born-v1.png", "visual_size": [2, 2]}
+]

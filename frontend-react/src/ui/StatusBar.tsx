@@ -8,13 +8,18 @@ import { useGame, useGameApi } from "../store/gameStore";
 
 const HELP_LINES: [string, string][] = [
   ["Arrows / WASD", "wander the room"],
+  ["Space", "hold your ground for a turn"],
+  ["E", "talk to or inspect the nearest thing"],
   ["1–0 or click the belt", "hold an item"],
+  ["R / right-click", "equip or stow held gear"],
   ["Item, then target", "how everything is done — sword on an enemy, bomb on a tile, food on yourself"],
-  ["Click a person", "talk (walk up close first)"],
-  ["Click an object", "take a closer look"],
+  ["Click the artwork", "talk or take a closer look"],
+  ["Home / ◎", "recenter the camera on you"],
   ["Esc", "close the chat, put the item away"],
   ["♪", "hush or wake the music"],
 ];
+
+const LOCAL_FOOTPRINT_DEBUG = ["localhost", "127.0.0.1"].includes(window.location.hostname);
 
 export function StatusBar() {
   const { room, connection, musicOn } = useGame();
@@ -56,7 +61,9 @@ export function StatusBar() {
           {helpOpen && (
             <div className="help-pop">
               <h4>How to be here</h4>
-              {HELP_LINES.map(([keys, what]) => (
+              {[...HELP_LINES, ...(LOCAL_FOOTPRINT_DEBUG
+                ? [["F2", "show collision and artwork bounds"] as [string, string]]
+                : [])].map(([keys, what]) => (
                 <div key={keys} className="help-row">
                   <span className="help-keys">{keys}</span>
                   <span className="help-what">{what}</span>

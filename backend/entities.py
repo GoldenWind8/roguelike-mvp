@@ -50,6 +50,10 @@ class Actor:
     # The base stat fields above never change; inventory.effective_stat adds
     # these (and a player's equipment) at every read site.
     active_effects: list = field(default_factory=list)
+    # Accepted presentation metadata. It never affects collision or combat;
+    # the actor still occupies exactly one grid cell.
+    image: str | None = None
+    visual_size: tuple[int, int] = (1, 1)
 
     def to_dict(self) -> dict:
         # Stats are reported EFFECTIVE — the numbers combat will actually use
@@ -68,6 +72,8 @@ class Actor:
             "is_alive": self.is_alive,
             "disposition": self.disposition.value,
             "active_effects": active_effects_view(self),
+            "image": self.image,
+            "visual_size": [self.visual_size[0], self.visual_size[1]],
         }
 
 

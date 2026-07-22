@@ -10,7 +10,7 @@ from sqlalchemy.pool import StaticPool
 
 import backend.models  # noqa: F401 — register tables on Base.metadata before create_all
 from backend.db import Base
-from backend.room_loader import EnemySpawn, RoomTemplate
+from backend.room_loader import EnemySpawn, RoomObject, RoomTemplate
 
 
 @pytest_asyncio.fixture
@@ -58,6 +58,7 @@ def make_template():
         doors: tuple[tuple[int, int], ...] = (),
         capacity: int | None = None,
         enemies: tuple[tuple[int, int], ...] = (),
+        objects: tuple[RoomObject, ...] = (),
     ) -> RoomTemplate:
         spawn_points = spawn_points or [(1, 1), (2, 1)]
         connections = connections or {}
@@ -77,6 +78,7 @@ def make_template():
                 EnemySpawn(name="Goblin", hp=10, attack_damage=1, defense=0, position=pos)
                 for pos in enemies
             ],
+            objects=list(objects),
             capacity=capacity if capacity is not None else len(spawn_points),
             connections=dict(connections),
         )

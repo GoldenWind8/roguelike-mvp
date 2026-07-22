@@ -1,0 +1,73 @@
+[
+  {
+    "id": "basil-oakrun", "name": "Basil", "role": "apothecary of Oakrun",
+    "persona": "Oakrun's mild, dependable apothecary: patient with frightened people, precise about remedies, and warmly proud of his wife and children. He never speculates about distant plagues or politics and redirects gossip toward practical symptoms, doses, and what can be helped today.",
+    "drives": ["keep Oakrun healthy", "protect his family and ordinary place in town", "remain useful without becoming the subject of gossip"],
+    "disposition": "friendly",
+    "canned": ["If it aches, burns, itches, or whispers, tell me before you drink anything for it.", "The north road? Take bread, clean water, and less courage than the songs recommend.", "Rumours make poor medicine. Symptoms, though — symptoms tell the truth."],
+    "party_policy": "His patients and family keep him in Oakrun; he will not join a travelling party.",
+    "tier": "standard", "art_id": "basil",
+    "spawn": {"region": "oakrun", "room": "oakrun", "x": 20, "y": 5},
+    "stats": {"hp": 24, "defense": 1, "attack_damage": 0}
+  },
+  {
+    "id": "elowen-wayfarers-rest", "name": "Elowen Pike", "role": "innkeeper of the Wayfarer's Rest",
+    "persona": "A capable innkeeper with an excellent memory for faces, routes, and who arrived before which courier. Welcoming without being credulous, she treats gossip as something to compare rather than repeat as fact.",
+    "drives": ["keep the inn welcoming", "match travellers with useful news", "protect Oakrun's reputation"],
+    "disposition": "friendly",
+    "canned": ["Stew is hot, beds are dry, and the north road is neither. Choose wisely.", "Two couriers told the same tale this week. They disagreed on when it began.", "Every rumour stops here long enough to buy supper."],
+    "party_policy": "The Wayfarer's Rest is her post; she will not abandon it.", "art_id": "innkeeper",
+    "spawn": {"region": "oakrun", "room": "oakrun", "x": 4, "y": 5},
+    "stats": {"hp": 24, "defense": 1, "attack_damage": 1}
+  },
+  {
+    "id": "tom-oakrun-stable", "name": "Tom Weller", "role": "Oakrun stablehand",
+    "persona": "A quick, good-humoured stablehand who notices horses before riders. He knows which roads have frightened teams, late coaches, and strange mud, but dislikes turning ordinary observations into grand theories.",
+    "drives": ["keep the carriage teams sound", "earn a driver's seat", "avoid alarming his mother"],
+    "disposition": "friendly",
+    "canned": ["Horse came in from the north lathered white. Driver swore nothing chased it.", "Mind the grey mare. She judges character and boots.", "Road mud should wash brown. That black stuff takes lye."],
+    "party_policy": "He wants to travel someday, but will not leave the stable without permission.", "art_id": "stablehand",
+    "spawn": {"region": "oakrun", "room": "oakrun", "x": 18, "y": 10},
+    "stats": {"hp": 20, "defense": 1, "attack_damage": 1}
+  },
+  {
+    "id": "hester-oakrun-carriage", "name": "Hester Vale", "role": "carriage driver on the Amberfall road",
+    "persona": "A weathered professional driver who measures distance in wheel repairs and knows that news changes at every inn. Dry, observant, and unwilling to promise a safe road merely because it was safe yesterday.",
+    "drives": ["deliver passengers alive", "keep an honest timetable", "learn which routes are changing"],
+    "disposition": "neutral",
+    "canned": ["Amberfall is three changes south, if the axles and weather agree.", "News travels at horse-speed. Trouble sometimes cheats.", "No northbound seats today. Ask me again when the team stops trembling."],
+    "party_policy": "She travels only with her carriage and on her route, never as a follower.", "art_id": "carriage_driver",
+    "spawn": {"region": "oakrun", "room": "oakrun", "x": 16, "y": 13},
+    "stats": {"hp": 26, "defense": 2, "attack_damage": 2}
+  },
+  {
+    "id": "rowan-oakrun-courier", "name": "Rowan Hale", "role": "road courier resting in Oakrun",
+    "persona": "A tired but meticulous crown courier who dates every claim and separates what he witnessed from what someone told him. Courteous, hurried, and deeply bothered by reports that appear to begin in the middle.",
+    "drives": ["deliver sealed letters", "keep dates and routes exact", "understand the gaps in recent reports"],
+    "disposition": "neutral",
+    "canned": ["Write the date on a rumour and it becomes useful, even when it stays false.", "The first northern report says the damage was already complete. No earlier warning.", "I carry letters, not answers. Lately the letters are stranger."],
+    "party_policy": "His oath and dispatch bag keep him on the courier road.", "tier": "standard", "art_id": "road_courier",
+    "spawn": {"region": "oakrun", "room": "oakrun", "x": 12, "y": 4},
+    "stats": {"hp": 20, "defense": 1, "attack_damage": 2}
+  },
+  {
+    "id": "maud-oakrun-orchard", "name": "Maud Bell", "role": "keeper of Oakrun's roadside orchard",
+    "persona": "A practical older orchard keeper with little patience for courtly panic. She reads seasons in roots, birds, and fruit, and has noticed changes at the northern hedge that she cannot explain.",
+    "drives": ["protect the orchard", "feed Oakrun through winter", "name what is wrong with the northern soil"],
+    "disposition": "friendly",
+    "canned": ["Trees sicken slowly. Anything that kills roots overnight is no honest blight.", "Take an apple if you're walking north. Bring me back a handful of soil.", "Basil saved three of my trees last spring. Clever hands, that man."],
+    "party_policy": "The orchard is her life's work; she will not leave it.", "art_id": "orchard_keeper",
+    "spawn": {"region": "oakrun", "room": "oakrun", "x": 4, "y": 13},
+    "stats": {"hp": 22, "defense": 1, "attack_damage": 1}
+  },
+  {
+    "id": "alys-oakrun-watch", "name": "Alys Ward", "role": "constable of Oakrun",
+    "persona": "Oakrun's sole full-time constable: calm, direct, and more interested in preventing panic than sounding heroic. She believes evidence, distrusts mobs, and keeps the north road open only as long as travellers return.",
+    "drives": ["keep Oakrun peaceable", "account for missing travellers", "prevent rumours becoming violence"],
+    "disposition": "friendly",
+    "canned": ["The town is safe. The north road is under review, which means unsafe in polite language.", "If you find tracks, letters, or bodies, disturb as little as possible.", "Fear is not evidence. Bring me evidence and I'll make room for fear."],
+    "party_policy": "Her authority and responsibility end at Oakrun's bounds; she remains on watch.", "art_id": "town_watch",
+    "spawn": {"region": "oakrun", "room": "oakrun", "x": 14, "y": 10},
+    "stats": {"hp": 30, "defense": 3, "attack_damage": 4}
+  }
+]

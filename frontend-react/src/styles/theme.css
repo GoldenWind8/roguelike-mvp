@@ -305,6 +305,7 @@ button {
   background: linear-gradient(160deg, #1f150d, #191008);
   border-radius: 10px;
   will-change: transform;
+  isolation: isolate;
 }
 
 /* Cut-off sides dissolve into shadow instead of clipping raw. Each fade is
@@ -312,6 +313,7 @@ button {
    means "this is the actual wall" and darkness means "more that way". */
 .edge-fade {
   position: absolute;
+  z-index: 8;
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.45s ease;
@@ -341,6 +343,46 @@ button {
   background: linear-gradient(180deg, #120c07, #0d0905);
   box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.7);
 }
+
+.cell-exit {
+  background:
+    radial-gradient(circle at center, rgba(232, 168, 78, 0.2), transparent 68%),
+    #2a1d12;
+  box-shadow: inset 0 0 0 1px rgba(232, 168, 78, 0.35), 0 0 14px rgba(232, 168, 78, 0.18);
+}
+
+.exit-marker {
+  position: absolute;
+  inset: 2px;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  color: var(--amber);
+  text-shadow: 0 0 8px rgba(232, 168, 78, 0.65), 0 1px 3px #120c07;
+}
+.exit-glyph { font-size: 18px; line-height: 1; }
+.exit-label {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 6px;
+  border: 1px solid rgba(77, 58, 38, 0.8);
+  border-radius: 4px;
+  background: rgba(24, 15, 8, 0.9);
+  color: var(--dim);
+  font-size: 8px;
+  line-height: 1.1;
+  white-space: nowrap;
+  opacity: 0.9;
+}
+.exit-bottom .exit-label { top: auto; bottom: calc(100% + 5px); }
+.exit-left .exit-label,
+.exit-right .exit-label,
+.exit-portal .exit-label { top: calc(100% + 5px); }
 
 .cell-actionable { cursor: pointer; }
 .cell-actionable:hover {
@@ -374,6 +416,37 @@ button {
 }
 
 .entity-icon { font-size: 21px; line-height: 1; }
+.entity-art-button {
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  z-index: 4;
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  transform: translateX(-50%);
+  cursor: pointer;
+  overflow: visible;
+}
+.entity-sprite {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  object-position: center bottom;
+  filter: drop-shadow(0 4px 4px rgba(0, 0, 0, 0.45));
+  pointer-events: none;
+  user-select: none;
+  transition: filter 0.16s ease, transform 0.16s ease;
+}
+.entity-art-button:hover .entity-sprite,
+.entity-art-button:focus-visible .entity-sprite {
+  transform: translateY(-1px);
+  filter: brightness(1.12) drop-shadow(0 0 7px rgba(232, 168, 78, 0.72)) drop-shadow(0 4px 4px rgba(0, 0, 0, 0.45));
+}
+.entity-art-button:focus-visible { outline: 1px solid var(--amber); outline-offset: 2px; }
 .entity-name {
   font-size: 8px;
   color: var(--dim);
@@ -382,6 +455,89 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.object-render {
+  position: relative;
+  align-self: stretch;
+  justify-self: stretch;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.object-art-button {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  z-index: 2;
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  transform: translateX(-50%);
+  pointer-events: auto;
+  cursor: pointer;
+  overflow: visible;
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+.object-sprite {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  object-position: center bottom;
+  filter: drop-shadow(0 5px 5px rgba(0, 0, 0, 0.35));
+  pointer-events: none;
+  user-select: none;
+  transition: filter 0.16s ease, transform 0.16s ease;
+}
+
+.object-art-button:hover .object-sprite,
+.object-art-button:focus-visible .object-sprite {
+  transform: translateY(-1px);
+  filter: brightness(1.1) drop-shadow(0 0 8px rgba(232, 168, 78, 0.7)) drop-shadow(0 5px 5px rgba(0, 0, 0, 0.35));
+}
+.object-art-button:focus-visible { outline: 1px solid var(--amber); outline-offset: 2px; }
+
+.object-fallback-button {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Scenery yields when an actor's feet pass behind its visual silhouette. The
+   logical footprint and all server rules remain unchanged. */
+.object-occluding-actor .object-art-button { opacity: 0.34; }
+.object-occluding-actor .object-art-button:hover,
+.object-occluding-actor .object-art-button:focus-visible { opacity: 0.68; }
+
+.sprite-tooltip {
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  transform: translate(-50%, 4px);
+  padding: 3px 7px;
+  border: 1px solid var(--edge);
+  border-radius: 5px;
+  background: rgba(25, 16, 9, 0.94);
+  color: var(--text);
+  font: 10px/1.2 var(--serif);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.14s ease, transform 0.14s ease;
+  text-shadow: 0 1px 2px #000;
+}
+.object-art-button:hover .sprite-tooltip,
+.object-art-button:focus-visible .sprite-tooltip {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 .object-icon { font-size: 19px; line-height: 1; opacity: 0.95; }
@@ -394,7 +550,97 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  z-index: 4;
+  text-shadow: 0 1px 3px #120c07, 0 0 3px #120c07;
 }
+
+/* Actors remain legible above an object's decorative overhang. */
+.entity-icon,
+.entity-art-button,
+.entity-name,
+.hp-bar,
+.disp-dot,
+.party-badge {
+  z-index: 3;
+}
+.entity-icon,
+.entity-name,
+.hp-bar { position: relative; }
+
+.object-count { z-index: 3; }
+
+/* Local authoring view (F2 on localhost): red cells are collision, blue
+   rectangles are the independent visual bounds, green cells are actors. */
+.debug-footprints .cell-object-footprint::after,
+.debug-footprints .cell-actor-footprint::before {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  z-index: 7;
+  pointer-events: none;
+  border-radius: 2px;
+}
+.debug-footprints .cell-object-footprint::after {
+  border: 1px solid rgba(232, 168, 78, 0.8);
+  background: rgba(232, 168, 78, 0.08);
+}
+.debug-footprints .cell-object-blocking::after {
+  border-color: rgba(207, 91, 63, 0.95);
+  background: rgba(207, 91, 63, 0.12);
+}
+.debug-footprints .cell-actor-footprint::before {
+  border: 1px solid rgba(147, 179, 137, 0.95);
+  background: rgba(147, 179, 137, 0.08);
+}
+.debug-footprints .object-art-button {
+  outline: 1px dashed rgba(112, 180, 220, 0.95);
+  outline-offset: -1px;
+}
+
+.camera-recenter {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 12;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid rgba(77, 58, 38, 0.85);
+  border-radius: 6px;
+  background: rgba(31, 21, 13, 0.86);
+  color: var(--dim);
+  font-size: 17px;
+  opacity: 0.72;
+  cursor: pointer;
+}
+.camera-recenter:hover,
+.camera-recenter:focus-visible {
+  opacity: 1;
+  color: var(--amber);
+  border-color: var(--amber);
+  outline: none;
+}
+
+.footprint-legend {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  z-index: 12;
+  display: flex;
+  gap: 12px;
+  transform: translateX(-50%);
+  padding: 5px 9px;
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  background: rgba(25, 16, 9, 0.92);
+  color: var(--dim);
+  font-size: 10px;
+  pointer-events: none;
+}
+.footprint-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.footprint-legend i { width: 10px; height: 10px; display: inline-block; }
+.legend-collision { border: 1px solid var(--ember); background: rgba(207, 91, 63, 0.16); }
+.legend-visual { border: 1px dashed #70b4dc; }
 
 .hp-bar {
   width: 34px;
@@ -704,6 +950,26 @@ button {
   border-bottom: 1px solid var(--edge-soft);
 }
 .dialogue-icon { font-size: 26px; }
+.dialogue-portrait {
+  width: 46px;
+  height: 46px;
+  position: relative;
+  flex: 0 0 46px;
+  overflow: hidden;
+  border: 1px solid var(--edge-soft);
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.22);
+}
+.dialogue-portrait img {
+  position: absolute;
+  left: 50%;
+  bottom: -3px;
+  width: 54px;
+  height: 76px;
+  object-fit: contain;
+  object-position: center bottom;
+  transform: translateX(-50%);
+}
 .dialogue-who { flex: 1; display: flex; flex-direction: column; }
 .dialogue-name { font-size: 16px; color: var(--gold); }
 .dialogue-role { font-size: 11.5px; color: var(--faint); font-style: italic; }

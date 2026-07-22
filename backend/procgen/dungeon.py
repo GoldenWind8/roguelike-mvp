@@ -66,7 +66,7 @@ def generate(params: dict, rng: random.Random) -> dict:
     reachable = flood_floor(grid, w, h, entry)
     occupied: set[tuple[int, int]] = set()
     spawns = pick_spawns(doors, reachable, params["capacity"], occupied)
-    enemy_spawns, objects = populate_contents(reachable, occupied, params, rng)
+    enemy_spawns, objects = populate_contents(reachable, occupied, params, rng, doors)
 
     return {
         "name": _name(rng),

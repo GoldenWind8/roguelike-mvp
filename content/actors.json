@@ -1,0 +1,12 @@
+[
+  {"id": "basil", "image": "/art/world/actors/basil-world-v1.png", "visual_size": [1, 2]},
+  {"id": "innkeeper", "image": "/art/world/npcs/innkeeper-v1.png", "visual_size": [1, 2]},
+  {"id": "stablehand", "image": "/art/world/npcs/stablehand-v1.png", "visual_size": [1, 2]},
+  {"id": "carriage_driver", "image": "/art/world/npcs/carriage-driver-v1.png", "visual_size": [1, 2]},
+  {"id": "road_courier", "image": "/art/world/npcs/road-courier-v1.png", "visual_size": [1, 2]},
+  {"id": "orchard_keeper", "image": "/art/world/npcs/orchard-keeper-v1.png", "visual_size": [1, 2]},
+  {"id": "town_watch", "image": "/art/world/npcs/town-watch-v1.png", "visual_size": [1, 2]},
+  {"id": "travelling_peddler", "image": "/art/world/npcs/travelling-peddler-v1.png", "visual_size": [1, 2]},
+  {"id": "road_weary_traveller", "image": "/art/world/npcs/road-weary-traveller-v1.png", "visual_size": [1, 2]},
+  {"id": "homunculus_fieldsite", "image": "/art/world/actors/homunculus-fieldsite-v1.png", "visual_size": [1, 2]}
+]

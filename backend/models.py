@@ -3,9 +3,9 @@
 Two layers of the world (see ARCHITECTURE.md "separate terrain from entities"):
   - terrain : a dense char grid of a SMALL closed set of TileTypes (floor/wall/
               door/portal). LLM-friendly — a model "draws" the map as ASCII.
-  - objects : a sparse list of stateful, interactive things (chests, barrels).
-              The OPEN content edge — new object types add an ObjectType + a
-              handler later, they never widen the terrain vocabulary.
+  - objects : a sparse list of stateful, interactive things. Trusted collision
+              and art metadata live in object_defs.py; room JSON stores only a
+              definition id and placement.
 
 Enemies are NORMALIZED: their stats live once in `enemy_defs`; a room only
 stores a placement {enemy_id, x, y} and loads the rest by id.
@@ -36,8 +36,11 @@ class TileType(str, Enum):
 
 
 class ObjectType(str, Enum):
-    """Interactive objects placed on top of terrain. Extensible: a new object
-    is a new member here + (later) a handler — terrain stays untouched."""
+    """The deliberately small object subset used by current room generators.
+
+    The full extensible catalogue lives in object_defs.py. Keeping generated
+    rooms on this one-tile subset is a generation policy, not a runtime branch.
+    """
     CHEST = "chest"
     FIRE_BARREL = "fire_barrel"
 
@@ -190,6 +193,9 @@ class Room(Base):
     __tablename__ = "rooms"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    # Stable id for a version-controlled authored room. Generated rooms leave
+    # this NULL and are owned by the database after validation.
+    content_id: Mapped[str | None] = mapped_column(String, nullable=True, unique=True, index=True)
     name: Mapped[str] = mapped_column(String)
     width: Mapped[int] = mapped_column(Integer)
     height: Mapped[int] = mapped_column(Integer)

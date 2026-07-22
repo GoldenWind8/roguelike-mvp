@@ -13,6 +13,12 @@ ideas stay separate.
 ## Current Build
 
 - Browser client served by FastAPI.
+- Oakrun Crossroads is the account starting room: a peaceful handcrafted town
+  hub with the Great Oak, Wayfarer's Rest, Basil's Cures, carriage yard,
+  named residents, and a connected hostile North Road encounter.
+- Authored raster art is used for meaningful actors, enemies, landmarks, and
+  placed objects; floors and walls keep the same neutral renderer-owned tiles
+  used by generated rooms.
 - Real-time updates over one WebSocket endpoint.
 - A registry of live rooms: each active room owns its own `RoomEngine`/`RoomState`,
   player sockets, and round timer. Rooms load from the DB on first entry and
@@ -108,6 +114,9 @@ npm run build
 ## How To Play
 
 - Arrow keys or WASD to move.
+- Press E beside a resident or object to interact; clicking any visible part
+  of accepted world artwork works too.
+- Press Home (or the ◎ button) to recenter the camera after looking around.
 - Click an adjacent player or enemy to attack.
 - Hold a belt item (`1`–`0` or click a slot), then click its target — an
   enemy for the sword, a tile for a bomb, yourself for food or a potion.
@@ -127,6 +136,12 @@ Each doc has one job:
 - [Database Schema](docs/DB_SCHEMA.md): current and planned data model.
 - [Frontend Design](docs/FRONTEND_DESIGN.md): the React client structure and
   client/server boundary.
+- [Art Direction](docs/ART_DIRECTION.md): the raster-asset boundary, visual
+  production workflow, and first Oakrun region plan.
+- [Authored Content](docs/CONTENT.md): version-controlled catalogues, database
+  ownership, and persistent-versus-respawnable character rules.
+- [World Object Assets](docs/OBJECT_ASSETS.md): the small data contract for
+  multi-tile collision, visual overhang, rendering, and generator policy.
 - [NPC And Actor Design](docs/NPCS.md): design source of truth for NPCs,
   actors, dialogue, and followers.
 - [Accounts & Identity](docs/archive/ACCOUNTS.md): design source of truth for the

@@ -109,6 +109,14 @@ app.mount(
     StaticFiles(directory=FRONTEND_DIST / "assets", check_dir=False),
     name="frontend-assets",
 )
+# Vite copies frontend-react/public verbatim into dist. World sprites keep
+# stable, human-readable paths instead of entering the fingerprinted JS asset
+# graph, so production must expose that public subtree explicitly too.
+app.mount(
+    "/art",
+    StaticFiles(directory=FRONTEND_DIST / "art", check_dir=False),
+    name="frontend-art",
+)
 
 
 @app.get("/")
@@ -528,9 +536,7 @@ def _adjacent_chest(room, player, object_id):
     obj = room.get_object(object_id) if isinstance(object_id, str) else None
     if obj is None or obj.type != ObjectType.CHEST.value:
         return None, "There is no chest there."
-    dx = abs(player.position.x - obj.position[0])
-    dy = abs(player.position.y - obj.position[1])
-    if dx + dy > 1:
+    if obj.distance_from(player.position.x, player.position.y) > 1:
         # Same rule as attack/talk: walk up to it, then interact.
         return None, "You are too far from the chest."
     return obj, None
@@ -690,8 +696,8 @@ async def handle_equip_toggle(websocket: WebSocket, player_id: str, data: dict,
 
 async def handle_dev_reset(websocket: WebSocket) -> None:
     """DEV-only (gated by DEV_MODE): discard every live room and restore the
-    world to its seeded starting state — individuals reset (a living Mara, a
-    neutral Gorrik), and fungible enemies respawn when rooms reload. This boots
+    world to its seeded starting state — authored individuals return to their
+    seed state, and fungible enemies respawn when rooms reload. This boots
     everyone, so it is a testing affordance, never a shipped feature.
 
     Current state is DISCARDED, not saved: we skip _save_individuals on purpose

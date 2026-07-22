@@ -12,7 +12,9 @@ merge; the caller runs the merged room through the real gate (base.validate)
 and shows the verdict. The repair loop (feed the gate's error back to the LLM)
 comes once this structure has proven itself — see docs/PROCGEN.md.
 """
-from backend.procgen.geometry import flood_floor
+from backend.models import TileType
+from backend.object_defs import get_object_definition, occupied_cells
+from backend.procgen.geometry import blocking_candidates, flood_floor
 
 # Params that describe contents rather than shape. AI placement zeroes them —
 # the LLM decides contents — and the harness hides their knobs in that mode.
@@ -31,15 +33,40 @@ def shape_params(params: dict | None) -> dict:
 
 def candidate_tiles(room: dict) -> list[list[int]]:
     """Floor tiles reachable from spawn 0 that hold nothing yet — the closed
-    menu of coordinates a placement proposal may draw from."""
+    menu of coordinates a placement proposal may draw from. Because the same
+    menu serves actors and static objects, it omits cells where a blocker would
+    cut the floor graph or close a passage approach."""
     spawns = [tuple(p) for p in room.get("spawn_points", [])]
     if not spawns:
         return []
     taken = set(spawns)
     taken.update((e["x"], e["y"]) for e in room.get("enemy_spawns", []))
-    taken.update((o["x"], o["y"]) for o in room.get("objects", []))
+    blocked = set()
+    for obj in room.get("objects", []):
+        definition = get_object_definition(obj.get("type"))
+        cells = (occupied_cells(definition, obj["x"], obj["y"])
+                 if definition else ((obj["x"], obj["y"]),))
+        taken.update(cells)
+        if definition is None or definition.blocks_movement:
+            blocked.update(cells)
     reachable = flood_floor(room["terrain"], room["width"], room["height"], spawns[0])
-    return [[x, y] for (x, y) in reachable if (x, y) not in taken]
+    passages = {
+        (x, y)
+        for y, row in enumerate(room["terrain"])
+        for x, char in enumerate(row)
+        if TileType(char) in (TileType.DOOR, TileType.PORTAL)
+    }
+    floor = set(reachable)
+    protected = {
+        neighbour
+        for x, y in passages
+        for neighbour in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1))
+        if neighbour in floor
+    }
+    return [
+        [x, y]
+        for x, y in blocking_candidates(reachable, taken, blocked, protected)
+    ]
 
 
 def apply_placement(room: dict, proposal: dict) -> dict:

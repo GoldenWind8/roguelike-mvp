@@ -35,7 +35,10 @@ Optional:
                 model name. Content stays stable while config rebinds tiers to
                 whatever models exist this month. Absent means the cheapest
                 tier: most NPCs are tavern filler.
+  art_id        accepted world-art id from actor_defs.py. Presentation is
+                trusted catalogue data; personas never carry arbitrary URLs.
 """
+from backend.actor_defs import get_actor_art, known_actor_art_ids
 from backend.entities import Disposition
 from backend.llm import TIERS
 
@@ -102,7 +105,15 @@ def validate_persona(doc: dict) -> None:
     if tier is not None and tier not in TIERS:
         raise ValueError(f"persona 'tier' must be one of {list(TIERS)}, got {tier!r}")
 
-    unknown = set(doc) - set(_REQUIRED_STR) - set(_REQUIRED_STR_LIST) - {"disposition", "grants", "tier"}
+    art_id = doc.get("art_id")
+    if art_id is not None and get_actor_art(art_id) is None:
+        raise ValueError(
+            f"persona 'art_id' must be one of {list(known_actor_art_ids())}, got {art_id!r}"
+        )
+
+    unknown = set(doc) - set(_REQUIRED_STR) - set(_REQUIRED_STR_LIST) - {
+        "disposition", "grants", "tier", "art_id",
+    }
     if unknown:
         # Closed for now, like the effect vocabulary: a generator inventing
         # fields should fail loudly, not smuggle data past the gate.

@@ -93,7 +93,8 @@ def resolve_actor_phase(room: RoomState) -> list[GameEvent]:
     for actor, new_pos in moves:
         if not actor.is_alive:
             continue
-        if room.is_occupied(new_pos.x, new_pos.y):
+        if (not room.is_valid_position(new_pos.x, new_pos.y)
+                or room.is_occupied(new_pos.x, new_pos.y)):
             continue
         old_pos = [actor.position.x, actor.position.y]
         room.move_entity(actor.id, new_pos)

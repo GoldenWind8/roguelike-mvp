@@ -11,13 +11,14 @@ What we check:
   - placement: spawns/enemies/objects are in bounds, on walkable tiles, and
                don't overlap each other
   - enemies:   reference an enemy by id (stats live in the enemy_defs table)
-  - objects:   known ObjectType + the minimal metadata that type needs
+  - objects:   known trusted definition + the minimal metadata that type needs
   - entry:     every spawn sits near a door/portal — players arrive at an entry
-  - reachable: every spawn/enemy/object/door is reachable on foot from spawn 0
+  - reachable: entries and actors remain reachable around blocking objects
 """
 from collections import deque
 
-from backend.models import ObjectType, TileType
+from backend.models import TileType
+from backend.object_defs import get_object_definition, known_object_types, occupied_cells
 
 _REQUIRED = ("name", "width", "height", "terrain", "spawn_points")
 
@@ -66,11 +67,13 @@ def validate_room(data: dict) -> None:
     # Track every occupied cell so two things can't share a tile.
     occupied: dict[tuple[int, int], str] = {}
 
-    def place(x: int, y: int, what: str) -> None:
+    def place(x: int, y: int, what: str, *, floor_only: bool = False) -> None:
         if not in_bounds(x, y):
             raise ValueError(f"{what} at ({x}, {y}) is out of bounds ({width}x{height})")
         if not tile(x, y).passable:
             raise ValueError(f"{what} at ({x}, {y}) sits on a {tile(x, y).name} tile (not walkable)")
+        if floor_only and tile(x, y) is not TileType.FLOOR:
+            raise ValueError(f"{what} at ({x}, {y}) must sit on a FLOOR tile, not {tile(x, y).name}")
         if (x, y) in occupied:
             raise ValueError(f"{what} overlaps {occupied[(x, y)]} at ({x}, {y})")
         occupied[(x, y)] = what
@@ -82,31 +85,48 @@ def validate_room(data: dict) -> None:
     for i, (sx, sy) in enumerate(spawn_xy):
         place(sx, sy, f"spawn point {i}")
 
+    enemy_xy = []
     for i, e in enumerate(data.get("enemy_spawns", [])):
         if "enemy_id" not in e or not isinstance(e["enemy_id"], int):
             raise ValueError(f"enemy spawn {i} needs an int 'enemy_id' (rooms reference enemies by DB id)")
         if "x" not in e or "y" not in e:
             raise ValueError(f"enemy spawn {i} missing x/y")
         place(e["x"], e["y"], f"enemy_id {e['enemy_id']}")
+        enemy_xy.append((e["x"], e["y"]))
 
+    blocked_object_cells: set[tuple[int, int]] = set()
+    reachable_object_cells: list[tuple[int, int]] = []
+    placement_ids: set[str] = set()
     for i, o in enumerate(data.get("objects", [])):
-        if "type" not in o:
+        if not isinstance(o, dict) or "type" not in o:
             raise ValueError(f"object {i} missing 'type'")
-        try:
-            otype = ObjectType(o["type"])
-        except ValueError:
-            raise ValueError(f"unknown object type '{o['type']}' — valid: {[t.value for t in ObjectType]}")
+        definition = get_object_definition(o["type"]) if isinstance(o["type"], str) else None
+        if definition is None:
+            raise ValueError(f"unknown object type '{o['type']}' — valid: {list(known_object_types())}")
         if "x" not in o or "y" not in o:
             raise ValueError(f"object {i} ('{o['type']}') missing x/y")
-        place(o["x"], o["y"], f"object '{o['type']}'")
+        placement_id = o.get("id")
+        if placement_id is not None:
+            if not isinstance(placement_id, str) or not placement_id:
+                raise ValueError(f"object {i} id must be a non-empty string")
+            if placement_id in placement_ids:
+                raise ValueError(f"duplicate object placement id '{placement_id}'")
+            placement_ids.add(placement_id)
+        cells = occupied_cells(definition, o["x"], o["y"])
+        for x, y in cells:
+            place(x, y, f"object '{o['type']}'", floor_only=True)
+        if definition.blocks_movement:
+            blocked_object_cells.update(cells)
+        else:
+            reachable_object_cells.extend(cells)
         # Minimal per-type metadata (deep behavior validation lands with each
         # object's own issue — here we only guarantee the shape is sane).
         # Chests need nothing beyond a position: contents are rolled at open
         # (loot.spawn_loot), never designed into the room (docs/LOOT.md).
-        if otype is ObjectType.CHEST and "loot" in o:
+        if definition.id == "chest" and "loot" in o:
             raise ValueError(f"chest at ({o['x']}, {o['y']}) must not carry a 'loot' "
                              "list — loot is rolled when a player opens it")
-        if otype is ObjectType.FIRE_BARREL and not isinstance(o.get("hp"), int):
+        if definition.id == "fire_barrel" and not isinstance(o.get("hp"), int):
             raise ValueError(f"fire_barrel at ({o['x']}, {o['y']}) needs an int 'hp'")
 
     # Entries: door/portal tiles. Spawns must cluster around one of them.
@@ -116,14 +136,20 @@ def validate_room(data: dict) -> None:
         if not any(max(abs(sx - dx), abs(sy - dy)) <= SPAWN_NEAR_ENTRY_RADIUS for dx, dy in doors):
             raise ValueError(f"spawn ({sx}, {sy}) is not within {SPAWN_NEAR_ENTRY_RADIUS} tiles of an entry (door/portal)")
 
-    _check_reachable(terrain, width, height, spawn_xy, list(occupied) + doors)
+    _check_reachable(
+        terrain, width, height, spawn_xy,
+        [*spawn_xy, *enemy_xy, *reachable_object_cells, *doors],
+        blocked_object_cells,
+    )
 
 
-def _check_reachable(terrain, width, height, spawn_xy, must_reach) -> None:
+def _check_reachable(terrain, width, height, spawn_xy, must_reach, blocked_cells=()) -> None:
     """Flood-fill walkable tiles from the first spawn; everything that must be
     playable has to be in the reached set."""
+    blocked = set(blocked_cells)
+
     def passable(x, y):
-        return TileType(terrain[y][x]).passable
+        return TileType(terrain[y][x]).passable and (x, y) not in blocked
 
     start = spawn_xy[0]
     seen = {start}
@@ -137,7 +163,7 @@ def _check_reachable(terrain, width, height, spawn_xy, must_reach) -> None:
 
     for x, y in must_reach:
         if (x, y) not in seen:
-            raise ValueError(f"({x}, {y}) is walled off — unreachable from spawn {start}")
+            raise ValueError(f"({x}, {y}) is walled off or blocked — unreachable from spawn {start}")
 
 
 def validate_enemy_refs(data: dict, known_ids) -> None:
@@ -165,7 +191,10 @@ def validate_npc_placement(room: dict, x: int, y: int) -> None:
         if (e["x"], e["y"]) == (x, y):
             raise ValueError(f"NPC at ({x}, {y}) overlaps enemy_id {e['enemy_id']}")
     for o in room.get("objects", []):
-        if (o["x"], o["y"]) == (x, y):
+        definition = get_object_definition(o["type"])
+        if definition is None:
+            raise ValueError(f"unknown object type '{o['type']}'")
+        if (x, y) in occupied_cells(definition, o["x"], o["y"]):
             raise ValueError(f"NPC at ({x}, {y}) overlaps object '{o['type']}'")
 
 

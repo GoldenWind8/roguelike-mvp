@@ -1,0 +1,67 @@
+{
+  "assets": [
+    {
+      "id": "covered_carriage",
+      "kind": "object",
+      "image": "/art/world/objects/covered-carriage-v1.png",
+      "suggested_logical_size": [2, 2],
+      "suggested_visual_size": [4, 3]
+    },
+    {
+      "id": "stone_well",
+      "kind": "object",
+      "image": "/art/world/objects/stone-well-v1.png",
+      "suggested_logical_size": [2, 2],
+      "suggested_visual_size": [2, 3]
+    },
+    {
+      "id": "noticeboard",
+      "kind": "object",
+      "image": "/art/world/objects/noticeboard-v1.png",
+      "suggested_logical_size": [2, 1],
+      "suggested_visual_size": [2, 2]
+    },
+    {
+      "id": "hitching_post",
+      "kind": "object",
+      "image": "/art/world/objects/hitching-post-v1.png",
+      "suggested_logical_size": [2, 1],
+      "suggested_visual_size": [2, 2]
+    },
+    {
+      "id": "crate_barrel_cluster",
+      "kind": "object",
+      "image": "/art/world/objects/crate-barrel-cluster-v1.png",
+      "suggested_logical_size": [2, 2],
+      "suggested_visual_size": [2, 2]
+    },
+    {
+      "id": "wayfarers_rest_exterior",
+      "kind": "landmark",
+      "image": "/art/world/landmarks/wayfarers-rest-exterior-v1.png",
+      "suggested_logical_size": [5, 2],
+      "suggested_visual_size": [5, 4]
+    },
+    {
+      "id": "basils_cures_exterior",
+      "kind": "landmark",
+      "image": "/art/world/landmarks/basils-cures-exterior-v1.png",
+      "suggested_logical_size": [4, 2],
+      "suggested_visual_size": [4, 3]
+    },
+    {
+      "id": "basil",
+      "kind": "actor",
+      "image": "/art/world/actors/basil-world-v1.png",
+      "suggested_logical_size": [1, 1],
+      "suggested_visual_size": [1, 2]
+    },
+    {
+      "id": "homunculus_fieldsite",
+      "kind": "actor",
+      "image": "/art/world/actors/homunculus-fieldsite-v1.png",
+      "suggested_logical_size": [1, 1],
+      "suggested_visual_size": [1, 2]
+    }
+  ]
+}

@@ -78,6 +78,9 @@ export interface ActorState {
   is_alive: boolean;
   disposition: Disposition;
   active_effects?: ActiveEffect[];
+  /** Accepted server-owned presentation; null keeps the compact fallback. */
+  image: string | null;
+  visual_size: [number, number];
   /** Players only (their 10-slot pack). */
   inventory?: InventorySlot[];
   /** Players only: the hunger meter (0..max_hunger, LOOT.md Decision 5). */
@@ -101,8 +104,15 @@ export interface NpcState extends ActorState {
 export interface ObjectSummary {
   id: string;
   type: string;
+  /** Definition origin. The server expands collision into absolute cells. */
   position: [number, number];
   label: string;
+  occupied_cells: [number, number][];
+  blocks_movement: boolean;
+  /** Optional isolated world sprite; null keeps the compact fallback icon. */
+  image: string | null;
+  /** Presentation size in grid cells, independent of logical collision. */
+  visual_size: [number, number];
   /** Chest lifecycle (rolled-at-open, docs/LOOT.md). */
   opened?: boolean;
   contents_count?: number;
@@ -113,6 +123,12 @@ export interface ObjectDetail extends ObjectSummary {
   details: string[];
   /** Items waiting in an opened chest for anyone with pack room. */
   contents?: ItemView[];
+}
+
+export interface ExitSummary {
+  position: [number, number];
+  to_room_id: number;
+  label: string;
 }
 
 export interface GameEvent {
@@ -132,6 +148,8 @@ export interface RoomStatePayload {
   round: number;
   grid: (string | null)[][];
   walls: [number, number][];
+  /** Connected door/portal presentation; traversal remains server-owned. */
+  exits: ExitSummary[];
   objects: ObjectSummary[];
   players: Record<string, ActorState>;
   enemies: Record<string, ActorState>;

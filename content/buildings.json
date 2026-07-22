@@ -1,0 +1,4 @@
+[
+  {"id": "wayfarers_rest_exterior", "label": "The Wayfarer's Rest", "description": "Oakrun's inn: warm windows, a low slate roof, and a sign creaking above the door.", "details": ["Door: open", "Hearth smoke: steady"], "footprint": [[0, 0], [1, 0], [2, 0], [3, 0], [4, 0], [0, 1], [1, 1], [2, 1], [3, 1], [4, 1]], "blocks_movement": true, "image": "/art/world/landmarks/wayfarers-rest-exterior-v1.png", "visual_size": [5, 4]},
+  {"id": "basils_cures_exterior", "label": "Basil's Cures", "description": "A neat village apothecary that looks reassuringly ordinary.", "details": ["Shingle: freshly painted", "Windows: herb-lined"], "footprint": [[0, 0], [1, 0], [2, 0], [3, 0], [0, 1], [1, 1], [2, 1], [3, 1]], "blocks_movement": true, "image": "/art/world/landmarks/basils-cures-exterior-v1.png", "visual_size": [4, 3]}
+]

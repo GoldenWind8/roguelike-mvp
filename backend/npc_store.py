@@ -11,6 +11,7 @@ Eviction saving is what kills room reset for individuals (NPCS.md Decision
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.actor_defs import get_actor_art
 from backend.config import NPC_TRANSCRIPT_LIMIT
 from backend.entities import NPC, Disposition, Position
 from backend.models import NPCRow
@@ -34,6 +35,7 @@ async def load_npcs(session: AsyncSession, room_id: int) -> list[NPC]:
     npcs = []
     for row in rows:
         validate_persona(row.persona)
+        art = get_actor_art(row.persona.get("art_id"))
         npcs.append(NPC(
             id=_entity_id(row.id),
             db_id=row.id,
@@ -48,6 +50,8 @@ async def load_npcs(session: AsyncSession, room_id: int) -> list[NPC]:
             persona=row.persona,
             transcript=list(row.memory or [])[-NPC_TRANSCRIPT_LIMIT:],
             party_owner_id=row.party_owner_id,
+            image=art.image if art else None,
+            visual_size=art.visual_size if art else (1, 1),
         ))
     return npcs
 

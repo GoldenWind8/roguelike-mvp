@@ -11,7 +11,9 @@ from dataclasses import dataclass, field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.models import EnemyDef, ObjectType, Room, RoomConnection, TileType
+from backend.actor_defs import enemy_art
+from backend.models import EnemyDef, Room, RoomConnection, TileType
+from backend.object_defs import get_object_definition
 from backend.object_store import apply_object_states
 
 
@@ -24,6 +26,28 @@ class EnemySpawn:
     attack_damage: int
     defense: int
     position: tuple[int, int]
+    image: str | None = None
+    visual_size: tuple[int, int] = (1, 1)
+
+
+@dataclass(frozen=True)
+class RoomExit:
+    """Client-facing presentation for one connected door or portal.
+
+    Traversal continues to use ``RoomTemplate.connections`` as its compact
+    authoritative lookup.  This parallel view only gives the renderer a safe
+    destination label so an exit can advertise where it leads.
+    """
+    position: tuple[int, int]
+    to_room_id: int
+    label: str
+
+    def to_dict(self) -> dict:
+        return {
+            "position": [self.position[0], self.position[1]],
+            "to_room_id": self.to_room_id,
+            "label": self.label,
+        }
 
 
 @dataclass
@@ -43,8 +67,20 @@ class RoomObject:
     label: str
     description: str
     details: list[str] = field(default_factory=list)
+    footprint: tuple[tuple[int, int], ...] = ((0, 0),)
+    blocks_movement: bool = True
+    image: str | None = None
+    visual_size: tuple[int, int] = (1, 1)
     opened: bool = False
     contents: list = field(default_factory=list)
+
+    def occupied_cells(self) -> tuple[tuple[int, int], ...]:
+        x, y = self.position
+        return tuple((x + dx, y + dy) for dx, dy in self.footprint)
+
+    def distance_from(self, x: int, y: int) -> int:
+        """Shortest Manhattan distance to any cell in this object's body."""
+        return min(abs(x - ox) + abs(y - oy) for ox, oy in self.occupied_cells())
 
     def to_summary_dict(self) -> dict:
         return {
@@ -52,6 +88,13 @@ class RoomObject:
             "type": self.type,
             "position": [self.position[0], self.position[1]],
             "label": self.label,
+            # These are expanded by the server. The client uses them for hit
+            # testing and presentation, never to decide whether movement is
+            # legal.
+            "occupied_cells": [[x, y] for x, y in self.occupied_cells()],
+            "blocks_movement": self.blocks_movement,
+            "image": self.image,
+            "visual_size": [self.visual_size[0], self.visual_size[1]],
             "opened": self.opened,
             # A count, not the items — walking past a chest tells you THAT
             # something waits inside, inspecting tells you what.
@@ -60,13 +103,9 @@ class RoomObject:
 
     def to_dict(self) -> dict:
         return {
-            "id": self.id,
-            "type": self.type,
-            "position": [self.position[0], self.position[1]],
-            "label": self.label,
+            **self.to_summary_dict(),
             "description": self.description,
             "details": list(self.details),
-            "opened": self.opened,
             "contents": list(self.contents),
         }
 
@@ -88,33 +127,33 @@ class RoomTemplate:
     # Door/portal tile -> destination room id. Loaded once with the room so
     # the engine can answer "does this tile lead somewhere?" without the DB.
     connections: dict[tuple[int, int], int] = field(default_factory=dict)
+    # The same exits with client-safe destination names. Presentation only;
+    # movement never trusts or consults these labels.
+    exits: list[RoomExit] = field(default_factory=list)
     # Note: no `mode` field. A room's timing model is DERIVED live from who is
     # present (modes.derive_mode, M7) — a template with enemies wakes up combat
     # because those enemies are hostile, not because a stored flag says so.
 
 
 def _object_payload(raw: dict, index: int) -> RoomObject:
-    object_type = ObjectType(raw["type"])
-    label = {
-        ObjectType.CHEST: "Chest",
-        ObjectType.FIRE_BARREL: "Fire Barrel",
-    }[object_type]
-    description = {
-        ObjectType.CHEST: "An old iron-bound chest with a stubborn latch.",
-        ObjectType.FIRE_BARREL: "An oil-soaked barrel with blackened bands.",
-    }[object_type]
-    details = {
-        ObjectType.CHEST: ["Latch: rusted", "Contents: sealed"],
-        ObjectType.FIRE_BARREL: ["Stability: fragile", "Surface: oily"],
-    }[object_type]
+    definition = get_object_definition(raw["type"])
+    if definition is None:
+        raise ValueError(f"unknown object type '{raw['type']}'")
 
     return RoomObject(
-        id=f"object_{index + 1}",
-        type=object_type.value,
+        # Authored rooms use stable placement ids so reordering their JSON does
+        # not attach persisted chest/object state to the wrong object. Generated
+        # and legacy rooms retain the deterministic index fallback.
+        id=raw.get("id", f"object_{index + 1}"),
+        type=definition.id,
         position=(raw["x"], raw["y"]),
-        label=label,
-        description=description,
-        details=details,
+        label=definition.label,
+        description=definition.description,
+        details=list(definition.details),
+        footprint=definition.footprint,
+        blocks_movement=definition.blocks_movement,
+        image=definition.image,
+        visual_size=definition.visual_size,
     )
 
 
@@ -137,9 +176,12 @@ async def load_room(session: AsyncSession, room_id: int) -> RoomTemplate:
         ed = await session.get(EnemyDef, spawn["enemy_id"])
         if ed is None:
             raise ValueError(f"room '{room.name}' references unknown enemy_id {spawn['enemy_id']}")
+        art = enemy_art(ed.name)
         enemies.append(EnemySpawn(
             name=ed.name, hp=ed.hp, attack_damage=ed.attack_damage,
             defense=ed.defense, position=(spawn["x"], spawn["y"]),
+            image=art.image if art else None,
+            visual_size=art.visual_size if art else (1, 1),
         ))
 
     objects = [
@@ -151,9 +193,26 @@ async def load_room(session: AsyncSession, room_id: int) -> RoomTemplate:
     await apply_object_states(session, room_id, objects)
 
     connection_rows = (await session.execute(
-        select(RoomConnection).where(RoomConnection.from_room_id == room_id)
+        select(RoomConnection)
+        .where(RoomConnection.from_room_id == room_id)
+        .order_by(RoomConnection.id)
     )).scalars().all()
     connections = {(c.from_x, c.from_y): c.to_room_id for c in connection_rows}
+    destination_ids = {c.to_room_id for c in connection_rows}
+    destination_names = {}
+    if destination_ids:
+        destination_rooms = (await session.execute(
+            select(Room).where(Room.id.in_(destination_ids))
+        )).scalars().all()
+        destination_names = {destination.id: destination.name for destination in destination_rooms}
+    exits = [
+        RoomExit(
+            position=(connection.from_x, connection.from_y),
+            to_room_id=connection.to_room_id,
+            label=destination_names.get(connection.to_room_id, "Unknown road"),
+        )
+        for connection in connection_rows
+    ]
 
     return RoomTemplate(
         room_id=room.id,
@@ -166,4 +225,5 @@ async def load_room(session: AsyncSession, room_id: int) -> RoomTemplate:
         objects=objects,
         capacity=room.capacity,
         connections=connections,
+        exits=exits,
     )

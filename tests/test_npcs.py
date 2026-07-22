@@ -23,6 +23,7 @@ from backend.seeds import (
     GORRIK_PERSONA,
     SECOND_ROOM,
     get_or_seed_default_room,
+    seed_npcs_if_missing,
     seed_default_rooms,
 )
 from tests.test_rooms import world_db  # noqa: F401 — fixture reuse
@@ -172,14 +173,14 @@ async def test_npcs_backfilled_into_pre_npc_database(session):
     await session.execute(NPCRow.__table__.delete())    # simulate the old db
     await session.commit()
 
-    await get_or_seed_default_room(session)
+    await seed_npcs_if_missing(session)
     rows = (await session.execute(NPCRow.__table__.select())).all()
     assert {r.name for r in rows} == {"Gorrik", "Mara"}
 
     # Dead individuals are rows with is_alive=False — reboot must NOT resurrect.
     await session.execute(NPCRow.__table__.update().values(is_alive=False, hp=0))
     await session.commit()
-    await get_or_seed_default_room(session)
+    await seed_npcs_if_missing(session)
     rows = (await session.execute(NPCRow.__table__.select())).all()
     assert len(rows) == 2 and all(r.is_alive is False for r in rows)
 

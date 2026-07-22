@@ -26,6 +26,19 @@ class RoomState:
         self.npcs: dict[str, NPC] = {}
         self.walls: set[tuple[int, int]] = set(template.walls)
         self.objects = list(template.objects)
+        # Static object occupancy is separate from the actor grid. Objects do
+        # not take turns, but their full logical footprints still block and
+        # receive clicks as one object.
+        self.object_cells = {
+            cell: obj
+            for obj in self.objects
+            for cell in obj.occupied_cells()
+        }
+        self.blocked_object_cells = {
+            cell
+            for obj in self.objects if obj.blocks_movement
+            for cell in obj.occupied_cells()
+        }
         self.pending_actions: dict[str, Action] = {}
         self._next_enemy_num = 1
 
@@ -42,6 +55,8 @@ class RoomState:
                 hp=enemy_def.hp,
                 attack_damage=enemy_def.attack_damage,
                 defense=enemy_def.defense,
+                image=enemy_def.image,
+                visual_size=enemy_def.visual_size,
             )
 
     def add_player(self, name: str) -> Player:
@@ -64,7 +79,9 @@ class RoomState:
         self.grid[position.y][position.x] = player_id
         return player
 
-    def add_enemy(self, name: str, position: Position, hp: int, attack_damage: int, defense: int) -> Enemy:
+    def add_enemy(self, name: str, position: Position, hp: int, attack_damage: int,
+                  defense: int, image: str | None = None,
+                  visual_size: tuple[int, int] = (1, 1)) -> Enemy:
         enemy_id = f"enemy_{self._next_enemy_num}"
         self._next_enemy_num += 1
 
@@ -76,6 +93,8 @@ class RoomState:
             max_hp=hp,
             attack_damage=attack_damage,
             defense=defense,
+            image=image,
+            visual_size=visual_size,
         )
 
         self.enemies[enemy_id] = enemy
@@ -121,7 +140,7 @@ class RoomState:
         """First unoccupied spawn point, or None if all are blocked (players
         and enemies both occupy grid cells, so a parked enemy blocks a spawn)."""
         for x, y in self.template.spawn_points:
-            if not self.is_occupied(x, y):
+            if self.is_valid_position(x, y) and not self.is_occupied(x, y):
                 return (x, y)
         return None
 
@@ -143,10 +162,13 @@ class RoomState:
                 return obj
         return None
 
+    def get_object_at(self, x: int, y: int):
+        return self.object_cells.get((x, y))
+
     def is_valid_position(self, x: int, y: int) -> bool:
         if x < 0 or x >= self.template.width or y < 0 or y >= self.template.height:
             return False
-        return (x, y) not in self.walls
+        return (x, y) not in self.walls and (x, y) not in self.blocked_object_cells
 
     def is_occupied(self, x: int, y: int) -> str | None:
         return self.grid[y][x]
@@ -204,6 +226,7 @@ class RoomState:
             "round": self.round,
             "grid": self.grid,
             "walls": list(self.walls),
+            "exits": [exit.to_dict() for exit in self.template.exits],
             "objects": [obj.to_summary_dict() for obj in self.objects],
             "players": {pid: p.to_dict() for pid, p in self.players.items()},
             "enemies": {eid: e.to_dict() for eid, e in self.enemies.items()},

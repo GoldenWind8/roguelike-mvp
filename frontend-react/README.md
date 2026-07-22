@@ -2,7 +2,7 @@
 
 A React + TypeScript + Vite client for the game, grown out of the UI-arc
 design mockup (ROADMAP.md M9/M10). It speaks the backend's wire protocol
-over a WebSocket — real accounts, the seeded Pillared Hall, turn-based
+over a WebSocket — real accounts, the seeded Oakrun region, turn-based
 combat, LLM dialogue.
 
 ```bash
@@ -16,23 +16,31 @@ npm run dev     # http://localhost:5173
 ```
 
 **Sign the ledger** to register (3+ char name, 6+ char password), then you
-wake in The Pillared Hall — combat mode, because
-the tenants are home. The session token is kept in localStorage, so a reload
+wake at the southern edge of **Oakrun Crossroads**, the peaceful first town.
+Walk north through its square to meet the residents, inspect the Great Oak and
+other placed landmarks, or take the north door into the first hostile road
+encounter. The session token is kept in localStorage, so a reload
 resumes without the form; the ⏻ button forgets it.
 
 Things to try:
 
-- **Fight**: hold the sword (key 1), stand beside a tenant, click it. Combat
+- **Explore Oakrun**: walk north from the arrival point; the camera follows
+  you, and you can drag the room to look around. Click anywhere on a landmark
+  to inspect it, press E for the nearest interaction, or Home to recenter.
+- **Fight**: take the north door, hold the sword (key 1), stand beside an enemy,
+  and click it. Combat
   is simultaneous rounds — with other players in the room your action locks
   in ("Committed — waiting for…") until everyone has acted or the timer fires.
-- **Talk to Mara** (the sellsword by the south door — stand adjacent, click
-  her): real LLM dialogue with a canned fallback. Ask her to fight beside
-  you; `join_party` is a validated effect, and she'll actually follow.
-- **The doors** (gaps in the north/south walls) lead to the Antechamber,
-  where Gorrik sweeps. Insult him at your peril — escalation persists.
+- **Talk to the town**: stand beside Basil, Elowen, Rowan, or another resident
+  and click them. Dialogue uses the LLM when configured and lore-aware canned
+  lines as the always-available fallback.
+- **The north door** leads to the North Road and its first encounter; the
+  southern door marks the road back toward Amberfall for a future connection.
 - **Dying is a nap**: the client quietly rejoins after the blackout and you
   respawn fresh.
 - Music toggle (♪) in the top bar — generative ambient, no audio files.
+- On localhost, F2 reveals collision cells separately from artwork bounds for
+  asset placement and scale tuning.
 
 ## The integration seam
 

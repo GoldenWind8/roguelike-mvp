@@ -37,6 +37,10 @@ async def test_load_room_maps_terrain_and_enemies(session):
         "type": "chest",
         "position": [1, 1],
         "label": "Chest",
+        "occupied_cells": [[1, 1]],
+        "blocks_movement": True,
+        "image": None,
+        "visual_size": [1, 1],
         "opened": False,
         "contents_count": 0,
     }
@@ -61,11 +65,16 @@ async def test_room_state_built_from_template(session):
     state = room.to_dict()
     assert state["room"]["name"] == "The Pillared Hall"
     assert (state["room"]["width"], state["room"]["height"]) == (10, 10)
+    assert {exit["label"] for exit in state["exits"]} == {"The Antechamber"}
     assert state["objects"][0] == {
         "id": "object_1",
         "type": "chest",
         "position": [1, 1],
         "label": "Chest",
+        "occupied_cells": [[1, 1]],
+        "blocks_movement": True,
+        "image": None,
+        "visual_size": [1, 1],
         "opened": False,
         "contents_count": 0,
     }
@@ -90,9 +99,14 @@ async def test_load_room_includes_connections(session):
 
     hall_level = await load_room(session, hall.id)
     assert hall_level.connections == {(4, 0): ante.id, (4, 9): ante.id}
+    assert [exit.to_dict() for exit in hall_level.exits] == [
+        {"position": [4, 0], "to_room_id": ante.id, "label": "The Antechamber"},
+        {"position": [4, 9], "to_room_id": ante.id, "label": "The Antechamber"},
+    ]
 
     ante_level = await load_room(session, ante.id)
     assert ante_level.connections == {(0, 2): hall.id}
+    assert ante_level.exits[0].label == "The Pillared Hall"
 
 
 async def test_load_room_without_connections_has_empty_dict(session):
@@ -106,6 +120,7 @@ async def test_load_room_without_connections_has_empty_dict(session):
 
     template = await load_room(session, room.id)
     assert template.connections == {}
+    assert template.exits == []
 
 
 async def test_get_or_seed_is_idempotent(session):
@@ -113,6 +128,7 @@ async def test_get_or_seed_is_idempotent(session):
     again = await get_or_seed_default_room(session)
 
     assert first.id == again.id
-    # Only one room was seeded (default + antechamber), not two.
+    assert first.name == "Oakrun Crossroads"
+    # Exactly one starting slice (town + north road), never duplicated.
     count = (await session.execute(select(func.count()).select_from(Room))).scalar_one()
     assert count == 2
