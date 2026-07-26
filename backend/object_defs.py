@@ -22,6 +22,7 @@ class ObjectDefinition:
     blocks_movement: bool = True
     image: str | None = None
     visual_size: tuple[int, int] = (1, 1)
+    interaction: str | None = None
 
 
 def _definition(entry: dict) -> ObjectDefinition:
@@ -29,6 +30,7 @@ def _definition(entry: dict) -> ObjectDefinition:
     size = entry.get("visual_size", [1, 1])
     details = entry.get("details", [])
     image = entry.get("image")
+    interaction = entry.get("interaction")
     if (not isinstance(footprint, list) or not footprint
             or any(not isinstance(cell, list) or len(cell) != 2
                    or not all(isinstance(value, int) and value >= 0 for value in cell)
@@ -43,11 +45,13 @@ def _definition(entry: dict) -> ObjectDefinition:
         image = require_art_path(image, f"object {entry.get('id')!r}")
     if not isinstance(details, list) or not all(isinstance(item, str) for item in details):
         raise RuntimeError(f"object {entry.get('id')!r} has invalid details")
+    if interaction not in (None, "shop", "noticeboard"):
+        raise RuntimeError(f"object {entry.get('id')!r} has invalid interaction {interaction!r}")
     return ObjectDefinition(
         id=entry["id"], label=entry["label"], description=entry["description"],
         details=tuple(details), footprint=tuple(tuple(cell) for cell in footprint),
         blocks_movement=entry.get("blocks_movement", True), image=image,
-        visual_size=(size[0], size[1]),
+        visual_size=(size[0], size[1]), interaction=interaction,
     )
 
 

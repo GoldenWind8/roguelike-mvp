@@ -1,0 +1,26 @@
+[
+  {
+    "id": "oakrun_crossroads_board",
+    "object_id": "oakrun_noticeboard",
+    "label": "Oakrun Noticeboard",
+    "max_player_posts": 20,
+    "post_ttl_days": 7,
+    "notices": [
+      {
+        "id": "north-road-warning",
+        "author": "Oakrun Watch",
+        "body": "The North Road remains open, but travellers should not pass the boundary stones alone. Report strange tracks to the watch."
+      },
+      {
+        "id": "carriage-times",
+        "author": "Carriage Yard",
+        "body": "The covered carriage is being readied for longer routes. Destinations and fares will be posted here when service begins."
+      },
+      {
+        "id": "inn-supper",
+        "author": "Wayfarer's Rest",
+        "body": "Hot supper at dusk. Muddy boots by the door, blades peace-bound inside."
+      }
+    ]
+  }
+]

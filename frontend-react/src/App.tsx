@@ -15,6 +15,8 @@ import { ChestLootModal } from "./ui/ChestLootModal";
 import { EventLog } from "./ui/EventLog";
 import { DialoguePanel } from "./ui/DialoguePanel";
 import { LoginScreen } from "./ui/LoginScreen";
+import { ShopModal } from "./ui/ShopModal";
+import { NoticeboardModal } from "./ui/NoticeboardModal";
 
 const manhattan = (a: [number, number], b: [number, number]) =>
   Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
@@ -82,6 +84,16 @@ export default function App() {
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
       if (state.screen !== "game") return;
+      // The counter is a modal interaction: no walking away while a purchase
+      // is being considered. The server still revalidates adjacency on Buy.
+      if (state.shop || state.noticeboard) {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          if (state.shop) api.closeShop();
+          else api.closeNoticeboard();
+        }
+        return;
+      }
 
       const moves: Record<string, [number, number]> = {
         ArrowUp: [0, -1], w: [0, -1],
@@ -101,7 +113,7 @@ export default function App() {
         api.selectSlot(e.key === "0" ? 9 : Number(e.key) - 1);
       } else if (e.key.toLowerCase() === "e") {
         e.preventDefault();
-        if (state.dialogue || state.lootReveal) return;
+        if (state.dialogue || state.lootReveal || state.shop || state.noticeboard) return;
         const room = state.room;
         const me = room && state.playerId ? room.players[state.playerId] : null;
         if (!room || !me) return;
@@ -123,6 +135,8 @@ export default function App() {
           .sort((a, b) => a.label.localeCompare(b.label))[0];
         if (object) {
           if (object.type === "chest") api.openChest(object.id);
+          else if (object.interaction === "shop") api.openShop(object.id);
+          else if (object.interaction === "noticeboard") api.openNoticeboard(object.id);
           else api.inspect(object.id);
           return;
         }
@@ -147,7 +161,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [api, state.screen, state.room, state.playerId, state.selectedSlot, state.dialogue, state.inspection, state.lootReveal]);
+  }, [api, state.screen, state.room, state.playerId, state.selectedSlot, state.dialogue, state.inspection, state.lootReveal, state.shop, state.noticeboard]);
 
   if (state.screen === "login") {
     return (
@@ -187,6 +201,8 @@ export default function App() {
 
       <Hotbar />
       <ChestLootModal />
+      <ShopModal />
+      <NoticeboardModal />
 
       {me && !me.is_alive && (
         <div className="death-veil">

@@ -14,7 +14,12 @@ without hitting the "non-default argument follows default" dataclass trap.
 from dataclasses import dataclass, field
 from enum import Enum
 
-from backend.config import HUNGER_MAX, PLAYER_ATTACK_DAMAGE, PLAYER_DEFENSE
+from backend.config import (
+    HUNGER_MAX,
+    PLAYER_ATTACK_DAMAGE,
+    PLAYER_DEFENSE,
+    PLAYER_STARTING_COINS,
+)
 
 
 class Disposition(str, Enum):
@@ -113,12 +118,14 @@ class Player(Actor):
     # Actor: enemies are fungible and hunt nobody's larder — an actor without
     # the field simply ignores food (the atom stays generic).
     hunger: float = HUNGER_MAX
+    coins: int = PLAYER_STARTING_COINS
 
     def to_dict(self) -> dict:
         d = super().to_dict()
         d["inventory"] = self.inventory
         d["hunger"] = round(self.hunger)
         d["max_hunger"] = HUNGER_MAX
+        d["coins"] = self.coins
         return d
 
 

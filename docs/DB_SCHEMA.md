@@ -99,6 +99,23 @@ held copy); both provenances pass the same `validate_item` gate.
 | `object_instances` | Per-object play state (individuals) | What play did to one object in one room, layered over `Room.objects` design data on load — the object half of the `npcs` pattern. Today: chest lifecycle (`opened` + un-carried `contents` as item_view snapshots), written through at each open/take by `object_store.py`. A row exists only once play touches the object. `object_id` is the runtime id derived from the object's index in `Room.objects`, so design lists must never be reordered in place. Destroyed barrels / dropped items would join this table, not get new ones. |
 | `items` | The global item pool (docs/LOOT.md) | Hand-authored seeds (`origin="seed"`, backfilled once when the table has never held a row) plus premium-LLM inventions minted at chest-open (`origin="llm"`). Append-only in practice: play draws from it and adds to it, never edits it. `payload` is validated by `items.validate_item` — the DB can't check JSON, so the gate lives in code, like rooms. |
 
+The exploration-shop slice adds two shared-world tables:
+
+| Table | Current role | Notes |
+|---|---|---|
+| `shop_states` | Daily shop lifecycle | One row per authored shop. It retains `last_restock_on` after sell-out so an empty shop cannot refill repeatedly that day. |
+| `shop_stock` | Globally available shop slots | One immutable `item_view` snapshot, price, mint flag, and stock date per slot. Purchase deletes the row in the same transaction that spends `players.coins` and saves the new pack. |
+
+`players.coins` is the persistent scalar currency balance. Unlike the
+disconnect-edge fields, a purchase writes coins and the resulting inventory
+through immediately so those changes commit atomically with shared stock.
+
+The noticeboard slice adds one shared-world table:
+
+| Table | Current role | Notes |
+|---|---|---|
+| `notice_posts` | Expiring player-authored board messages | Stores board id, stable player identity, a public-name snapshot, plain-text body, and creation/expiry times. A unique constraint on `(board_id, author_player_id)` permits one active post per player per board. Authored notices remain in `content/noticeboards.json`, not the database. |
+
 ## Important Boundary
 
 Durable data now splits three ways, per NPCS.md's "a row exists to

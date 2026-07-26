@@ -20,6 +20,8 @@ Mutating base stats on equip was rejected because every save/load or
 double-apply bug would corrupt a character permanently; recomputing from
 data can't drift.
 """
+from copy import deepcopy
+
 from backend.config import INVENTORY_SLOTS
 from backend.entities import Actor, Player
 from backend.items import equipable, stackable
@@ -29,19 +31,29 @@ from backend import world_clock
 # --- adding and removing ------------------------------------------------------
 
 
-def add_item(player: Player, item: dict) -> int | None:
+def _add_item_to_slots(slots: list, item: dict) -> int | None:
     """Put one copy of `item` (an item_view dict) into the pack. Returns the
     slot index, or None when the pack can't take it (full, and no stack to
     join) — the caller decides what a refusal means (chest keeps it)."""
     if stackable(item["type"]):
-        for i, slot in enumerate(player.inventory):
+        for i, slot in enumerate(slots):
             if slot["item"]["id"] == item["id"]:
                 slot["quantity"] += 1
                 return i
-    if len(player.inventory) >= INVENTORY_SLOTS:
+    if len(slots) >= INVENTORY_SLOTS:
         return None
-    player.inventory.append({"item": item, "quantity": 1, "equipped": False})
-    return len(player.inventory) - 1
+    slots.append({"item": item, "quantity": 1, "equipped": False})
+    return len(slots) - 1
+
+
+def add_item(player: Player, item: dict) -> int | None:
+    return _add_item_to_slots(player.inventory, item)
+
+
+def inventory_with_item(slots: list, item: dict) -> list | None:
+    """Return a detached pack with one new item, or None when it is full."""
+    candidate = deepcopy(slots)
+    return candidate if _add_item_to_slots(candidate, item) is not None else None
 
 
 def remove_one(player: Player, index: int) -> dict | None:

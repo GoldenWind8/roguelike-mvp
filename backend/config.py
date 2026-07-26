@@ -48,6 +48,9 @@ SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-not-for-production")
 PLAYER_MAX_HP = 100
 PLAYER_ATTACK_DAMAGE = 30
 PLAYER_DEFENSE = 1
+# Account-owned currency. A small starting purse makes the first shop useful
+# before coin rewards have their own exploration and combat sources.
+PLAYER_STARTING_COINS = 30
 
 # Engine tuning. RNG_SEED drives combat determinism (not level content — levels
 # live in the DB now). Room capacity comes from the room's spawn-point count.

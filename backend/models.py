@@ -10,13 +10,13 @@ Two layers of the world (see ARCHITECTURE.md "separate terrain from entities"):
 Enemies are NORMALIZED: their stats live once in `enemy_defs`; a room only
 stores a placement {enemy_id, x, y} and loads the rest by id.
 """
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from enum import Enum
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, JSON
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, JSON, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from backend.config import HUNGER_MAX, PLAYER_MAX_HP
+from backend.config import HUNGER_MAX, PLAYER_MAX_HP, PLAYER_STARTING_COINS
 from backend.db import Base
 
 
@@ -163,9 +163,54 @@ class PlayerRow(Base):
     # The hunger meter, saved at the same edges as hp. Stored as the raw
     # float (the ticker drains fractions); a fresh account starts full.
     hunger: Mapped[float] = mapped_column(default=float(HUNGER_MAX))
+    # A scalar balance, deliberately separate from the slot-limited pack.
+    coins: Mapped[int] = mapped_column(Integer, default=PLAYER_STARTING_COINS)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )
+
+
+class ShopState(Base):
+    """Daily lifecycle state for one authored shop."""
+    __tablename__ = "shop_states"
+
+    shop_id: Mapped[str] = mapped_column(String, primary_key=True)
+    # This row remains after sell-out so opening an empty shop cannot restock it.
+    last_restock_on: Mapped[date] = mapped_column(Date)
+
+
+class ShopStock(Base):
+    """One globally available item copy in one shop slot."""
+    __tablename__ = "shop_stock"
+
+    shop_id: Mapped[str] = mapped_column(String, primary_key=True)
+    slot: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Same immutable item_view snapshot used by packs and chests.
+    item: Mapped[dict] = mapped_column(JSON)
+    price: Mapped[int] = mapped_column(Integer)
+    minted: Mapped[bool] = mapped_column(default=False)
+    # Also acts as the optimistic token for a client holding yesterday's panel.
+    stocked_on: Mapped[date] = mapped_column(Date)
+
+
+class NoticePost(Base):
+    """One globally visible, expiring player message on an authored board."""
+    __tablename__ = "notice_posts"
+    __table_args__ = (
+        UniqueConstraint(
+            "board_id", "author_player_id",
+            name="uq_notice_post_board_author",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    board_id: Mapped[str] = mapped_column(String, index=True)
+    author_player_id: Mapped[str] = mapped_column(ForeignKey("players.id"), index=True)
+    # Snapshot the public name so rendering never needs an account-table join.
+    author_name: Mapped[str] = mapped_column(String)
+    body: Mapped[str] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column(DateTime)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, index=True)
 
 
 class ObjectInstance(Base):

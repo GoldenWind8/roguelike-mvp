@@ -32,6 +32,7 @@
       "enemy_spawns": [],
       "objects": [
         {"id": "oakrun_wayfarers_rest", "type": "wayfarers_rest_exterior", "x": 2, "y": 2},
+        {"id": "oakrun_general_goods_shop", "type": "general_goods_shop_exterior", "x": 8, "y": 2},
         {"id": "oakrun_basils_cures", "type": "basils_cures_exterior", "x": 18, "y": 2},
         {"id": "oakrun_great_oak", "type": "great_oak", "x": 12, "y": 8},
         {"id": "oakrun_stone_well", "type": "stone_well", "x": 7, "y": 10},

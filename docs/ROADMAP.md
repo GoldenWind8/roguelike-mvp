@@ -53,6 +53,19 @@ items carrying the `restore_hunger` atom) and **multi-item chests** (1–3
 finds per open through the same `spawn_loot`, revealed to the opener in a
 popup).
 
+## Now: Exploration Services Started
+
+Oakrun General Goods is the first typed exploration service: small daily stock
+drawn through the existing loot generator, globally bought-up slots, and a
+persistent player coin balance. Purchases atomically spend coins, save the
+pack, and remove shared stock. See [Exploration Shops](SHOPS.md).
+
+Oakrun's noticeboard is the second service: fixed authored notices share one
+panel with globally persistent player messages. Player posts are plain text,
+limited to one active message per account, capped per board, author-removable,
+and lazily expired after seven days. See
+[Exploration Noticeboards](NOTICEBOARDS.md).
+
 ## Parallel Track: Room Generation
 
 Being built alongside the arc above (`backend/procgen/`, untracked until

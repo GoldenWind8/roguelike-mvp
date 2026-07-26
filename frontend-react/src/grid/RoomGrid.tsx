@@ -312,6 +312,14 @@ export function RoomGrid() {
       api.openChest(obj.id);
       return;
     }
+    if (obj.interaction === "shop" && me && distanceToObject(me.position, obj) <= 1) {
+      api.openShop(obj.id);
+      return;
+    }
+    if (obj.interaction === "noticeboard" && me && distanceToObject(me.position, obj) <= 1) {
+      api.openNoticeboard(obj.id);
+      return;
+    }
     api.inspect(obj.id);
   };
 

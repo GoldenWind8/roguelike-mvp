@@ -62,6 +62,11 @@ export function PlayerPanel() {
       )}
 
       <div className="you-stats">
+        <div className="stat-row stat-coins" title="Coins in your purse.">
+          <span className="stat-icon">●</span>
+          <span className="stat-label">Coins</span>
+          <strong>{me.coins ?? 0}</strong>
+        </div>
         <div className="stat-row" title="Softens every blow that lands on you.">
           <span className="stat-icon">🛡️</span>
           <span className="stat-label">Armor</span>

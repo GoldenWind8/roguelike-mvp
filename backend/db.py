@@ -73,6 +73,7 @@ async def init_db() -> None:
 _COLUMN_BACKFILLS = [
     ("players", "inventory", "JSON", "'[]'"),  # M9 loot: the 10-slot pack
     ("players", "hunger", "REAL", "100"),      # hunger meter (LOOT.md Decision 5)
+    ("players", "coins", "INTEGER", "30"),     # exploration shops
     ("rooms", "content_id", "VARCHAR", "NULL"),  # authored content identity
 ]
 

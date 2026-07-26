@@ -1,0 +1,55 @@
+{
+  "shared_logical_footprint": [1, 1],
+  "shared_visual_footprint": [1, 2],
+  "anchor": "bottom-center",
+  "assets": [
+    {
+      "id": "queen_mara_vey",
+      "image": "/art/world/npcs/drazna/mara-vey-world-v1.png",
+      "districts": ["high_crown"],
+      "role_tags": ["royal", "authority", "low_water", "odran_truth"]
+    },
+    {
+      "id": "ilya_sorn",
+      "image": "/art/world/npcs/drazna/ilya-sorn-world-v1.png",
+      "districts": ["high_crown", "undertide"],
+      "role_tags": ["floodwarden", "engineer", "missing_expedition"]
+    },
+    {
+      "id": "nera_bell",
+      "image": "/art/world/npcs/drazna/nera-bell-world-v1.png",
+      "districts": ["birch_heights"],
+      "role_tags": ["archivist", "memorial", "uncounted_dead"]
+    },
+    {
+      "id": "olek_var",
+      "image": "/art/world/npcs/drazna/olek-var-world-v1.png",
+      "districts": ["lantern_quays", "undertide"],
+      "role_tags": ["salvager", "low_lanterns", "missing_expedition"]
+    },
+    {
+      "id": "pava_mirek",
+      "image": "/art/world/npcs/drazna/pava-mirek-world-v1.png",
+      "districts": ["walking_ward"],
+      "role_tags": ["roofwright", "community", "missing_expedition"]
+    },
+    {
+      "id": "vasko_mirek",
+      "image": "/art/world/npcs/drazna/vasko-mirek-world-v1.png",
+      "districts": ["undertide"],
+      "role_tags": ["diver", "evidence", "missing_expedition"]
+    },
+    {
+      "id": "vesna_korr",
+      "image": "/art/world/npcs/drazna/vesna-korr-world-v1.png",
+      "districts": ["undertide"],
+      "role_tags": ["low_lanterns", "crime", "route_keeper"]
+    },
+    {
+      "id": "alin_vey",
+      "image": "/art/world/npcs/drazna/alin-vey-world-v1.png",
+      "districts": ["high_crown", "birch_heights"],
+      "role_tags": ["royal", "reformer", "odran_truth"]
+    }
+  ]
+}

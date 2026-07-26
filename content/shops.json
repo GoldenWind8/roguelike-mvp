@@ -1,0 +1,9 @@
+[
+  {
+    "id": "oakrun_general_goods",
+    "object_id": "oakrun_general_goods_shop",
+    "label": "Oakrun General Goods",
+    "stock_size": 5,
+    "rarity_weights": {"common": 75, "rare": 23, "legendary": 2}
+  }
+]

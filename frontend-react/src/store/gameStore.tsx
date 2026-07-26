@@ -24,10 +24,12 @@ import type {
   GameEvent,
   InventorySlot,
   ItemView,
+  NoticeboardView,
   NpcState,
   ObjectDetail,
   RoomStatePayload,
   ServerMessage,
+  ShopView,
 } from "../net/types";
 import { ambient } from "../audio/ambient";
 
@@ -127,6 +129,8 @@ function formatEvents(events: GameEvent[], state: RoomStatePayload): (LogLine | 
       }
       case "chest_looted":
         return line("item", `${nameOf(d.player_id)} takes the ${itemOf(e).art.value} ${itemOf(e).name} from the chest.`);
+      case "shop_purchased":
+        return line("item", `${nameOf(d.player_id)} buys ${itemOf(e).art.value} ${itemOf(e).name} for ${d.price} coins.`);
       case "item_generated":
         return line("danger", `✨ Something never seen before takes shape: ${itemOf(e).art.value} ${itemOf(e).name} (${itemOf(e).rarity})!`);
       case "item_consumed":
@@ -210,6 +214,8 @@ export interface GameState {
    * broadcasts — so two players at one chest see each other's grabs.
    * Local UI state; closing it never talks to the server. */
   lootReveal: { objectId: string; finds: LootFind[] } | null;
+  shop: ShopView | null;
+  noticeboard: NoticeboardView | null;
   musicOn: boolean;
   /** Turn-based combat: your action is submitted; the round hasn't resolved. */
   actionLocked: boolean;
@@ -230,6 +236,8 @@ const initialState: GameState = {
   inspection: null,
   selectedSlot: null,
   lootReveal: null,
+  shop: null,
+  noticeboard: null,
   musicOn: true,
   actionLocked: false,
   waitingFor: [],
@@ -246,6 +254,8 @@ type Action =
   | { type: "player_said"; text: string }
   | { type: "close_inspection" }
   | { type: "close_loot" }
+  | { type: "close_shop" }
+  | { type: "close_noticeboard" }
   | { type: "select_slot"; index: number | null }
   | { type: "set_music"; on: boolean }
   | { type: "log"; kind: LogKind; text: string };
@@ -288,6 +298,10 @@ function reduce(state: GameState, action: Action): GameState {
       return { ...state, inspection: null };
     case "close_loot":
       return { ...state, lootReveal: null };
+    case "close_shop":
+      return { ...state, shop: null };
+    case "close_noticeboard":
+      return { ...state, noticeboard: null };
     case "select_slot": {
       // Clicking the held slot puts it away; empty slots can't be held.
       if (action.index !== null && !packOf(state.room, state.playerId)[action.index]) return state;
@@ -316,6 +330,9 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
         // A broadcast state means the round resolved (or the world moved on).
         actionLocked: false,
         waitingFor: [],
+        // Travel invalidates a proximity-bound exploration service.
+        shop: msg.type === "room_changed" ? null : state.shop,
+        noticeboard: msg.type === "room_changed" ? null : state.noticeboard,
       };
       // Chest popup lifecycle rides in the broadcasts everyone gets: YOUR
       // open raises it; ANYONE's take marks a card taken (players at one
@@ -339,6 +356,16 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
           const idx = finds.findIndex((f) => !f.takenBy && f.item.id === taken.id);
           if (idx >= 0) finds[idx] = { ...finds[idx], takenBy: taker };
           next = { ...next, lootReveal: { ...next.lootReveal, finds } };
+        } else if (e.event_type === "shop_purchased"
+            && next.shop
+            && next.shop.id === e.data.shop_id) {
+          next = {
+            ...next,
+            shop: {
+              ...next.shop,
+              stock: next.shop.stock.filter((entry) => entry.slot !== e.data.slot),
+            },
+          };
         }
       }
       // If the NPC we're talking to died, the conversation is over.
@@ -371,6 +398,27 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
         ...state,
         lootReveal: { objectId: msg.object_id, finds: msg.items.map((f) => ({ ...f })) },
         inspection: null,
+      };
+    case "shop_opened":
+      return {
+        ...state,
+        shop: msg.shop,
+        inspection: null,
+        dialogue: null,
+        lootReveal: null,
+        noticeboard: null,
+      };
+    case "shop_stock":
+      if (!state.shop || state.shop.id !== msg.shop_id) return state;
+      return { ...state, shop: { ...state.shop, stock: msg.stock } };
+    case "noticeboard_opened":
+      return {
+        ...state,
+        noticeboard: msg.noticeboard,
+        inspection: null,
+        dialogue: null,
+        lootReveal: null,
+        shop: null,
       };
     case "error":
       return {
@@ -413,6 +461,11 @@ interface GameApi {
   toggleEquip(slot: number): void;
   /** Open a chest (first open rolls; later opens show what's left). */
   openChest(objectId: string): void;
+  openShop(objectId: string): void;
+  buyShopItem(objectId: string, slot: number, itemId: number, stockedOn: string): void;
+  openNoticeboard(objectId: string): void;
+  postNotice(objectId: string, body: string): void;
+  deleteNotice(objectId: string, noticeId: number): void;
   /** Take one chosen item from an opened chest (the popup's Take button).
    * `index` is the item's current position among the chest's leftovers. */
   takeItem(objectId: string, index: number, itemId: number): void;
@@ -424,6 +477,8 @@ interface GameApi {
   closeInspection(): void;
   /** Dismiss the chest-reveal popup. */
   closeLoot(): void;
+  closeShop(): void;
+  closeNoticeboard(): void;
   talk(text: string): void;
   toggleMusic(): void;
   /** Local flavor/hint line in the chronicle; never touches the server. */
@@ -557,6 +612,27 @@ export function GameProvider({ children }: { children: ReactNode }) {
       openChest(objectId) {
         socket().send({ type: "open_chest", object_id: objectId });
       },
+      openShop(objectId) {
+        socket().send({ type: "open_shop", object_id: objectId });
+      },
+      buyShopItem(objectId, slot, itemId, stockedOn) {
+        socket().send({
+          type: "buy_shop_item",
+          object_id: objectId,
+          slot,
+          item_id: itemId,
+          stocked_on: stockedOn,
+        });
+      },
+      openNoticeboard(objectId) {
+        socket().send({ type: "open_noticeboard", object_id: objectId });
+      },
+      postNotice(objectId, body) {
+        socket().send({ type: "post_notice", object_id: objectId, body });
+      },
+      deleteNotice(objectId, noticeId) {
+        socket().send({ type: "delete_notice", object_id: objectId, notice_id: noticeId });
+      },
       takeItem(objectId, index, itemId) {
         socket().send({ type: "take_item", object_id: objectId, index, item_id: itemId });
       },
@@ -577,6 +653,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
       },
       closeLoot() {
         dispatch({ type: "close_loot" });
+      },
+      closeShop() {
+        dispatch({ type: "close_shop" });
+      },
+      closeNoticeboard() {
+        dispatch({ type: "close_noticeboard" });
       },
       talk(text) {
         const d = stateRef.current.dialogue;

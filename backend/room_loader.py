@@ -73,6 +73,7 @@ class RoomObject:
     visual_size: tuple[int, int] = (1, 1)
     opened: bool = False
     contents: list = field(default_factory=list)
+    interaction: str | None = None
 
     def occupied_cells(self) -> tuple[tuple[int, int], ...]:
         x, y = self.position
@@ -83,7 +84,7 @@ class RoomObject:
         return min(abs(x - ox) + abs(y - oy) for ox, oy in self.occupied_cells())
 
     def to_summary_dict(self) -> dict:
-        return {
+        summary = {
             "id": self.id,
             "type": self.type,
             "position": [self.position[0], self.position[1]],
@@ -100,6 +101,9 @@ class RoomObject:
             # something waits inside, inspecting tells you what.
             "contents_count": len(self.contents),
         }
+        if self.interaction is not None:
+            summary["interaction"] = self.interaction
+        return summary
 
     def to_dict(self) -> dict:
         return {
@@ -154,6 +158,7 @@ def _object_payload(raw: dict, index: int) -> RoomObject:
         blocks_movement=definition.blocks_movement,
         image=definition.image,
         visual_size=definition.visual_size,
+        interaction=definition.interaction,
     )
 
 

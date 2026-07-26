@@ -25,6 +25,14 @@ from backend.hunger import tick_room_hunger
 from backend.inventory import add_item, equip, prune_expired, unequip
 from backend.loot import roll_item_count, spawn_loot
 from backend.models import ObjectType
+from backend.notice_store import (
+    NOTICE_TEXT_LIMIT,
+    NoticeError,
+    delete_notice,
+    list_notices,
+    post_notice,
+)
+from backend.noticeboard_defs import get_noticeboard_for_object
 from backend.npc_store import load_npcs, save_npcs
 from backend.object_store import reset_objects, save_object_state
 from backend.player_store import (
@@ -38,6 +46,15 @@ from backend.player_store import (
 from backend.room_engine import RoomEngine
 from backend.room_loader import load_room
 from backend.seeds import get_or_seed_default_room, reset_npcs, seed_items_if_missing
+from backend.shop_defs import get_shop_for_object
+from backend.shop_store import (
+    PurchaseError,
+    ensure_daily_stock,
+    list_stock,
+    next_restock_at,
+    purchase,
+    utc_day,
+)
 
 
 @dataclass
@@ -98,6 +115,9 @@ dialogue_provider = build_provider()
 # Players with an LLM call in flight: one talk at a time per player, so a
 # spamming client can't fan out provider calls (the grid caps 30 req/min/IP).
 talking_players: set[str] = set()
+# Daily item generation may await an LLM, so it never holds state_lock. A
+# per-shop lock prevents two first-openers from doing the same refresh.
+shop_locks: dict[str, asyncio.Lock] = {}
 
 FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend-react" / "dist"
 
@@ -667,6 +687,282 @@ async def handle_take_item(websocket: WebSocket, player_id: str, data: dict) -> 
         )])
 
 
+# --- exploration shops ---------------------------------------------------------
+
+
+def _adjacent_shop(room, player, object_id):
+    """Resolve an authored shop only when a living player can touch it."""
+    if not player or not player.is_alive:
+        return None, None, "The dead buy nothing."
+    obj = room.get_object(object_id) if isinstance(object_id, str) else None
+    definition = get_shop_for_object(obj.id) if obj and obj.interaction == "shop" else None
+    if obj is None or definition is None:
+        return None, None, "There is no shop there."
+    if obj.distance_from(player.position.x, player.position.y) > 1:
+        return None, None, "You are too far from the counter."
+    return obj, definition, None
+
+
+def _shop_message(definition, object_id: str, stock: list[dict]) -> dict:
+    day = utc_day()
+    return {
+        "type": "shop_opened",
+        "shop": {
+            "id": definition.id,
+            "object_id": object_id,
+            "label": definition.label,
+            "stock": stock,
+            "restocks_at": next_restock_at(day),
+        },
+    }
+
+
+async def handle_open_shop(websocket: WebSocket, player_id: str, data: dict) -> None:
+    """Open shared stock, lazily generating the day's small selection."""
+    object_id = data.get("object_id")
+    async with state_lock:
+        runtime = runtime_for(player_id)
+        room = runtime.engine.room if runtime else None
+        player = room.get_player(player_id) if room else None
+        obj, definition, error = (
+            _adjacent_shop(room, player, object_id) if room
+            else (None, None, "Not in a room")
+        )
+        if error:
+            await websocket.send_json({"type": "error", "message": error})
+            return
+
+    try:
+        async with shop_locks.setdefault(definition.id, asyncio.Lock()):
+            async with SessionMaker() as session:
+                stock = await ensure_daily_stock(session, definition)
+    except Exception:
+        logging.exception("daily stock failed for shop %s", definition.id)
+        await websocket.send_json({
+            "type": "error",
+            "message": "The shopkeeper cannot find today's stock.",
+        })
+        return
+
+    # The refresh may have awaited item generation. Do not open a counter the
+    # player walked away from during that wait.
+    async with state_lock:
+        current = runtime_for(player_id)
+        current_room = current.engine.room if current else None
+        current_player = current_room.get_player(player_id) if current_room else None
+        _, current_definition, error = (
+            _adjacent_shop(current_room, current_player, object_id)
+            if current_room else (None, None, "Not in a room")
+        )
+        if error or current is not runtime or current_definition.id != definition.id:
+            await websocket.send_json({
+                "type": "error",
+                "message": error or "That counter is no longer here.",
+            })
+            return
+        await websocket.send_json(_shop_message(definition, obj.id, stock))
+
+
+async def handle_buy_shop_item(websocket: WebSocket, player_id: str, data: dict) -> None:
+    """Buy one globally limited slot; DB stock and account balance commit once."""
+    async with state_lock:
+        runtime = runtime_for(player_id)
+        room = runtime.engine.room if runtime else None
+        player = room.get_player(player_id) if room else None
+        obj, definition, error = (
+            _adjacent_shop(room, player, data.get("object_id")) if room
+            else (None, None, "Not in a room")
+        )
+        if error:
+            await websocket.send_json({"type": "error", "message": error})
+            return
+
+        try:
+            async with SessionMaker() as session:
+                bought = await purchase(
+                    session,
+                    shop_id=definition.id,
+                    slot=data.get("slot"),
+                    item_id=data.get("item_id"),
+                    stocked_on=data.get("stocked_on"),
+                    player_id=player_id,
+                    live_inventory=player.inventory,
+                )
+                remaining = await list_stock(session, definition.id)
+        except PurchaseError as exc:
+            await websocket.send_json({"type": "error", "message": str(exc)})
+            # A stale panel gets the current global truth immediately.
+            async with SessionMaker() as session:
+                remaining = await list_stock(session, definition.id)
+            await websocket.send_json({
+                "type": "shop_stock",
+                "shop_id": definition.id,
+                "stock": remaining,
+            })
+            return
+        except Exception:
+            logging.exception("purchase failed for shop %s", definition.id)
+            await websocket.send_json({
+                "type": "error",
+                "message": "The trade could not be completed.",
+            })
+            return
+
+        player.inventory = bought.inventory
+        player.coins = bought.coins
+        await broadcast_state_and_events(runtime, [GameEvent(
+            EventType.SHOP_PURCHASED,
+            {
+                "player_id": player_id,
+                "shop_id": definition.id,
+                "object_id": obj.id,
+                "slot": bought.slot,
+                "item": bought.item,
+                "price": bought.price,
+            },
+            room.round,
+        )])
+        await websocket.send_json({
+            "type": "shop_stock",
+            "shop_id": definition.id,
+            "stock": remaining,
+        })
+
+
+# --- exploration noticeboards -------------------------------------------------
+
+
+def _adjacent_noticeboard(room, player, object_id):
+    """Resolve an authored board only when a living player can touch it."""
+    if not player or not player.is_alive:
+        return None, None, "The dead leave no notices."
+    obj = room.get_object(object_id) if isinstance(object_id, str) else None
+    definition = (
+        get_noticeboard_for_object(obj.id)
+        if obj and obj.interaction == "noticeboard"
+        else None
+    )
+    if obj is None or definition is None:
+        return None, None, "There is no noticeboard there."
+    if obj.distance_from(player.position.x, player.position.y) > 1:
+        return None, None, "You are too far from the noticeboard."
+    return obj, definition, None
+
+
+def _noticeboard_message(definition, object_id: str, notices: list[dict]) -> dict:
+    return {
+        "type": "noticeboard_opened",
+        "noticeboard": {
+            "id": definition.id,
+            "object_id": object_id,
+            "label": definition.label,
+            "notices": notices,
+            "text_limit": NOTICE_TEXT_LIMIT,
+            "post_ttl_days": definition.post_ttl_days,
+            "max_player_posts": definition.max_player_posts,
+        },
+    }
+
+
+async def _send_noticeboard(
+    websocket: WebSocket, player_id: str, definition, object_id: str,
+) -> None:
+    async with SessionMaker() as session:
+        notices = await list_notices(session, definition, player_id)
+    await websocket.send_json(_noticeboard_message(definition, object_id, notices))
+
+
+async def handle_open_noticeboard(
+    websocket: WebSocket, player_id: str, data: dict,
+) -> None:
+    async with state_lock:
+        runtime = runtime_for(player_id)
+        room = runtime.engine.room if runtime else None
+        player = room.get_player(player_id) if room else None
+        obj, definition, error = (
+            _adjacent_noticeboard(room, player, data.get("object_id"))
+            if room else (None, None, "Not in a room")
+        )
+        if error:
+            await websocket.send_json({"type": "error", "message": error})
+            return
+        try:
+            await _send_noticeboard(websocket, player_id, definition, obj.id)
+        except Exception:
+            logging.exception("failed to open noticeboard %s", definition.id)
+            await websocket.send_json({
+                "type": "error",
+                "message": "The notices cannot be read right now.",
+            })
+
+
+async def handle_post_notice(
+    websocket: WebSocket, player_id: str, data: dict,
+) -> None:
+    async with state_lock:
+        runtime = runtime_for(player_id)
+        room = runtime.engine.room if runtime else None
+        player = room.get_player(player_id) if room else None
+        obj, definition, error = (
+            _adjacent_noticeboard(room, player, data.get("object_id"))
+            if room else (None, None, "Not in a room")
+        )
+        if error:
+            await websocket.send_json({"type": "error", "message": error})
+            return
+        try:
+            async with SessionMaker() as session:
+                await post_notice(
+                    session,
+                    definition,
+                    player_id=player_id,
+                    author_name=player.name,
+                    body=data.get("body"),
+                )
+            await _send_noticeboard(websocket, player_id, definition, obj.id)
+        except NoticeError as exc:
+            await websocket.send_json({"type": "error", "message": str(exc)})
+        except Exception:
+            logging.exception("failed to post notice on %s", definition.id)
+            await websocket.send_json({
+                "type": "error",
+                "message": "The notice could not be pinned.",
+            })
+
+
+async def handle_delete_notice(
+    websocket: WebSocket, player_id: str, data: dict,
+) -> None:
+    async with state_lock:
+        runtime = runtime_for(player_id)
+        room = runtime.engine.room if runtime else None
+        player = room.get_player(player_id) if room else None
+        obj, definition, error = (
+            _adjacent_noticeboard(room, player, data.get("object_id"))
+            if room else (None, None, "Not in a room")
+        )
+        if error:
+            await websocket.send_json({"type": "error", "message": error})
+            return
+        try:
+            async with SessionMaker() as session:
+                await delete_notice(
+                    session,
+                    definition,
+                    player_id=player_id,
+                    notice_id=data.get("notice_id"),
+                )
+            await _send_noticeboard(websocket, player_id, definition, obj.id)
+        except NoticeError as exc:
+            await websocket.send_json({"type": "error", "message": str(exc)})
+        except Exception:
+            logging.exception("failed to delete notice on %s", definition.id)
+            await websocket.send_json({
+                "type": "error",
+                "message": "The notice could not be taken down.",
+            })
+
+
 async def handle_equip_toggle(websocket: WebSocket, player_id: str, data: dict,
                               *, equipping: bool) -> None:
     """Equip/unequip slot N — free actions outside the round economy (gear
@@ -886,6 +1182,36 @@ async def websocket_endpoint(websocket: WebSocket):
                     await websocket.send_json({"type": "error", "message": "Join first"})
                     continue
                 await handle_take_item(websocket, player_id, data)
+
+            elif msg_type == "open_shop":
+                if not player_id:
+                    await websocket.send_json({"type": "error", "message": "Join first"})
+                    continue
+                await handle_open_shop(websocket, player_id, data)
+
+            elif msg_type == "buy_shop_item":
+                if not player_id:
+                    await websocket.send_json({"type": "error", "message": "Join first"})
+                    continue
+                await handle_buy_shop_item(websocket, player_id, data)
+
+            elif msg_type == "open_noticeboard":
+                if not player_id:
+                    await websocket.send_json({"type": "error", "message": "Join first"})
+                    continue
+                await handle_open_noticeboard(websocket, player_id, data)
+
+            elif msg_type == "post_notice":
+                if not player_id:
+                    await websocket.send_json({"type": "error", "message": "Join first"})
+                    continue
+                await handle_post_notice(websocket, player_id, data)
+
+            elif msg_type == "delete_notice":
+                if not player_id:
+                    await websocket.send_json({"type": "error", "message": "Join first"})
+                    continue
+                await handle_delete_notice(websocket, player_id, data)
 
             elif msg_type in ("equip", "unequip"):
                 if not player_id:

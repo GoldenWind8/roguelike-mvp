@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend import auth
-from backend.config import PLAYER_MAX_HP
+from backend.config import PLAYER_MAX_HP, PLAYER_STARTING_COINS
 from backend.entities import Player, Position
 from backend.models import PlayerRow
 
@@ -35,6 +35,7 @@ async def register_player(
         password_hash=password_hash,
         email=email or None,
         hp=PLAYER_MAX_HP,
+        coins=PLAYER_STARTING_COINS,
     )
     session.add(row)
     try:
@@ -92,6 +93,7 @@ def make_live_player(row: PlayerRow) -> Player:
         # as they left (hunger only drains while connected — offline time is
         # free, docs/LOOT.md Decision 5).
         hunger=float(HUNGER_MAX) if respawning else float(saved_hunger),
+        coins=max(0, int(row.coins if row.coins is not None else PLAYER_STARTING_COINS)),
     )
 
 
@@ -111,6 +113,7 @@ async def save_players(
         row.y = player.position.y
         row.hp = max(player.hp, 0)
         row.hunger = max(player.hunger, 0.0)
+        row.coins = max(player.coins, 0)
         # Whole-column swap, never in-place mutation: SQLAlchemy only sees
         # JSON changes when the attribute is REASSIGNED. active_effects are
         # deliberately not saved — a buff is session-scoped, gear is forever.

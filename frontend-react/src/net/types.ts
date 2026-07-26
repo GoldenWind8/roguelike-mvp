@@ -86,6 +86,8 @@ export interface ActorState {
   /** Players only: the hunger meter (0..max_hunger, LOOT.md Decision 5). */
   hunger?: number;
   max_hunger?: number;
+  /** Players only: persistent currency balance. */
+  coins?: number;
 }
 
 /** One find inside a chest_opened event / chest_contents reply: the item
@@ -94,6 +96,42 @@ export interface ActorState {
 export interface ChestFind {
   item: ItemView;
   minted: boolean;
+}
+
+export interface ShopStock {
+  slot: number;
+  item: ItemView;
+  price: number;
+  minted: boolean;
+  stocked_on: string;
+}
+
+export interface ShopView {
+  id: string;
+  object_id: string;
+  label: string;
+  stock: ShopStock[];
+  restocks_at: string;
+}
+
+export interface NoticeView {
+  id: string;
+  kind: "authored" | "player";
+  author: string;
+  body: string;
+  posted_at: string | null;
+  expires_at: string | null;
+  can_delete: boolean;
+}
+
+export interface NoticeboardView {
+  id: string;
+  object_id: string;
+  label: string;
+  notices: NoticeView[];
+  text_limit: number;
+  post_ttl_days: number;
+  max_player_posts: number;
 }
 
 export interface NpcState extends ActorState {
@@ -116,6 +154,8 @@ export interface ObjectSummary {
   /** Chest lifecycle (rolled-at-open, docs/LOOT.md). */
   opened?: boolean;
   contents_count?: number;
+  /** Generic exploration interaction selected by authored object data. */
+  interaction?: "shop" | "noticeboard";
 }
 
 export interface ObjectDetail extends ObjectSummary {
@@ -171,6 +211,9 @@ export type ServerMessage =
   // What still waits in an already-opened chest (1:1 reply to open_chest —
   // looking inside is not a world-visible act). Renders the selection popup.
   | { type: "chest_contents"; object_id: string; items: ChestFind[] }
+  | { type: "shop_opened"; shop: ShopView }
+  | { type: "shop_stock"; shop_id: string; stock: ShopStock[] }
+  | { type: "noticeboard_opened"; noticeboard: NoticeboardView }
   | { type: "npc_dialogue"; npc_id: string; name: string; player_text: string; text: string }
   | { type: "world_reset" }
   | { type: "error"; message: string; code?: string };
@@ -196,6 +239,11 @@ export type ClientMessage =
   // position in the chest; `item_id` guards against the contents shifting
   // under a stale click (the server refuses rather than grab the wrong thing).
   | { type: "take_item"; object_id: string; index: number; item_id: number }
+  | { type: "open_shop"; object_id: string }
+  | { type: "buy_shop_item"; object_id: string; slot: number; item_id: number; stocked_on: string }
+  | { type: "open_noticeboard"; object_id: string }
+  | { type: "post_notice"; object_id: string; body: string }
+  | { type: "delete_notice"; object_id: string; notice_id: number }
   | { type: "equip"; slot: number }
   | { type: "unequip"; slot: number };
 

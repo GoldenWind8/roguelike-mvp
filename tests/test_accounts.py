@@ -68,6 +68,7 @@ async def test_register_stores_hash_not_password(session):
     assert "secret-pass" not in row.password_hash
     assert row.email == "m@example.com"
     assert row.room_id is None                      # not placed yet
+    assert row.coins == 30
 
 
 async def test_duplicate_username_rejected(session):
@@ -97,11 +98,13 @@ async def test_save_players_roundtrip(session, make_template):
     engine.attach_player(player)
     player.position = Position(2, 3)
     player.hp = 41
+    player.coins = 17
 
     await save_players(session, [player], room_id=1)
 
     saved = await get_player_row(session, row.id)
     assert (saved.room_id, saved.x, saved.y, saved.hp) == (1, 2, 3, 41)
+    assert saved.coins == 17
 
 
 async def test_save_players_skips_rowless_entities(session, make_template):

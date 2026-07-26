@@ -26,6 +26,7 @@ async def test_oakrun_is_the_seeded_login_destination(session):
     assert template.enemies == []
     assert {obj.type for obj in template.objects} == {
         "wayfarers_rest_exterior",
+        "general_goods_shop_exterior",
         "basils_cures_exterior",
         "great_oak",
         "stone_well",
@@ -34,6 +35,10 @@ async def test_oakrun_is_the_seeded_login_destination(session):
         "noticeboard",
         "hitching_post",
     }
+    shop = next(obj for obj in template.objects if obj.id == "oakrun_general_goods_shop")
+    assert shop.interaction == "shop"
+    noticeboard = next(obj for obj in template.objects if obj.id == "oakrun_noticeboard")
+    assert noticeboard.interaction == "noticeboard"
     assert all(obj.image for obj in template.objects)
     assert len(template.connections) == 1
     assert template.exits[0].label == NORTH_ROAD_ROOM["name"]

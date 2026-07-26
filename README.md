@@ -59,6 +59,12 @@ ideas stay separate.
   rhythm as NPCs.
 - Browser rendering for variable-size rooms, room transitions, room metadata,
   and first-pass object inspection, plus a minimal login/register form.
+- Exploration shop service: Oakrun General Goods has a small daily selection
+  drawn through the loot generator, globally limited stock, transactional
+  purchases, and persistent player coin balances.
+- Exploration noticeboard service: Oakrun mixes authored town notices with
+  globally visible, expiring player messages. Each account may hold one short
+  notice on the board and may remove only its own.
 - Tests covering database setup, room validation, seeding, room loading, the
   room registry, traversal, NPC persistence, the dialogue provider seam,
   dialogue effects, party members, escalation, and accounts (auth, resume,
@@ -140,8 +146,12 @@ Each doc has one job:
   production workflow, and first Oakrun region plan.
 - [Authored Content](docs/CONTENT.md): version-controlled catalogues, database
   ownership, and persistent-versus-respawnable character rules.
+- [Exploration Noticeboards](docs/NOTICEBOARDS.md): authored notices, persistent
+  player posts, expiry, ownership, and protocol boundaries.
 - [World Object Assets](docs/OBJECT_ASSETS.md): the small data contract for
   multi-tile collision, visual overhang, rendering, and generator policy.
+- [Exploration Shops](docs/SHOPS.md): daily global stock, coins, purchase
+  transactions, and the authored-object interaction boundary.
 - [NPC And Actor Design](docs/NPCS.md): design source of truth for NPCs,
   actors, dialogue, and followers.
 - [Accounts & Identity](docs/archive/ACCOUNTS.md): design source of truth for the

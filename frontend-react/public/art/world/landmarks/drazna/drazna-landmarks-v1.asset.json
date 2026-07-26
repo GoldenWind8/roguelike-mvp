@@ -1,0 +1,61 @@
+{
+  "anchor": "bottom-center",
+  "assets": [
+    {
+      "id": "palace_of_still_water",
+      "image": "/art/world/landmarks/drazna/palace-of-still-water-v1.png",
+      "suggested_logical_size": [6, 3],
+      "suggested_visual_size": [7, 6],
+      "district": "high_crown"
+    },
+    {
+      "id": "crown_sluice_gatehouse",
+      "image": "/art/world/landmarks/drazna/crown-sluice-gatehouse-v1.png",
+      "suggested_logical_size": [6, 2],
+      "suggested_visual_size": [7, 5],
+      "district": "high_crown"
+    },
+    {
+      "id": "drowned_bell_tower",
+      "image": "/art/world/landmarks/drazna/drowned-bell-tower-v1.png",
+      "suggested_logical_size": [2, 2],
+      "suggested_visual_size": [3, 6],
+      "district": "lantern_quays"
+    },
+    {
+      "id": "house_of_names",
+      "image": "/art/world/landmarks/drazna/house-of-names-v1.png",
+      "suggested_logical_size": [5, 2],
+      "suggested_visual_size": [5, 4],
+      "district": "birch_heights"
+    },
+    {
+      "id": "eel_and_ember_inn",
+      "image": "/art/world/landmarks/drazna/eel-and-ember-inn-v1.png",
+      "suggested_logical_size": [5, 2],
+      "suggested_visual_size": [5, 4],
+      "district": "lantern_quays"
+    },
+    {
+      "id": "walking_bridge_houses",
+      "image": "/art/world/landmarks/drazna/walking-bridge-houses-v1.png",
+      "suggested_logical_size": [7, 2],
+      "suggested_visual_size": [8, 4],
+      "district": "walking_ward"
+    },
+    {
+      "id": "dry_dock_entrance",
+      "image": "/art/world/landmarks/drazna/dry-dock-entrance-v1.png",
+      "suggested_logical_size": [4, 2],
+      "suggested_visual_size": [4, 3],
+      "district": "undertide"
+    },
+    {
+      "id": "birch_stair_memorial_arch",
+      "image": "/art/world/landmarks/drazna/birch-stair-memorial-arch-v1.png",
+      "suggested_logical_size": [4, 1],
+      "suggested_visual_size": [4, 4],
+      "district": "birch_heights"
+    }
+  ]
+}
