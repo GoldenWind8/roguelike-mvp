@@ -19,6 +19,7 @@ import {
 import { RealGameSocket } from "../net/wsSocket";
 import type { GameSocket } from "../net/socket";
 import type {
+  CarriageView,
   ChestFind,
   ConnectionStatus,
   GameEvent,
@@ -63,7 +64,7 @@ async function postAuth(path: "/login" | "/register", username: string, password
 
 export type LogKind =
   | "ambient" | "join" | "attack" | "death" | "calm"
-  | "danger" | "heal" | "npc" | "error" | "item";
+  | "danger" | "heal" | "npc" | "error" | "item" | "discovery";
 
 export interface LogLine {
   id: number;
@@ -72,6 +73,7 @@ export interface LogLine {
 }
 
 let logSeq = 0;
+let discoverySeq = 0;
 
 /** Turn one broadcast's events into chronicle lines. Batch-aware because the
  * engine narrates an attack twice — the *_attacked intent event and then the
@@ -202,6 +204,14 @@ interface DialogueState {
   pending: boolean;
 }
 
+export interface DiscoveryToastState {
+  id: number;
+  name: string;
+  depth: number;
+  biome: string;
+  majorRegion: string;
+}
+
 export type WorldDrawerTab = "rumors" | "chronicle" | "people";
 
 export interface GameState {
@@ -222,6 +232,9 @@ export interface GameState {
   lootReveal: { objectId: string; finds: LootFind[] } | null;
   shop: ShopView | null;
   noticeboard: NoticeboardView | null;
+  carriage: CarriageView | null;
+  carriagePending: "name" | "travel" | null;
+  discoveryToast: DiscoveryToastState | null;
   /** Player-private knowledge supplied by world_sync and its deltas. */
   worldTime: WorldTimeView | null;
   rumors: RumorView[];
@@ -252,6 +265,9 @@ const initialState: GameState = {
   lootReveal: null,
   shop: null,
   noticeboard: null,
+  carriage: null,
+  carriagePending: null,
+  discoveryToast: null,
   worldTime: null,
   rumors: [],
   worldChronicle: [],
@@ -277,6 +293,9 @@ type Action =
   | { type: "close_loot" }
   | { type: "close_shop" }
   | { type: "close_noticeboard" }
+  | { type: "close_carriage" }
+  | { type: "carriage_pending"; pending: "name" | "travel" }
+  | { type: "dismiss_discovery"; id: number }
   | { type: "open_world_drawer"; tab?: WorldDrawerTab }
   | { type: "close_world_drawer" }
   | { type: "set_world_drawer_tab"; tab: WorldDrawerTab }
@@ -298,6 +317,33 @@ function upsertById<T>(items: T[], item: T, key: keyof T = "id" as keyof T): T[]
   const next = [...items];
   next[index] = item;
   return next;
+}
+
+function countWorldUnread(state: Pick<GameState, "rumors" | "worldChronicle" | "knownPeople">): number {
+  return [
+    ...state.rumors,
+    ...state.worldChronicle,
+    ...state.knownPeople,
+  ].filter((entry) => entry.unread).length;
+}
+
+/** Reading one page of the World drawer clears only that page. Information on
+ * the other pages keeps its quiet status-bar marker until the player actually
+ * looks at it. This is local presentation state, not a quest acknowledgement. */
+function markWorldTabRead(state: GameState, tab: WorldDrawerTab): GameState {
+  const next = {
+    ...state,
+    rumors: tab === "rumors"
+      ? state.rumors.map((rumor) => ({ ...rumor, unread: false }))
+      : state.rumors,
+    worldChronicle: tab === "chronicle"
+      ? state.worldChronicle.map((entry) => ({ ...entry, unread: false }))
+      : state.worldChronicle,
+    knownPeople: tab === "people"
+      ? state.knownPeople.map((npc) => ({ ...npc, unread: false }))
+      : state.knownPeople,
+  };
+  return { ...next, worldUnread: countWorldUnread(next) };
 }
 
 function reduce(state: GameState, action: Action): GameState {
@@ -334,17 +380,24 @@ function reduce(state: GameState, action: Action): GameState {
       return { ...state, shop: null };
     case "close_noticeboard":
       return { ...state, noticeboard: null };
+    case "close_carriage":
+      return { ...state, carriage: null, carriagePending: null };
+    case "carriage_pending":
+      return { ...state, carriagePending: action.pending };
+    case "dismiss_discovery":
+      return state.discoveryToast?.id === action.id
+        ? { ...state, discoveryToast: null }
+        : state;
     case "open_world_drawer":
-      return {
+      return markWorldTabRead({
         ...state,
         worldDrawerOpen: true,
         worldDrawerTab: action.tab ?? state.worldDrawerTab,
-        worldUnread: 0,
-      };
+      }, action.tab ?? state.worldDrawerTab);
     case "close_world_drawer":
       return { ...state, worldDrawerOpen: false };
     case "set_world_drawer_tab":
-      return { ...state, worldDrawerTab: action.tab };
+      return markWorldTabRead({ ...state, worldDrawerTab: action.tab }, action.tab);
     case "select_slot": {
       // Clicking the held slot puts it away; empty slots can't be held.
       if (action.index !== null && !packOf(state.room, state.playerId)[action.index]) return state;
@@ -376,6 +429,8 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
         // Travel invalidates a proximity-bound exploration service.
         shop: msg.type === "room_changed" ? null : state.shop,
         noticeboard: msg.type === "room_changed" ? null : state.noticeboard,
+        carriage: msg.type === "room_changed" ? null : state.carriage,
+        carriagePending: msg.type === "room_changed" ? null : state.carriagePending,
       };
       // Chest popup lifecycle rides in the broadcasts everyone gets: YOUR
       // open raises it; ANYONE's take marks a card taken (players at one
@@ -450,6 +505,8 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
         dialogue: null,
         lootReveal: null,
         noticeboard: null,
+        carriage: null,
+        carriagePending: null,
       };
     case "shop_stock":
       if (!state.shop || state.shop.id !== msg.shop_id) return state;
@@ -462,53 +519,146 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
         dialogue: null,
         lootReveal: null,
         shop: null,
+        carriage: null,
+        carriagePending: null,
+      };
+    case "carriage_opened":
+      return {
+        ...state,
+        carriage: {
+          object_id: msg.object_id,
+          stop: {
+            ...msg.stop,
+            named_by: state.carriage?.stop.id === msg.stop.id
+              ? state.carriage.stop.named_by
+              : undefined,
+          },
+          destinations: msg.destinations,
+          can_name: msg.can_name,
+          name_limit: msg.name_limit,
+        },
+        carriagePending: null,
+        inspection: null,
+        dialogue: null,
+        lootReveal: null,
+        shop: null,
+        noticeboard: null,
+      };
+    case "carriage_stop_named": {
+      if (!state.carriage) return state;
+      return {
+        ...state,
+        carriage: {
+          ...state.carriage,
+          stop: state.carriage.stop.id === msg.stop_id
+            ? {
+                ...state.carriage.stop,
+                name: msg.name,
+                status: "operating",
+                community_named: true,
+                named_by: msg.named_by,
+              }
+            : state.carriage.stop,
+          destinations: state.carriage.destinations.map((destination) =>
+            destination.stop_id === msg.stop_id
+              ? { ...destination, name: msg.name }
+              : destination),
+          can_name: state.carriage.stop.id === msg.stop_id
+            ? false
+            : state.carriage.can_name,
+        },
+        carriagePending: null,
+      };
+    }
+    case "travel_started":
+      return {
+        ...state,
+        carriage: null,
+        carriagePending: null,
+        log: appendLog(state.log, [{
+          id: ++logSeq,
+          kind: "ambient",
+          text: `The carriage sets out for ${msg.destination_name}.`,
+        }]),
+      };
+    case "carriage_arrived":
+      return {
+        ...state,
+        carriage: null,
+        carriagePending: null,
+        log: appendLog(state.log, [{
+          id: ++logSeq,
+          kind: "ambient",
+          text: `The carriage reaches ${msg.stop.name} after ${msg.travel_minutes} minutes (${msg.fare} coins).`,
+        }]),
+      };
+    case "frontier_discovered":
+      return {
+        ...state,
+        discoveryToast: {
+          id: ++discoverySeq,
+          name: msg.name,
+          depth: msg.depth,
+          biome: msg.biome,
+          majorRegion: msg.major_region,
+        },
+        log: appendLog(state.log, [{
+          id: ++logSeq,
+          kind: "discovery",
+          text: `${msg.name} emerges from the ${msg.biome}.`,
+        }]),
       };
     case "world_sync":
-      return {
-        ...state,
-        worldTime: msg.time,
-        rumors: msg.rumors,
-        worldChronicle: msg.chronicle,
-        knownPeople: msg.known_people,
-        worldUnread: state.worldDrawerOpen
-          ? 0
-          : [
-              ...msg.rumors,
-              ...msg.chronicle,
-              ...msg.known_people,
-            ].filter((entry) => entry.unread).length,
-      };
+      {
+        const next: GameState = {
+          ...state,
+          worldTime: msg.time,
+          rumors: msg.rumors,
+          worldChronicle: msg.chronicle,
+          knownPeople: msg.known_people,
+          worldUnread: 0,
+        };
+        if (state.worldDrawerOpen) return markWorldTabRead(next, state.worldDrawerTab);
+        return { ...next, worldUnread: countWorldUnread(next) };
+      }
     case "world_time_updated":
       return { ...state, worldTime: msg.time };
-    case "rumor_learned":
-      return {
+    case "rumor_learned": {
+      const rumor = state.worldDrawerOpen && state.worldDrawerTab === "rumors"
+        ? { ...msg.rumor, unread: false }
+        : msg.rumor;
+      const next = {
         ...state,
-        rumors: upsertById(state.rumors, msg.rumor),
-        worldUnread: state.worldDrawerOpen || !msg.rumor.unread
-          ? state.worldUnread
-          : state.worldUnread + 1,
+        rumors: upsertById(state.rumors, rumor),
       };
-    case "chronicle_added":
-      return {
+      return { ...next, worldUnread: countWorldUnread(next) };
+    }
+    case "chronicle_added": {
+      const entry = state.worldDrawerOpen && state.worldDrawerTab === "chronicle"
+        ? { ...msg.entry, unread: false }
+        : msg.entry;
+      const next = {
         ...state,
-        worldChronicle: upsertById(state.worldChronicle, msg.entry),
-        worldUnread: state.worldDrawerOpen || !msg.entry.unread
-          ? state.worldUnread
-          : state.worldUnread + 1,
+        worldChronicle: upsertById(state.worldChronicle, entry),
       };
-    case "known_npc_updated":
-      return {
+      return { ...next, worldUnread: countWorldUnread(next) };
+    }
+    case "known_npc_updated": {
+      const npc = state.worldDrawerOpen && state.worldDrawerTab === "people"
+        ? { ...msg.npc, unread: false }
+        : msg.npc;
+      const next = {
         ...state,
-        knownPeople: upsertById(state.knownPeople, msg.npc, "world_id"),
-        worldUnread: state.worldDrawerOpen || !msg.npc.unread
-          ? state.worldUnread
-          : state.worldUnread + 1,
+        knownPeople: upsertById(state.knownPeople, npc, "world_id"),
       };
+      return { ...next, worldUnread: countWorldUnread(next) };
+    }
     case "error":
       return {
         ...state,
         log: appendLog(state.log, [{ id: ++logSeq, kind: "error", text: msg.message }]),
         dialogue: state.dialogue ? { ...state.dialogue, pending: false } : null,
+        carriagePending: null,
       };
     case "action_locked":
       return { ...state, actionLocked: true };
@@ -550,6 +700,11 @@ interface GameApi {
   openNoticeboard(objectId: string): void;
   postNotice(objectId: string, body: string): void;
   deleteNotice(objectId: string, noticeId: number): void;
+  openCarriage(objectId: string): void;
+  closeCarriage(): void;
+  nameCarriageStop(name: string): void;
+  travelByCarriage(destinationId: number): void;
+  dismissDiscovery(id: number): void;
   /** Take one chosen item from an opened chest (the popup's Take button).
    * `index` is the item's current position among the chest's leftovers. */
   takeItem(objectId: string, index: number, itemId: number): void;
@@ -719,6 +874,37 @@ export function GameProvider({ children }: { children: ReactNode }) {
       },
       deleteNotice(objectId, noticeId) {
         socket().send({ type: "delete_notice", object_id: objectId, notice_id: noticeId });
+      },
+      openCarriage(objectId) {
+        socket().send({ type: "open_carriage", object_id: objectId });
+      },
+      closeCarriage() {
+        dispatch({ type: "close_carriage" });
+      },
+      nameCarriageStop(name) {
+        const carriage = stateRef.current.carriage;
+        if (!carriage || stateRef.current.carriagePending || !name.trim()) return;
+        dispatch({ type: "carriage_pending", pending: "name" });
+        socket().send({
+          type: "name_carriage_stop",
+          object_id: carriage.object_id,
+          name: name.trim(),
+        });
+      },
+      travelByCarriage(destinationId) {
+        const carriage = stateRef.current.carriage;
+        if (!carriage || stateRef.current.carriagePending) return;
+        const destination = carriage.destinations.find((stop) => stop.stop_id === destinationId);
+        if (!destination) return;
+        dispatch({ type: "carriage_pending", pending: "travel" });
+        socket().send({
+          type: "travel_by_carriage",
+          object_id: carriage.object_id,
+          stop_id: destinationId,
+        });
+      },
+      dismissDiscovery(id) {
+        dispatch({ type: "dismiss_discovery", id });
       },
       takeItem(objectId, index, itemId) {
         socket().send({ type: "take_item", object_id: objectId, index, item_id: itemId });

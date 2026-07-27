@@ -134,6 +134,39 @@ export interface NoticeboardView {
   max_player_posts: number;
 }
 
+// --- shared carriage network ---------------------------------------------
+
+/** A carriage stop the player has actually discovered. Stop names are shared
+ * world state and may have been supplied by another player. */
+export interface CarriageStopView {
+  id: number;
+  name: string;
+  room_id: number;
+  biome: string;
+  status: string;
+  community_named: boolean;
+  named_by?: string;
+}
+
+/** A public route from the carriage currently beside the player. The server
+ * omits unnamed generated stops entirely; the UI never silhouettes them. */
+export interface CarriageDestinationView {
+  stop_id: number;
+  name: string;
+  room_id: number;
+  travel_minutes: number;
+  fare: number;
+  route_stop_ids: number[];
+}
+
+export interface CarriageView {
+  object_id: string;
+  stop: CarriageStopView;
+  destinations: CarriageDestinationView[];
+  can_name: boolean;
+  name_limit: number;
+}
+
 // --- player-known living-world context ------------------------------------
 //
 // These views are deliberately evidence-shaped. They may describe only what
@@ -143,7 +176,10 @@ export interface NoticeboardView {
 export type WorldPhase = "deep_night" | "dawn" | "morning" | "afternoon" | "dusk" | "night";
 
 export interface WorldTimeView {
-  tick: number;
+  /** Canonical persistent clock used by the living-world simulator. */
+  world_minute: number;
+  /** Transitional compatibility with the first UI-only contract draft. */
+  tick?: number;
   day: number;
   phase: WorldPhase;
   /** Server-authored display text, such as "Day 3, dusk". */
@@ -184,7 +220,9 @@ export interface RumorView {
 
 export interface WorldChronicleEntry {
   id: string;
-  world_tick: number;
+  world_minute: number;
+  /** Transitional compatibility with the first UI-only contract draft. */
+  world_tick?: number;
   happened_at: string;
   title: string;
   body: string;
@@ -205,6 +243,14 @@ export type RelationshipTone =
   | "trusting"
   | "devoted";
 
+/** A safe, player-facing conversation opening. The prompt is still ordinary
+ * player speech; selecting it never invokes a quest or scripted objective. */
+export interface DialogueTopicView {
+  id: string;
+  label: string;
+  prompt: string;
+}
+
 export interface KnownNpcView {
   world_id: string;
   name: string;
@@ -219,6 +265,7 @@ export interface KnownNpcView {
     at: string;
     note?: string;
   };
+  dialogue_topics?: DialogueTopicView[];
   unread: boolean;
 }
 
@@ -229,6 +276,7 @@ export interface NpcState extends ActorState {
    * world protocol. Optional while older servers provide the compact shape. */
   world_id?: string;
   activity?: NpcActivityView;
+  dialogue_topics?: DialogueTopicView[];
 }
 
 export interface ObjectSummary {
@@ -247,7 +295,7 @@ export interface ObjectSummary {
   opened?: boolean;
   contents_count?: number;
   /** Generic exploration interaction selected by authored object data. */
-  interaction?: "shop" | "noticeboard";
+  interaction?: "shop" | "noticeboard" | "carriage";
 }
 
 export interface ObjectDetail extends ObjectSummary {
@@ -260,6 +308,11 @@ export interface ObjectDetail extends ObjectSummary {
 export interface ExitSummary {
   position: [number, number];
   to_room_id: number;
+  label: string;
+}
+
+export interface FrontierExitSummary {
+  position: [number, number];
   label: string;
 }
 
@@ -282,6 +335,8 @@ export interface RoomStatePayload {
   walls: [number, number][];
   /** Connected door/portal presentation; traversal remains server-owned. */
   exits: ExitSummary[];
+  /** Procedural border crossings. Destination truth is private until entered. */
+  frontier_exits?: FrontierExitSummary[];
   objects: ObjectSummary[];
   players: Record<string, ActorState>;
   enemies: Record<string, ActorState>;
@@ -319,6 +374,24 @@ export type ServerMessage =
   | { type: "shop_opened"; shop: ShopView }
   | { type: "shop_stock"; shop_id: string; stock: ShopStock[] }
   | { type: "noticeboard_opened"; noticeboard: NoticeboardView }
+  | {
+      type: "carriage_opened";
+      object_id: string;
+      stop: CarriageStopView;
+      destinations: CarriageDestinationView[];
+      can_name: boolean;
+      name_limit: number;
+    }
+  | { type: "carriage_stop_named"; stop_id: number; name: string; named_by?: string }
+  | { type: "travel_started"; stop_id: number; destination_name: string }
+  | { type: "carriage_arrived"; stop: CarriageStopView; travel_minutes: number; fare: number }
+  | {
+      type: "frontier_discovered";
+      name: string;
+      depth: number;
+      biome: string;
+      major_region: string;
+    }
   | { type: "npc_dialogue"; npc_id: string; name: string; player_text: string; text: string }
   | { type: "world_reset" }
   | { type: "error"; message: string; code?: string };
@@ -349,6 +422,9 @@ export type ClientMessage =
   | { type: "open_noticeboard"; object_id: string }
   | { type: "post_notice"; object_id: string; body: string }
   | { type: "delete_notice"; object_id: string; notice_id: number }
+  | { type: "open_carriage"; object_id: string }
+  | { type: "name_carriage_stop"; object_id: string; name: string }
+  | { type: "travel_by_carriage"; object_id: string; stop_id: number }
   | { type: "equip"; slot: number }
   | { type: "unequip"; slot: number };
 

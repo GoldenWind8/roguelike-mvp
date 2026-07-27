@@ -199,10 +199,21 @@ export function RoomGrid() {
   }, [room?.objects]);
 
   const exitsAt = useMemo(() => {
-    const map = new Map<string, NonNullable<typeof room>["exits"][number]>();
-    room?.exits.forEach((exit) => map.set(`${exit.position[0]},${exit.position[1]}`, exit));
+    const map = new Map<string, {
+      position: [number, number];
+      label: string;
+      frontier: boolean;
+    }>();
+    room?.exits.forEach((exit) => map.set(
+      `${exit.position[0]},${exit.position[1]}`,
+      { position: exit.position, label: exit.label, frontier: false },
+    ));
+    room?.frontier_exits?.forEach((exit) => map.set(
+      `${exit.position[0]},${exit.position[1]}`,
+      { position: exit.position, label: exit.label, frontier: true },
+    ));
     return map;
-  }, [room?.exits]);
+  }, [room?.exits, room?.frontier_exits]);
 
   const livingActors = useMemo(
     () => room
@@ -391,6 +402,7 @@ export function RoomGrid() {
       const classes = ["cell"];
       if (wall) classes.push("cell-wall");
       if (exit) classes.push("cell-exit");
+      if (exit?.frontier) classes.push("cell-frontier-exit");
       if (obj) classes.push("cell-object-footprint");
       if (obj?.blocks_movement) classes.push("cell-object-blocking");
       if (hit) classes.push("cell-actor-footprint");
@@ -415,7 +427,10 @@ export function RoomGrid() {
           {exit && (() => {
             const presentation = exitPresentation(exit.position, room.room.width, room.room.height);
             return (
-              <span className={`exit-marker exit-${presentation.edge}`} aria-label={`Exit to ${exit.label}`}>
+              <span
+                className={`exit-marker exit-${presentation.edge} ${exit.frontier ? "exit-frontier" : ""}`}
+                aria-label={exit.frontier ? `Untravelled road: ${exit.label}` : `Exit to ${exit.label}`}
+              >
                 <span className="exit-glyph">{presentation.glyph}</span>
                 <span className="exit-label">{exit.label.replace(/^The\s+/i, "")}</span>
               </span>

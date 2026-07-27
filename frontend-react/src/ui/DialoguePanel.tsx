@@ -41,13 +41,16 @@ function dispositionLabel(d: string): string {
 }
 
 export function DialoguePanel() {
-  const { dialogue, room } = useGame();
+  const { dialogue, room, knownPeople } = useGame();
   const api = useGameApi();
   const [draft, setDraft] = useState("");
   const logRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const npc = dialogue && room ? room.npcs[dialogue.npcId] : null;
+  const knownNpc = npc?.world_id
+    ? knownPeople.find((candidate) => candidate.world_id === npc.world_id)
+    : undefined;
 
   useEffect(() => {
     const el = logRef.current;
@@ -65,8 +68,23 @@ export function DialoguePanel() {
     setDraft("");
   };
 
-  const suggestions =
-    SUGGESTIONS[npc.name]?.[npc.disposition === "hostile" ? "hostile" : "neutral"] ?? [];
+  const authoredTopics = npc.dialogue_topics ?? knownNpc?.dialogue_topics;
+  const suggestions = authoredTopics?.map((topic) => ({
+    id: topic.id,
+    label: topic.label,
+    prompt: topic.prompt,
+  })) ?? (
+    SUGGESTIONS[npc.name]?.[npc.disposition === "hostile" ? "hostile" : "neutral"] ?? []
+  ).map((prompt) => ({ id: prompt, label: prompt, prompt }));
+  const activity = npc.activity ?? knownNpc?.activity;
+  const relationshipLabel = npc.disposition === "hostile"
+    ? dispositionLabel("hostile")
+    : knownNpc?.relationship ?? dispositionLabel(npc.disposition);
+  const relationshipClass = npc.disposition === "hostile"
+    ? "disp-hostile"
+    : knownNpc
+      ? `bond-${knownNpc.relationship}`
+      : `disp-${npc.disposition}`;
 
   return (
     <section className="panel panel-dialogue">
@@ -82,9 +100,23 @@ export function DialoguePanel() {
           <span className="dialogue-name">{npc.name}</span>
           <span className="dialogue-role">{npc.role}</span>
         </div>
-        <span className={`disp-chip disp-${npc.disposition}`}>{dispositionLabel(npc.disposition)}</span>
+        <span className={`disp-chip ${relationshipClass}`}>{relationshipLabel}</span>
         <button className="panel-close" onClick={() => api.closeDialogue()} title="Close (Esc)">×</button>
       </div>
+
+      {(activity?.label || knownNpc?.relationship_note) && (
+        <div className="dialogue-context">
+          {activity?.label && (
+            <span className={`dialogue-activity activity-${activity.kind}`}>
+              <i className="activity-pulse" aria-hidden />
+              {activity.label}
+            </span>
+          )}
+          {knownNpc?.relationship_note && (
+            <span className="dialogue-bond-note">{knownNpc.relationship_note}</span>
+          )}
+        </div>
+      )}
 
       <div className="dialogue-log" ref={logRef}>
         {dialogue.lines.length === 0 && !dialogue.pending && (
@@ -103,9 +135,13 @@ export function DialoguePanel() {
 
       {suggestions.length > 0 && (
         <div className="dialogue-chips">
-          {suggestions.map((s) => (
-            <button key={s} disabled={dialogue.pending} onClick={() => say(s)}>
-              {s}
+          {suggestions.map((suggestion) => (
+            <button
+              key={suggestion.id}
+              disabled={dialogue.pending}
+              onClick={() => say(suggestion.prompt)}
+            >
+              {suggestion.label}
             </button>
           ))}
         </div>
