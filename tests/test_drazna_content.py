@@ -11,6 +11,7 @@ from backend.room_validation import (
 from backend.seeds import (
     ENEMY_DEFS,
     LIVING_NPC_SEEDS,
+    OAKRUN_NPC_SEEDS,
     SECONDARY_AUTHORED_NPC_SEEDS,
 )
 from backend.situation_defs import get_situation
@@ -140,6 +141,46 @@ def test_all_fifteen_drazna_residents_have_clear_unique_starting_tiles():
     }
 
 
+def test_drazna_arc_roles_remain_true_after_movement_and_death():
+    expected = {
+        "edda-marr": "Draznan route-reader",
+        "wren-no-house": "amnesiac survivor",
+        "vasko-mirek": "Undertide diver",
+        "luka-nen": "Undertide rigger and census witness",
+        "sabine-vauclair": "Rouvrain field physician",
+    }
+    seeded_personas = {
+        persona["id"]: persona
+        for _room_id, persona, *_rest in (
+            *LIVING_NPC_SEEDS,
+            *OAKRUN_NPC_SEEDS,
+            *SECONDARY_AUTHORED_NPC_SEEDS,
+        )
+    }
+    assert {
+        npc_id: seeded_personas[npc_id]["role"] for npc_id in expected
+    } == expected
+
+    content = load_living_world_content()
+    profile_roles = {
+        npc_id: content.npc_profiles[npc_id]["role"]
+        for npc_id in expected
+    }
+    assert profile_roles == {
+        **expected,
+        "luka-nen": "Undertide rigger and uncounted closure-crew witness",
+    }
+    assert "Find my brother" not in " ".join(
+        seeded_personas["pava-mirek"]["canned"]
+    )
+    assert "missing diver returned" not in (
+        seeded_personas["vasko-mirek"]["persona"].casefold()
+    )
+    odran_lines = " ".join(seeded_personas["odran-third-bell"]["canned"])
+    assert "WRONG CADENCE" not in odran_lines
+    assert "FOURTEEN WORKED. NINE WERE WRITTEN." in odran_lines
+
+
 def test_all_drazna_dialogue_personas_share_one_intertwined_relationship_web():
     region = load_region("world/drazna/region.json")
     personas = {
@@ -231,6 +272,12 @@ def test_drazna_has_dedicated_landmarks_services_and_enemy_ecology():
     assert first_record["key"] == "drazna:first-public-record"
     assert "verified public record" in first_record["summary"].lower()
     assert "unknown beginning" in first_record["summary"].lower()
+    assert "first verified victims" not in (
+        objects["first_rot_memorial"]["description"].casefold()
+    )
+    tools = objects["drazna_sluice_tools"]["discovery"]["summary"].casefold()
+    assert "fourteen closure workers" in tools
+    assert "fourteen floodwardens" not in tools
 
     enemy_ids = {
         spawn["enemy_id"]
@@ -241,7 +288,8 @@ def test_drazna_has_dedicated_landmarks_services_and_enemy_ecology():
 
 
 def test_drazna_people_and_simulation_locations_match_the_physical_region():
-    profiles = load_living_world_content().npc_profiles
+    content = load_living_world_content()
+    profiles = content.npc_profiles
     core_npcs = load_catalog("npcs.json")
     expected_core = {
         "drina-sable",
@@ -265,6 +313,9 @@ def test_drazna_people_and_simulation_locations_match_the_physical_region():
         if anchor["location_id"].startswith("drazna_")
     }
     assert drazna_schedule_locations <= DEDICATED_DRAZNA_ROOMS
+    assert content.locations["drazna_tablet_vault"]["name"] == (
+        "The Uncounted Vault"
+    )
 
     odran = core_npcs["odran-third-bell"]
     assert odran["spawn"]["room"] == "drazna_gate_seven"
@@ -431,8 +482,14 @@ def test_gate_seven_situation_text_matches_its_durable_fact_shapes():
         "gate": "vented",
         "names_spoken": 14,
     }
+    assert "restore the names of the five closure workers" in (
+        choices["answer-the-fourteenth"].description
+    )
     assert choices["brace-the-counterpressure"].fact_value == {
         "state": "contained",
         "gate": "braced",
         "names_spoken": 0,
     }
+    assert "arrest the counterweight" in (
+        choices["brace-the-counterpressure"].description
+    )

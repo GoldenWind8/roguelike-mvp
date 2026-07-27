@@ -178,5 +178,5 @@ The first satisfying milestone was:
 
 The project is no longer only a combat prototype — the world is explorable,
 and peaceful rooms now move at exploration speed (Milestone 3, done). The
-next step is [Roadmap](ROADMAP.md) Milestone 4: basic hand-authored NPC
+next step is [Roadmap](../ROADMAP.md) Milestone 4: basic hand-authored NPC
 dialogue.

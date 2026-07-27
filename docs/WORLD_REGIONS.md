@@ -136,15 +136,22 @@ players may still know different rumors about the road.
 | Service | Stops | Scheduled travel | Frontier service |
 |---|---|---:|---|
 | Oak and Crown | Oakrun ↔ Alderwick | 12 hours | No |
-| Grey Heron | Pilgrim's Hollow ↔ Hollowmere ↔ Drazna | 27 hours before layover | Yes |
+| Grey Heron | Pilgrim's Hollow ↔ Hollowmere ↔ Drazna | 27 hours plus a 3-hour layover | Yes |
 | Bell and Reed | Alderwick ↔ Orison Fields | 24 hours | Yes |
-| Mudwheel | Lantern Quays ↔ High Crown ↔ Birch Heights | 80 minutes | No |
+| Mudwheel | Lantern Quays ↔ High Crown ↔ Birch Heights | 80 minutes plus a 45-minute layover | No |
 
 Each service has weekday operating windows, departure minutes, capacity,
 fare, layover, route-risk cancellation rules, and an NPC operator with their
 own safety threshold. Fast travel advances world time, moves the party
 together, and resolves route pressure. It is a compressed journey, not
 teleportation.
+
+Hollowmere does not yet have a physical carriage stop in the playable room
+set. The current runtime therefore uses Oakrun Exchange as the Grey Heron's
+terminal alias for Pilgrim's Hollow and presents one direct Oakrun–Drazna
+ticket. The journey still consumes both authored road segments and the
+Hollowmere layover—thirty world hours in total—so adding the intermediate stop
+later will not silently change its distance or world-simulation cost.
 
 Generated frontier rooms may gain a carriage waystop when they:
 

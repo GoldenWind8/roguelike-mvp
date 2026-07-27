@@ -482,7 +482,7 @@
     {
       "id": "edda-marr",
       "name": "Edda Marr",
-      "role": "Draznan route-reader stranded in Pilgrim's Hollow",
+      "role": "Draznan route-reader",
       "kind": "traveller",
       "home_location_id": "oakrun_pilgrims_hollow",
       "deliberation_windows": [
@@ -543,7 +543,7 @@
     {
       "id": "wren-no-house",
       "name": "Wren",
-      "role": "amnesiac survivor sheltered outside Oakrun",
+      "role": "amnesiac survivor",
       "kind": "traveller",
       "home_location_id": "oakrun_pilgrims_hollow",
       "deliberation_windows": [
@@ -912,7 +912,7 @@
     {
       "id": "vasko-mirek",
       "name": "Vasko Mirek",
-      "role": "missing Undertide diver",
+      "role": "Undertide diver",
       "kind": "worker",
       "home_location_id": "drazna_undertide",
       "deliberation_windows": [
@@ -1161,7 +1161,7 @@
     {
       "id": "sabine-vauclair",
       "name": "Sabine Vauclair",
-      "role": "Rouvrain field physician travelling toward Drazna",
+      "role": "Rouvrain field physician",
       "kind": "traveller",
       "home_location_id": "saint-oree-hospice",
       "deliberation_windows": [
@@ -1620,7 +1620,7 @@
     {
       "id": "luka-nen",
       "name": "Luka Nen",
-      "role": "Undertide survivor and uncounted closure-crew witness",
+      "role": "Undertide rigger and uncounted closure-crew witness",
       "kind": "resident",
       "home_location_id": "drazna_undertide",
       "deliberation_windows": [

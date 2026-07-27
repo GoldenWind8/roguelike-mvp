@@ -282,12 +282,12 @@ _LIVING_NPC_VOICES = {
     "pava-mirek": (
         "A master roofwright who reads buildings as other people read faces. "
         "Blunt, maternal, and furious at officials who call preventable collapse weather.",
-        ["That beam did not fail. Someone stopped listening to it.", "Find my brother before you bring me another theory."],
+        ["That beam did not fail. Someone stopped listening to it.", "Bring me facts about my brother, not another theory."],
         "Her crews and the Walking Ward keep her in Drazna.",
         "pava_mirek",
     ),
     "vasko-mirek": (
-        "A missing diver returned wrong-footed from the Undertide, laconic and alert to sounds beneath floors. "
+        "An Undertide diver made wrong-footed by too many descents, laconic and alert to sounds beneath floors. "
         "He jokes when frightened and refuses to explain where he learned certain drowned names.",
         ["There are doors underwater that open toward dry rooms.", "Pava will hit me before she hugs me. Fair order."],
         "He may join someone willing to descend carefully and keep faith with the drowned.",

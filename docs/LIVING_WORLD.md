@@ -423,18 +423,17 @@ incompatible stories carried by travellers:
 
 The main conspiracy remains distant pressure rather than the first local plot.
 Early play follows ordinary people trying to understand, reach, flee, study,
-or exploit the place where the rot was first experienced.
+or exploit places associated with the earliest surviving accounts.
 
 The first world expansion builds three connected contexts:
 
 - **Amberfall:** Oakrun's pastoral home kingdom, warm waystations and farming
   country where the rot is still disputed.
-- **Veyr:** the eastern kingdom travellers believe experienced the rot first;
-  damaged settlements, displaced families, researchers, opportunists, and
-  mutually exclusive testimony.
-- **Drazna's Crownlands:** lake-and-spire country connected by Edda's erased
-  routes, important to travellers and old infrastructure but not automatically
-  the source of the rot.
+- **Drazna:** lake-and-spire country with the first verified public record,
+  damaged wards, displaced families, researchers, opportunists, and mutually
+  exclusive testimony. No surviving evidence establishes it as the source.
+- **Rouvray:** bell-country beyond the eastern marches, where border medicine,
+  zealotry, closed roads, and later reports further complicate the chronology.
 
 Fields and roads connect them through carriage stages, footpaths, hostile
 passes, ruined tolls, and rare shortcuts. Carriages follow real timetables,

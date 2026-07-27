@@ -24,7 +24,7 @@ flowchart TB
     BS["Birch Stair"]
     BH["Birch Heights"]
     HN["House of Names"]
-    TV["Tablet Vault"]
+    TV["The Uncounted Vault"]
     HC["High Crown"]
     PW["Palace of Still Water"]
     CS["Crown Sluice"]
@@ -81,12 +81,16 @@ takes eighty moving minutes plus one forty-five-minute High Crown layover, and
 preserves the route's guarded/safe danger ratings.
 
 The dangerous Grey Heron connection between Oakrun and Lantern Quays costs
-twenty-four coin. A new traveller can therefore use it from the thirty-coin
-starting purse and arrive with six. Teo's Salvage Counter buys carried common,
-rare, and legendary finds for four, twelve, and forty coin. Five common finds
-therefore leave that first traveller with twenty-six coin, enough for the
-return crossing without making the long road cheap. Those offers remain below
-the minimum same-rarity purchase prices, preventing shop arbitrage.
+twenty-four coin and advances the world by thirty hours: twenty-seven hours
+across the two authored road segments plus the three-hour Hollowmere layover.
+Until Hollowmere has its own physical stop, Oakrun Exchange is the playable
+terminal alias for the Pilgrim's Hollow departure. A new traveller can
+therefore use it from the thirty-coin starting purse and arrive with six.
+Teo's Salvage Counter buys carried common, rare, and legendary finds for four,
+twelve, and forty coin. Five common finds therefore leave that first traveller
+with twenty-six coin, enough for the return crossing without making the long
+road cheap. Those offers remain below the minimum same-rarity purchase prices,
+preventing shop arbitrage.
 
 ## Districts and interiors
 
@@ -102,7 +106,7 @@ the minimum same-rarity purchase prices, preventing shop arbitrage.
 | Birch Stair | Memorial ascent, flood heights, and public copies that can survive a suppressed hearing |
 | Birch Heights | Dry civic ward connecting the Mudwheel landing, roof route, and archive |
 | House of Names | Public rolls, omitted tablets, Lina's letters, and Nera's supplemental archive |
-| Tablet Vault | Scraped records, pre-proclamation residue, and a maintenance cut into the pressure system |
+| The Uncounted Vault | Scraped records, pre-proclamation residue, and a maintenance cut into the pressure system |
 | High Crown | Political crossroads between market, palace, scar, and sluice |
 | Palace of Still Water | Mara and Alin's contested offices, the sealed flood order, and reverse-water evidence |
 | Crown Sluice | Floodwarden shifts, control wheel, tools, gauges, and Rada's route below |
@@ -271,11 +275,12 @@ record is not proven birthplace**.
 
 ## Release validation
 
-The frozen release candidate passed the complete 864-test backend suite and
-the production TypeScript/Vite build. All forty Drazna WebPs also decoded
-cleanly with transparency and non-cropping alpha margins. A paired seed-42
-simulation then ran two independently created worlds for 180 days, including
-a close/reopen at day 90. Both branches produced the same canonical hashes:
+The final source passed the complete 866-test backend suite and the production
+TypeScript/Vite build. All forty Drazna WebPs also decoded cleanly with
+transparency and non-cropping alpha margins. At the content-complete
+simulation checkpoint, a paired seed-42 audit ran two independently created
+worlds for 180 days, including a close/reopen at day 90. Both branches produced
+the same canonical hashes:
 
 - Day 90:
   `4c464b50d24e79a1083b48caff9d3be734d2b0c4c6e16416a5d7f11f1ccd1d3c`
@@ -297,12 +302,25 @@ counts matched while 2,692 of 5,365 memory rows and 1,856 of 10,508 Chronicle
 rows differed per seed, confirming deterministic replay without flattening
 the seed-dependent social history.
 
-An additional adversarial audit forced eight synchronized four-way races
-between pacification, containment, Odran's defeat, and flooding. Every race
-committed exactly one canonical winner. Twelve simultaneous duplicate
-pacification answers likewise produced one durable fact and event while
-preserving all twelve player witnesses. Reopen, rollback injection,
-active-room deferral, dead-witness, and late-outcome checks stayed coherent.
+A third fresh world, seed 271828, ran for ninety days with a day-forty-five
+database close, copy, and reopen. Its independent replay reproduced all
+forty-five later daily service and trigger results and the complete final
+semantic snapshot. The run ended with 9,997 deliberations—3.967 per
+NPC-day, with every individual day between three and five—2,880
+conversations, 7,903 memories, 15,647 Chronicle entries, maximum rumor
+cascade depth three, and the same thirty-five pending future events with none
+overdue. Final exact and historical no-op replays changed no rows; the day-90
+semantic hash was
+`1e8cb1a839d389f94120606062a1fc32b7403b0ba541e8a970dced0aea1d96b2`.
+
+An additional property audit exercised 144 isolated Gate Seven timelines,
+covering all twenty-four orderings of pacification, containment, Odran's
+defeat, and the flood deadline. It produced forty-two pacified, thirty-two
+contained, thirty-four Odran-killed, and thirty-six flooded outcomes. Across
+428 database reopens, 435 replay passes, forty-five guaranteed active-room
+deferrals, moved or dead witnesses, and concurrent retries, every timeline
+committed exactly one resolution and one matching aftermath. Exact logical
+database hashes were unchanged by every final replay.
 
 Long-history performance remains a watch item rather than a correctness
 failure. Days 1–90 averaged 5.66 seconds per simulated day, while days 91–180

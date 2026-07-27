@@ -1604,7 +1604,7 @@
           "npc_id": "odran-third-bell",
           "goal_id": "hold-gate-seven",
           "status": "active",
-          "reason": "Living floodwardens have entered the gate hall without first restoring the five omitted names."
+          "reason": "Living hands have entered the gate hall without first restoring the five omitted names."
         },
         {
           "kind": "remember",

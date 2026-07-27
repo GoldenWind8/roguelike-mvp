@@ -33,7 +33,7 @@
       {
         "id": "answer-the-fourteenth",
         "label": "Answer all fourteen names",
-        "description": "Match the Third Bell cadence and restore the five closure workers cut from the public roll.",
+        "description": "Match the Third Bell cadence and restore the names of the five closure workers cut from the public roll.",
         "requires_all_clues": [
           "drazna:fourteen-tools",
           "drazna:third-bell-cadence",
@@ -54,7 +54,7 @@
       {
         "id": "brace-the-counterpressure",
         "label": "Brace the counterpressure",
-        "description": "Use the charcoal Walking Ward scale to arrest the Crown's late closure order at its safest surviving mark.",
+        "description": "Use the charcoal Walking Ward scale to arrest the counterweight at its safest surviving mark, overriding the Crown's late closure order.",
         "requires_all_clues": [
           "drazna:counterpressure-scale",
           "drazna:late-flood-order"

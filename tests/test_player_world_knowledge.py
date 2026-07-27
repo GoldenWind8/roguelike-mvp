@@ -287,6 +287,11 @@ async def test_dialogue_creates_memory_relationship_rumor_and_chronicle(session)
     assert [topic["id"] for topic in basil_view["dialogue_topics"]] == [
         learned.knowledge_key
     ]
+    dialogue_topic = basil_view["dialogue_topics"][0]
+    assert dialogue_topic["prompt"] == (
+        "What have you heard about this claim: "
+        f"{dialogue_topic['label'].rstrip('.?')}?"
+    )
     assert any(entry["title"] == "Words exchanged" for entry in payload["chronicle"])
 
 
@@ -383,6 +388,42 @@ async def test_chronicle_is_durable_across_syncs(session):
         if item["body"] == "The west bell answered from an empty tower."
     )
     assert retained["unread"] is False
+
+
+async def test_chronicle_humanizes_npc_aftermath_titles(session):
+    room, player, _basil = await _player_and_basil(session)
+    await _set_world_minute(session, 10)
+    await world_sync(
+        session,
+        player_id=player.id,
+        current_room_id=room.id,
+    )
+
+    expected_titles = {
+        "npc_wounded": "Someone was hurt",
+        "npc_died": "Someone died",
+        "npc_boarded_carriage": "Someone took the road",
+    }
+    for kind in expected_titles:
+        session.add(WorldEvent(
+            kind=kind,
+            world_minute=20,
+            room_id=room.id,
+            summary=f"A local trace remains after {kind}.",
+            visibility="public_aftermath",
+        ))
+    await _set_world_minute(session, 20)
+
+    payload = await world_sync(
+        session,
+        player_id=player.id,
+        current_room_id=room.id,
+    )
+    by_body = {entry["body"]: entry for entry in payload["chronicle"]}
+    for kind, title in expected_titles.items():
+        entry = by_body[f"A local trace remains after {kind}."]
+        assert entry["title"] == title
+        assert "Npc" not in entry["title"]
 
 
 async def test_unread_public_event_is_not_buried_by_private_noise(session):

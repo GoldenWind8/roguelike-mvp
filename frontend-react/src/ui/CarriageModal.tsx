@@ -45,7 +45,10 @@ function Destination({
   const journeyTime = travelTime(destination.journey_minutes);
   const fare = destination.fare;
   const canAfford = coins >= fare;
-  const layovers = Math.max(0, destination.route_stop_ids.length - 2);
+  const layovers = Math.max(
+    destination.route_stop_ids.length - 2,
+    destination.transfer_wait_minutes > 0 ? 1 : 0,
+  );
   const departure = clockTime(destination.next_departure_minute_of_day);
   const boardsNow = destination.available_now;
   const schedule = destination.next_departure_minute === null
@@ -62,12 +65,12 @@ function Destination({
       <div className="carriage-route-copy">
         <h3>{destination.name}</h3>
         <div className="carriage-route-facts">
-          <span>{layovers === 0 ? "Direct road" : `${layovers} change${layovers === 1 ? "" : "s"}`}</span>
+          <span>{layovers === 0 ? "Direct road" : `${layovers} layover${layovers === 1 ? "" : "s"}`}</span>
           <span>{schedule}</span>
           <span>{status}</span>
         </div>
         {destination.transfer_wait_minutes > 0 && (
-          <em>{travelTime(destination.transfer_wait_minutes)} between carriages</em>
+          <em>{travelTime(destination.transfer_wait_minutes)} scheduled layover</em>
         )}
       </div>
       <div className="carriage-route-action">

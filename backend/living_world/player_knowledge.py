@@ -706,7 +706,7 @@ async def _known_people_view(
             topics.append({
                 "id": reference["rumor_id"],
                 "label": rumor["topic"],
-                "prompt": f"What have you heard about {rumor['topic'].rstrip('.?').lower()}?",
+                "prompt": _rumor_dialogue_prompt(rumor["topic"]),
             })
             if len(topics) == 3:
                 break
@@ -776,6 +776,12 @@ async def _known_people_view(
         })
     order = {"present": 0, "travelling": 1, "away": 2, "unknown": 3, "dead": 4}
     return sorted(result, key=lambda item: (order[item["availability"]], item["name"]))
+
+
+def _rumor_dialogue_prompt(topic: str) -> str:
+    """Frame proposition-shaped rumor topics without damaging proper nouns."""
+    claim = topic.strip().rstrip(".?")
+    return f"What have you heard about this claim: {claim}?"
 
 
 def _condition_snapshot(npc: NPCRow) -> dict[str, str]:
@@ -949,6 +955,9 @@ def _event_title(event: WorldEvent) -> str:
         "npc_moved": "Someone moved on",
         "npc_relocated": "Someone moved on",
         "npc_disappeared": "Someone vanished",
+        "npc_wounded": "Someone was hurt",
+        "npc_died": "Someone died",
+        "npc_boarded_carriage": "Someone took the road",
         "rumor_shared": "A rumor changed hands",
         "npc_goal_changed": "A life changed direction",
         "missed_opportunity": "An opportunity passed",

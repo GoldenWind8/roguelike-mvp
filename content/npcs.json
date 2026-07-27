@@ -163,7 +163,7 @@
   {
     "id": "edda-marr",
     "name": "Edda Marr",
-    "role": "Draznan route-reader stranded in Pilgrim's Hollow",
+    "role": "Draznan route-reader",
     "persona": "A laconic surveyor from the lake-city of Drazna who reads roads as layers of political memory. Edda is suspicious of officials, gentle with damaged things, and openly looking for capable company. She carries a chart stamped by an office that official records say no longer existed.",
     "drives": ["reach Drazna alive", "prove the erased eastern road still connects", "help Wren follow their remembered place-names", "learn who is moving sealed carriages through dead routes"],
     "knowledge": ["Drazna is a drowned lake-city far east, ruled from the Palace of Still Water.", "The broken Oakrun waystones preserve an erased route toward Drazna.", "Her map was issued after the named Draznan survey office supposedly drowned.", "Wren's repeated phrase 'still water under red glass' resembles a restricted district proverb."],
@@ -185,7 +185,7 @@
   {
     "id": "wren-no-house",
     "name": "Wren",
-    "role": "amnesiac survivor sheltered outside Oakrun",
+    "role": "amnesiac survivor",
     "persona": "A soft-spoken survivor with surgical scars, quick animal reflexes, and large gaps where autobiographical memory should be. Wren refuses to invent a past to make others comfortable. Place-names and physical routines return in fragments, especially near black silt or foreign metalwork.",
     "drives": ["protect people who treat them as a person", "reach the place remembered as Drazna", "learn why Basil's medicine erased more than pain", "face the Severed Fieldsite without being taken alive"],
     "knowledge": ["Basil's treatment saved Wren's life and erased most earlier memory.", "The fieldsite apparatus feels familiar to Wren's hands.", "Drazna, the Palace of Still Water, and the words 'red glass' recur without context.", "Wren can identify the sweet-iron smell before black residue becomes visible."],
@@ -286,7 +286,7 @@
   {
     "id": "luka-nen",
     "name": "Luka Nen",
-    "role": "Undertide rigger and surviving census witness",
+    "role": "Undertide rigger and census witness",
     "persona": "Luka keeps the six dry-dock survivors fed, counted, and angry enough to answer signals. One damaged leg prevents a safe climb. He knows household names that the public tablets omit and distrusts every rescue plan that begins with recovering documents.",
     "drives": ["bring the two injured survivors above the floodline", "make Nera hear the names people used for themselves", "keep Teo's sold list from reaching another guard patrol"],
     "knowledge": ["Six people occupy the upper dry dock and two require drag slings.", "Vasko carried a ledger scrap toward Gate Seven after hearing chain signals.", "The omitted households used the old service rooms for months after the Crown declared them empty."],
@@ -313,7 +313,7 @@
       {"npc_id": "rada-velic", "name": "Rada Velic", "connection": "Her voice uses the modern pressure cadence, while her badge descends from the wardens who left his shift unnamed."}
     ],
     "disposition": "hostile",
-    "canned": ["THIRD BELL. FOURTEEN ANSWER. NINE RETURN.", "GATE HOLDS. NAMES DO NOT.", "THE ORDER CAME LATE. THE WATER CAME FIRST.", "RADA VELIC. WRONG CADENCE. LIVING HANDS."],
+    "canned": ["THIRD BELL. FOURTEEN ANSWER. NINE RETURN.", "FOURTEEN WORKED. NINE WERE WRITTEN.", "THE ORDER CAME LATE. THE WATER CAME FIRST.", "RADA VELIC. NEW CADENCE. LIVING HANDS."],
     "party_policy": "Odran cannot join a party. He may be killed, contained, or briefly reached through the surviving floodwarden cadence.",
     "tier": "standard",
     "art_id": "sluicebound_gate_seven",

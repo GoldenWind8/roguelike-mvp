@@ -344,6 +344,7 @@ async def reachable_destinations(
             CarriageRoute.status.in_(("operating", "delayed", "dangerous"))
         )
     )).scalars().all()
+    route_by_id = {route.id: route for route in routes}
     adjacency: dict[int, list[CarriageRoute]] = {}
     for route in routes:
         if (
@@ -516,6 +517,11 @@ async def reachable_destinations(
             actual_departures,
             leg_arrivals,
         ) = itinerary
+        embedded_layover_minutes = sum(
+            _route_embedded_layover(route_by_id[route_id])
+            for route_id in route_ids
+            if route_id in route_by_id
+        )
         first_scheduled = scheduled_departures[0]
         first_grace = _route_boarding_grace(
             next(
@@ -530,7 +536,11 @@ async def reachable_destinations(
             stop_id=stop.id,
             name=stop.public_name,
             room_id=stop.room_id,
-            travel_minutes=ride_minutes,
+            # A terminal alias may collapse an authored intermediate stop into
+            # one physical route row. Its persisted duration still advances
+            # the world through that layover, while the client receives the
+            # moving and stationary portions separately.
+            travel_minutes=ride_minutes - embedded_layover_minutes,
             fare=fare,
             route_stop_ids=path,
             arrival_object_id=(
@@ -546,7 +556,9 @@ async def reachable_destinations(
                 else None
             ),
             wait_minutes=initial_wait,
-            transfer_wait_minutes=sum(waits[1:]),
+            transfer_wait_minutes=(
+                sum(waits[1:]) + embedded_layover_minutes
+            ),
             journey_minutes=arrival - start_minute,
             # ``None`` is the public contract for an on-demand first leg.
             # ``boarding_minute`` still records the immediate effective
@@ -779,6 +791,19 @@ def _route_boarding_grace(
     ):
         return value
     return DEFAULT_BOARDING_GRACE_MINUTES
+
+
+def _route_embedded_layover(route: CarriageRoute) -> int:
+    """Return dwell time folded into a terminal-alias route's duration."""
+    details = route.details if isinstance(route.details, dict) else {}
+    value = details.get("layover_minutes", 0)
+    if (
+        isinstance(value, int)
+        and not isinstance(value, bool)
+        and 0 < value < route.travel_minutes
+    ):
+        return value
+    return 0
 
 
 def _route_delay(route: CarriageRoute) -> int:

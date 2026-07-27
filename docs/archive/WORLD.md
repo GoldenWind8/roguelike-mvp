@@ -312,7 +312,7 @@ reconsider it with dedicated rendering time, a much larger budget, and a proven
 DOM performance problem. It would make layout, hit testing, accessibility, text,
 and ordinary UI panels more custom than this grid-first game needs.
 
-For the frontend source of truth, see [Frontend Design](FRONTEND_DESIGN.md).
+For the frontend source of truth, see [Frontend Design](../FRONTEND_DESIGN.md).
 
 ## Adoption Plan
 

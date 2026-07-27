@@ -316,7 +316,9 @@ async def test_grey_heron_is_the_only_seeded_external_drazna_service(session):
     )
     assert outbound.route_stop_ids == (oakrun_stop.id, quays.id)
     assert outbound.arrival_object_id == "drazna_quay_carriage"
-    assert outbound.travel_minutes == outbound.journey_minutes == 1800
+    assert outbound.travel_minutes == 1620
+    assert outbound.transfer_wait_minutes == 180
+    assert outbound.journey_minutes == 1800
     assert outbound.fare == 24
     assert outbound.danger == 5
     assert outbound.route_status == "dangerous"
@@ -334,7 +336,9 @@ async def test_grey_heron_is_the_only_seeded_external_drazna_service(session):
     )
     assert returning.route_stop_ids == (quays.id, oakrun_stop.id)
     assert returning.arrival_object_id == "oakrun_covered_carriage"
-    assert returning.travel_minutes == returning.journey_minutes == 1800
+    assert returning.travel_minutes == 1620
+    assert returning.transfer_wait_minutes == 180
+    assert returning.journey_minutes == 1800
     assert returning.fare == 24
     assert returning.danger == 5
     assert (
