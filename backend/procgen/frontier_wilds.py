@@ -107,9 +107,14 @@ def generate(params: dict, rng: random.Random) -> dict:
         params["secrets"],
         rng,
     )
-    usable = [tile for tile in reachable if tile not in set(secret_tiles)]
+    # Secret portals remain part of the passable floor topology. Reserve their
+    # cells from population without removing them from connectivity checks:
+    # an ``O`` tile can be the only bridge between two floor lobes, and treating
+    # it as absent would make every otherwise-safe blocking placement appear to
+    # disconnect the room.
+    usable = list(reachable)
 
-    occupied: set[tuple[int, int]] = set()
+    occupied: set[tuple[int, int]] = set(secret_tiles)
     spawns = pick_spawns(entries, usable, params["capacity"], occupied)
     enemy_spawns, objects = populate_contents(
         usable,

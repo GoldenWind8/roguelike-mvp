@@ -68,6 +68,48 @@ def test_frontier_generation_is_reproducible_but_visually_varied():
     assert first.room != other.room
 
 
+def test_secret_portal_articulation_does_not_erase_requested_chest():
+    """A passable secret can bridge floor lobes without becoming decoration."""
+    result = generate(
+        "frontier_wilds",
+        {
+            "archetype": "pilgrim_road",
+            "width": 30,
+            "height": 20,
+            "entries": 3,
+            "secrets": 1,
+            "capacity": 4,
+            "enemies": 6,
+            "chests": 1,
+            "barrels": 0,
+        },
+        1943941499,
+    )
+
+    assert result.ok, result.error
+    assert validate(result.room) is None
+    portals = {
+        (x, y)
+        for y, row in enumerate(result.room["terrain"])
+        for x, tile in enumerate(row)
+        if tile == "O"
+    }
+    occupied = {tuple(item) for item in result.room["spawn_points"]}
+    occupied.update(
+        (item["x"], item["y"])
+        for item in (
+            *result.room["enemy_spawns"],
+            *result.room["objects"],
+        )
+    )
+    assert portals
+    assert portals.isdisjoint(occupied)
+    assert sum(
+        item["type"] == "chest"
+        for item in result.room["objects"]
+    ) == 1
+
+
 def test_region_discovery_chance_rises_and_has_hard_pity():
     policy = DiscoveryPolicy()
     chances = [

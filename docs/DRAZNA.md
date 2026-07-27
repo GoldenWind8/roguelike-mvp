@@ -275,7 +275,7 @@ record is not proven birthplace**.
 
 ## Release validation
 
-The final source passed the complete 866-test backend suite and the production
+The final source passed the complete 867-test backend suite and the production
 TypeScript/Vite build. All forty Drazna WebPs also decoded cleanly with
 transparency and non-cropping alpha margins. At the content-complete
 simulation checkpoint, a paired seed-42 audit ran two independently created
