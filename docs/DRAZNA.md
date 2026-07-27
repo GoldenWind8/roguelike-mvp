@@ -1,7 +1,7 @@
 # Drazna Kingdom Chapter
 
 Drazna is a playable nineteen-room lake-city region. It is the kingdom with
-the oldest verified public record of the black rot. Nothing in the chapter
+the first verified public record of the black rot. Nothing in the chapter
 establishes that the rot began there. Its strongest evidence instead shows
 several routes by which contaminated water or cargo may have passed through
 the city before the proclamation.
@@ -99,8 +99,8 @@ the minimum same-rarity purchase prices, preventing shop arbitrage.
 | Low Lantern | Drazna's underbelly: stolen manifests, false seals, hidden names, and a cache reached from three businesses |
 | Walking Ward | Moving bridge houses, a flooded nursery, household memorials, and pressure damage that can change offscreen |
 | Roofwright Loft | Bridge braces, rescue lines, Sima's work, and a high-risk shortcut to Birch Heights |
-| Birch Stair | Memorial ascent, carriage landing, flood heights, and public copies that can survive a suppressed hearing |
-| Birch Heights | Dry civic ward connecting the Mudwheel, roof route, and archive |
+| Birch Stair | Memorial ascent, flood heights, and public copies that can survive a suppressed hearing |
+| Birch Heights | Dry civic ward connecting the Mudwheel landing, roof route, and archive |
 | House of Names | Public rolls, omitted tablets, Lina's letters, and Nera's supplemental archive |
 | Tablet Vault | Scraped records, pre-proclamation residue, and a maintenance cut into the pressure system |
 | High Crown | Political crossroads between market, palace, scar, and sluice |
@@ -248,8 +248,8 @@ cover-up. It does not identify the rot's origin.
 The Gate Seven chest uses the ordinary functional loot system and therefore
 benefits from Drazna-biased regional draws. A nearby fourteen-notched object,
 known below as **Odran's Black Key**, is an inspectable Chronicle discovery and
-reward landmark. It deliberately does not pretend to be a usable key item
-before non-consumable key inventory support exists.
+piece of material evidence. It deliberately does not pretend to be a usable
+key item before non-consumable key inventory support exists.
 
 ## Evidence discipline
 
@@ -271,10 +271,11 @@ record is not proven birthplace**.
 
 ## Release validation
 
-The frozen release candidate passed the complete 861-test backend suite and
-the production TypeScript/Vite build. A paired seed-42 simulation then ran
-two independently created worlds for 180 days, including a close/reopen at
-day 90. Both branches produced the same canonical hashes:
+The frozen release candidate passed the complete 864-test backend suite and
+the production TypeScript/Vite build. All forty Drazna WebPs also decoded
+cleanly with transparency and non-cropping alpha margins. A paired seed-42
+simulation then ran two independently created worlds for 180 days, including
+a close/reopen at day 90. Both branches produced the same canonical hashes:
 
 - Day 90:
   `4c464b50d24e79a1083b48caff9d3be734d2b0c4c6e16416a5d7f11f1ccd1d3c`
@@ -288,6 +289,13 @@ events with none overdue; 15,515 memories; and 31,063 Chronicle entries.
 The scenario launched the Undertide expedition, returned Vasko with the
 closure payroll, opened the fourteen-name hearing without resolving the
 First Scar's origin, pacified Gate Seven, and stabilized Walking Ward.
+Fresh seeds 7 and 314159 also ran for sixty days apiece with a day-thirty
+close/reopen and exact day-sixty service and trigger replay. Both kept every
+Draznan within three to five daily deliberations, held thirty-five future
+events with none overdue, and reached coherent major outcomes. Their row
+counts matched while 2,692 of 5,365 memory rows and 1,856 of 10,508 Chronicle
+rows differed per seed, confirming deterministic replay without flattening
+the seed-dependent social history.
 
 An additional adversarial audit forced eight synchronized four-way races
 between pacification, containment, Odran's defeat, and flooding. Every race
@@ -299,11 +307,19 @@ active-room deferral, dead-witness, and late-outcome checks stayed coherent.
 Long-history performance remains a watch item rather than a correctness
 failure. Days 1–90 averaged 5.66 seconds per simulated day, while days 91–180
 averaged 12.38 seconds, a 2.19× slowdown as per-NPC memory histories nearly
-doubled. The live queue stayed flat and overdue-free; future work should
-replace full memory-history loads in conversation candidate selection with
-bounded indexed queries. Conversation throughput also sat continuously at
-its configured thirty-two-turn daily cap and merits telemetry before further
-population growth.
+doubled. The live queue stayed flat and overdue-free. A follow-up
+semantics-equivalence pass moved expiry, shareability, and cascade filtering
+into the database; projected listener provenance instead of hydrating its
+history; and fetched only the selected speaker row. On synthetic
+1,200-memory speaker and listener histories this reduced one conversation
+turn from 53.51 to 30.08 milliseconds, a 1.78× improvement. Selection remains
+linear in relevant history, but a second 5,000-memory-per-person audit still
+reduced a turn from 301.99 to 83.27 milliseconds, or 3.63×. One hundred and
+twenty randomized semantic-equivalence fixtures found no selection mismatch.
+Bounded indexed candidate ranking remains future profiling work.
+Conversation throughput also sat continuously at its configured
+thirty-two-turn daily cap and merits telemetry before further population
+growth.
 
 ## Runtime integration
 

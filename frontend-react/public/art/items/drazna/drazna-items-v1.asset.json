@@ -4,27 +4,27 @@
     {
       "id": "odrans_black_key",
       "image": "/art/items/drazna/odrans-black-key-icon-v1.webp",
-      "role_tags": ["quest", "key", "odran_truth"]
+      "role_tags": ["evidence", "key", "odran_truth"]
     },
     {
       "id": "missing_census_tablet",
       "image": "/art/items/drazna/missing-census-tablet-icon-v1.webp",
-      "role_tags": ["quest", "evidence", "uncounted_dead"]
+      "role_tags": ["archive", "evidence", "uncounted_dead"]
     },
     {
       "id": "sealed_ledger_page",
       "image": "/art/items/drazna/sealed-ledger-page-icon-v1.webp",
-      "role_tags": ["quest", "evidence", "odran_truth"]
+      "role_tags": ["ledger", "evidence", "odran_truth"]
     },
     {
       "id": "low_lantern_token",
       "image": "/art/items/drazna/low-lantern-token-icon-v1.webp",
-      "role_tags": ["quest", "access", "low_lanterns"]
+      "role_tags": ["keepsake", "underbelly", "low_lanterns"]
     },
     {
       "id": "drowned_silver_ring",
       "image": "/art/items/drazna/drowned-silver-ring-icon-v1.webp",
-      "role_tags": ["quest", "identification", "missing_expedition"]
+      "role_tags": ["keepsake", "identification", "missing_expedition"]
     },
     {
       "id": "floodwarden_repair_kit",
@@ -39,7 +39,7 @@
     {
       "id": "black_silt_sample",
       "image": "/art/items/drazna/black-silt-sample-icon-v1.webp",
-      "role_tags": ["quest", "evidence", "black_rot"]
+      "role_tags": ["sample", "evidence", "black_rot"]
     }
   ]
 }

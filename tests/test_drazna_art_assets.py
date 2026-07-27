@@ -131,3 +131,19 @@ def test_sluicebound_actor_uses_the_live_persona_art_id():
         "image": "/art/world/enemies/drazna/sluicebound-gate-seven-v1.webp",
         "visual_size": [2, 3],
     }
+
+
+def test_drazna_item_art_metadata_stays_evidence_led():
+    """Asset metadata must not quietly reframe discoveries as quest tokens."""
+    manifest = json.loads((
+        PUBLIC_ROOT
+        / "art"
+        / "items"
+        / "drazna"
+        / "drazna-items-v1.asset.json"
+    ).read_text(encoding="utf-8"))
+    assert manifest["assets"]
+    assert all(
+        "quest" not in asset.get("role_tags", ())
+        for asset in manifest["assets"]
+    )

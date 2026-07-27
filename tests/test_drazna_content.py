@@ -221,9 +221,12 @@ def test_drazna_has_dedicated_landmarks_services_and_enemy_ecology():
     assert boards["drazna_lantern_quays_board"]["object_id"] in placed_objects
     assert shops["drazna_amber_quay_provisions"]["object_id"] in placed_objects
     assert "drazna_gate_black_key" in placed_objects
-    assert objects["drazna_black_key_hook"]["discovery"]["key"] == (
+    black_key = objects["drazna_black_key_hook"]
+    assert black_key["discovery"]["key"] == (
         "drazna:odrans-black-key"
     )
+    assert "reward" not in black_key["description"].casefold()
+    assert "evidence" in black_key["discovery"]["tags"]
     first_record = objects["first_rot_memorial"]["discovery"]
     assert first_record["key"] == "drazna:first-public-record"
     assert "verified public record" in first_record["summary"].lower()
