@@ -37,6 +37,97 @@ excluded from the subject. Every prompt prohibits surrounding environment,
 ground or floor planes, cast and contact shadows, reflections, text, logos,
 watermarks, UI, decorative frames, modern objects, and unrelated subjects.
 
+## Enemy and climax prompts
+
+The five enemy PNGs contain no embedded prompt metadata. The wording below was
+reconstructed at acceptance from each authored subject and accepted output and
+is the canonical exact subject record. Each block was combined with the shared
+world-sprite and chroma/negative language above in built-in ImageGen mode.
+
+### Flood-Hollow Warden
+
+> Flood-Hollow Warden, a tall drowned Drazna sluice guard in overlapping
+> blackened iron plates and bundled flood reeds; a conical riveted helm with a
+> barred visor completely hides the face; wet rope and chain bind the armor;
+> broken reed stakes rise behind both shoulders; one hand carries a short
+> practical flood axe and the other an oval iron shield whose central fitting
+> is a vertical sluice-pressure gauge; soaked black silt drips from the layered
+> hem; full figure, heavy defensive silhouette, no visible skin.
+
+### Drowned Lamplighter / silt-drowned ferryman
+
+> Silt-drowned Drazna ferryman and lamplighter, an older broad bearded quay
+> worker with water-plastered hair and a weary human face; patched black
+> oilskin smock, waders, rope harness, iron fittings, and soaked practical
+> boots; a hooked ferry pole in one hand and a caged amber quay lantern in the
+> other; a small netted river weight hangs at the hip; black silt films the
+> clothing and drips from the hems; full figure, stooped working posture, not a
+> spectral boatman.
+
+### Siltbound Salvager
+
+> Siltbound Undertide salvager, a former Drazna pressure diver in a dented
+> riveted copper diving hood with one cracked circular faceplate; tarred coat,
+> thick gloves, strapped boots, rope harness, salvage net, and a blackened air
+> hose curling high over one shoulder; one hand carries a compact square-headed
+> salvage maul; wet black silt clings to every seam and leaks from the broken
+> viewport; full figure, weighty industrial silhouette, no fantasy armor.
+
+### Black-Silt Leech Colony
+
+> Black-silt leech colony from the Undertide, a low wide heap of many thick wet
+> lamprey-like leeches tangled around broken quay timber, working rope, a
+> cracked brass pressure gauge, and one small valve fitting; several round
+> toothless sucker mouths face outward while blind pale sensory nodules catch
+> the light; oily black silt binds the mass and drips beneath it; one coherent
+> grounded colony silhouette, no humanoid body, no gore, no giant single worm.
+
+### Odran Third-Bell, the Sluicebound
+
+> Odran Third-Bell, the Sluicebound at Gate Seven—not King Odran—a huge
+> exhausted older Drazna floodwarden physically bound to a wooden-and-iron
+> sluice chain drum strapped across his back; worn floodwarden uniform,
+> practical leather, broken iron shoulder plates, rope lashings, and a faded
+> Third Bell shield badge; his lined human face remains visible; black silt
+> webs one bare forearm into the mechanism; he braces on a long key-topped
+> warden staff while a chained rectangular counterweight hangs from the other
+> side; full figure, tragic regional-climax silhouette, restrained rather than
+> regal or undead-king imagery.
+
+## Enemy source and final paths
+
+| Accepted subject | Chroma source | Transparent final | Visual size |
+| --- | --- | --- | --- |
+| Flood-Hollow Warden | `art-source/generated/drazna/production/enemies/flood-hollow-warden-v1-chroma.png` | `frontend-react/public/art/world/enemies/drazna/flood-hollow-warden-v1.webp` | `1x2` |
+| Drowned Lamplighter / ferryman | `art-source/generated/drazna/production/enemies/silt-drowned-ferryman-v1-chroma.png` | `frontend-react/public/art/world/enemies/drazna/silt-drowned-ferryman-v1.webp` | `1x2` |
+| Siltbound Salvager | `art-source/generated/drazna/production/enemies/siltbound-salvager-v1-chroma.png` | `frontend-react/public/art/world/enemies/drazna/siltbound-salvager-v1.webp` | `1x2` |
+| Black-Silt Leech Colony | `art-source/generated/drazna/production/enemies/black-silt-leech-colony-v1-chroma.png` | `frontend-react/public/art/world/enemies/drazna/black-silt-leech-colony-v1.webp` | `2x2` |
+| Odran Third-Bell / Sluicebound | `art-source/generated/drazna/production/enemies/sluicebound-gate-seven-v1-chroma.png` | `frontend-react/public/art/world/enemies/drazna/sluicebound-gate-seven-v1.webp` | `2x3` |
+
+The requested source backdrop was flat `#ff00ff`. Accepted generated borders
+contain small near-magenta variation, so the installed imagegen helper used
+the exact conversion flags
+`--auto-key border --transparent-threshold 12 --opaque-threshold 220 --soft-matte --despill`.
+Sources are kept for reprocessing; only alpha WebP finals ship to the client.
+All thirty-eight Drazna cutouts total 6,659,464 bytes in delivery form, while
+their full-resolution PNG/chroma masters remain here.
+
+## Gate Seven chain drum prompt
+
+> Gate Seven chain drum, an enormous ancient sluice mechanism viewed in a
+> readable slightly elevated three-quarter orthographic angle, designed for a
+> 3x3 tile presentation. A massive blackened iron drum is wound with thick wet
+> chains; torn dark floodwarden uniform cloth and glass-black silt webbing are
+> caught in the mechanism; a pale human hand remains fixed around the brass
+> emergency pawl, with no full body and no gore. Fourteen deliberate strike
+> dents circle the drum, with the last five subtly filled by old memorial wax.
+> Rain-dark slate iron, tarnished brass, black lake silt, faint cold blue
+> reflections, restrained amber highlights, strong readable silhouette.
+
+| Accepted subject | Chroma source | Transparent final | Visual size |
+| --- | --- | --- | --- |
+| Gate Seven Chain Drum | `art-source/generated/drazna/production/objects/gate-seven-chain-drum-v1-chroma.png` | `frontend-react/public/art/world/objects/drazna/gate-seven-chain-drum-v1.webp` | `3x3` |
+
 ## NPC subjects
 
 - Queen Mara Vey: broken-silver crown, black and restrained-crimson court

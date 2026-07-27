@@ -157,6 +157,30 @@ export interface CarriageDestinationView {
   travel_minutes: number;
   fare: number;
   route_stop_ids: number[];
+  wait_minutes: number;
+  transfer_wait_minutes: number;
+  journey_minutes: number;
+  next_departure_minute: number | null;
+  next_departure_minute_of_day: number | null;
+  boarding_minute: number | null;
+  arrival_minute: number | null;
+  available_now: boolean;
+  boarding_grace_minutes: number;
+  route_status: "operating" | "delayed" | "dangerous" | "mixed";
+  route_statuses: string[];
+  danger: number;
+  max_leg_danger: number;
+  route_ids: number[];
+  leg_departure_minutes: number[];
+  leg_arrival_minutes: number[];
+}
+
+export interface CarriageServiceView {
+  world_minute: number;
+  minute_of_day: number;
+  status: "boarding" | "waiting" | "unavailable";
+  next_departure_minute: number | null;
+  wait_minutes: number | null;
 }
 
 export interface CarriageView {
@@ -165,6 +189,29 @@ export interface CarriageView {
   destinations: CarriageDestinationView[];
   can_name: boolean;
   name_limit: number;
+  service: CarriageServiceView;
+}
+
+// --- evidence-gated authored situations ----------------------------------
+
+export interface SituationChoiceView {
+  id: string;
+  label: string;
+  description: string;
+}
+
+/** A consequence-bearing interaction, never a quest or tracked objective.
+ * The server omits choices whose evidence requirements are not yet known. */
+export interface SituationView {
+  id: string;
+  object_id: string;
+  title: string;
+  kicker: string;
+  description: string;
+  resolved: boolean;
+  outcome: string | null;
+  result: string | null;
+  choices: SituationChoiceView[];
 }
 
 // --- player-known living-world context ------------------------------------
@@ -235,6 +282,7 @@ export interface WorldChronicleEntry {
 }
 
 export type KnownNpcAvailability = "present" | "travelling" | "away" | "unknown" | "dead";
+export type KnownNpcCondition = "well" | "wounded" | "critical" | "dead" | "unknown";
 export type RelationshipTone =
   | "hostile"
   | "wary"
@@ -259,6 +307,11 @@ export interface KnownNpcView {
   relationship: RelationshipTone;
   relationship_note?: string | null;
   availability: KnownNpcAvailability;
+  /** Last condition the player personally observed; never live off-screen state. */
+  condition?: {
+    kind: KnownNpcCondition;
+    label: string;
+  };
   activity?: NpcActivityView;
   last_seen?: {
     room_name: string;
@@ -295,7 +348,7 @@ export interface ObjectSummary {
   opened?: boolean;
   contents_count?: number;
   /** Generic exploration interaction selected by authored object data. */
-  interaction?: "shop" | "noticeboard" | "carriage";
+  interaction?: "shop" | "noticeboard" | "carriage" | "situation";
 }
 
 export interface ObjectDetail extends ObjectSummary {
@@ -381,10 +434,27 @@ export type ServerMessage =
       destinations: CarriageDestinationView[];
       can_name: boolean;
       name_limit: number;
+      service: CarriageServiceView;
     }
   | { type: "carriage_stop_named"; stop_id: number; name: string; named_by?: string }
   | { type: "travel_started"; stop_id: number; destination_name: string }
-  | { type: "carriage_arrived"; stop: CarriageStopView; travel_minutes: number; fare: number }
+  | {
+      type: "carriage_arrived";
+      stop: CarriageStopView;
+      travel_minutes: number;
+      journey_minutes: number;
+      wait_minutes: number;
+      route_status: string;
+      danger: number;
+      fare: number;
+    }
+  | { type: "situation_opened"; situation: SituationView }
+  | {
+      type: "situation_resolved";
+      situation_id: string;
+      outcome: string;
+      result: string;
+    }
   | {
       type: "frontier_discovered";
       name: string;
@@ -425,6 +495,8 @@ export type ClientMessage =
   | { type: "open_carriage"; object_id: string }
   | { type: "name_carriage_stop"; object_id: string; name: string }
   | { type: "travel_by_carriage"; object_id: string; stop_id: number }
+  | { type: "open_situation"; object_id: string }
+  | { type: "resolve_situation"; object_id: string; choice_id: string }
   | { type: "equip"; slot: number }
   | { type: "unequip"; slot: number };
 

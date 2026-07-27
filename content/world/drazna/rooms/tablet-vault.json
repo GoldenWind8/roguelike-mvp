@@ -1,0 +1,33 @@
+{
+  "id": "drazna_tablet_vault",
+  "name": "The Uncounted Vault",
+  "width": 17,
+  "height": 13,
+  "terrain": [
+    "#################",
+    "#...............#",
+    "#..###.....###..#",
+    "#..#.........#..#",
+    "#..#.........#..#",
+    "#...............#",
+    "+...............#",
+    "#...............#",
+    "#..#.........#..#",
+    "#..#.........#..#",
+    "#..###.....###..#",
+    "#...............#",
+    "########+########"
+  ],
+  "spawn_points": [[1, 5], [1, 6], [1, 7], [2, 6]],
+  "enemy_spawns": [
+    {"enemy_id": 16, "x": 4, "y": 9},
+    {"enemy_id": 10, "x": 12, "y": 7}
+  ],
+  "objects": [
+    {"id": "drazna_vault_tablets", "type": "drazna_omitted_tablets", "x": 4, "y": 3},
+    {"id": "drazna_vault_order", "type": "drazna_crown_flood_order", "x": 11, "y": 4},
+    {"id": "drazna_vault_roll", "type": "drazna_preproclamation_roll", "x": 8, "y": 7},
+    {"id": "drazna_vault_tools", "type": "drazna_sluice_tools", "x": 6, "y": 9},
+    {"id": "drazna_vault_chest", "type": "chest", "x": 14, "y": 9}
+  ]
+}

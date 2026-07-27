@@ -19,6 +19,7 @@ class Damage:
     target_id: str
     amount: int
     source_id: str | None = None
+    cause: str | None = None
 
 @dataclass
 class SetDisposition:
@@ -223,7 +224,12 @@ def _apply_damage(room: RoomState, effect: Damage) -> list[GameEvent]:
         EventType.ENTITY_DAMAGED,
         # target_id, not player_id: this path damages enemies too, and the key
         # should never lie about what it holds.
-        {"target_id": target.id, "damage": damage, "hp_remaining": max(0, target.hp)},
+        {
+            "target_id": target.id,
+            "damage": damage,
+            "hp_remaining": max(0, target.hp),
+            "cause": effect.cause,
+        },
         room.round,
     )]
     #handles death

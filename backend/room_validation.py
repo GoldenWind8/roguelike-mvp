@@ -132,6 +132,33 @@ def validate_room(data: dict) -> None:
     # Entries: door/portal tiles. Spawns must cluster around one of them.
     doors = [(x, y) for y in range(height) for x in range(width)
              if tile(x, y) in (TileType.DOOR, TileType.PORTAL)]
+    frontier_positions: set[tuple[int, int]] = set()
+    frontier_exits = data.get("frontier_exits", [])
+    if not isinstance(frontier_exits, list):
+        raise ValueError("frontier_exits must be a list")
+    for index, frontier in enumerate(frontier_exits):
+        if (
+            not isinstance(frontier, dict)
+            or not isinstance(frontier.get("x"), int)
+            or not isinstance(frontier.get("y"), int)
+        ):
+            raise ValueError(
+                f"frontier exit {index} needs integer x/y coordinates"
+            )
+        x, y = frontier["x"], frontier["y"]
+        if not in_bounds(x, y):
+            raise ValueError(
+                f"frontier exit {index} at ({x}, {y}) is out of bounds "
+                f"({width}x{height})"
+            )
+        if tile(x, y) not in (TileType.DOOR, TileType.PORTAL):
+            raise ValueError(
+                f"frontier exit {index} at ({x}, {y}) must sit on a "
+                "door/portal tile"
+            )
+        if (x, y) in frontier_positions:
+            raise ValueError(f"duplicate frontier exit at ({x}, {y})")
+        frontier_positions.add((x, y))
     for sx, sy in spawn_xy:
         if not any(max(abs(sx - dx), abs(sy - dy)) <= SPAWN_NEAR_ENTRY_RADIUS for dx, dy in doors):
             raise ValueError(f"spawn ({sx}, {sy}) is not within {SPAWN_NEAR_ENTRY_RADIUS} tiles of an entry (door/portal)")

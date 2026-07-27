@@ -20,6 +20,7 @@ import { NoticeboardModal } from "./ui/NoticeboardModal";
 import { WorldDrawer } from "./ui/WorldDrawer";
 import { CarriageModal } from "./ui/CarriageModal";
 import { DiscoveryToast } from "./ui/DiscoveryToast";
+import { SituationModal } from "./ui/SituationModal";
 
 const manhattan = (a: [number, number], b: [number, number]) =>
   Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
@@ -91,7 +92,7 @@ export default function App() {
       if (e.key.toLowerCase() === "j") {
         e.preventDefault();
         if (state.worldDrawerOpen) api.closeWorldDrawer();
-        else if (!state.lootReveal && !state.shop && !state.noticeboard && !state.carriage) api.openWorldDrawer();
+        else if (!state.lootReveal && !state.shop && !state.noticeboard && !state.carriage && !state.situation) api.openWorldDrawer();
         return;
       }
 
@@ -107,12 +108,13 @@ export default function App() {
 
       // The counter is a modal interaction: no walking away while a purchase
       // is being considered. The server still revalidates adjacency on Buy.
-      if (state.shop || state.noticeboard || state.carriage) {
+      if (state.shop || state.noticeboard || state.carriage || state.situation) {
         if (e.key === "Escape") {
           e.preventDefault();
           if (state.shop) api.closeShop();
           else if (state.noticeboard) api.closeNoticeboard();
-          else api.closeCarriage();
+          else if (state.carriage) api.closeCarriage();
+          else if (!state.situationPending) api.closeSituation();
         }
         return;
       }
@@ -135,7 +137,7 @@ export default function App() {
         api.selectSlot(e.key === "0" ? 9 : Number(e.key) - 1);
       } else if (e.key.toLowerCase() === "e") {
         e.preventDefault();
-        if (state.dialogue || state.lootReveal || state.shop || state.noticeboard || state.carriage) return;
+        if (state.dialogue || state.lootReveal || state.shop || state.noticeboard || state.carriage || state.situation) return;
         const room = state.room;
         const me = room && state.playerId ? room.players[state.playerId] : null;
         if (!room || !me) return;
@@ -160,6 +162,7 @@ export default function App() {
           else if (object.interaction === "shop") api.openShop(object.id);
           else if (object.interaction === "noticeboard") api.openNoticeboard(object.id);
           else if (object.interaction === "carriage") api.openCarriage(object.id);
+          else if (object.interaction === "situation") api.openSituation(object.id);
           else api.inspect(object.id);
           return;
         }
@@ -184,7 +187,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [api, state.screen, state.room, state.playerId, state.selectedSlot, state.dialogue, state.inspection, state.lootReveal, state.shop, state.noticeboard, state.carriage, state.worldDrawerOpen]);
+  }, [api, state.screen, state.room, state.playerId, state.selectedSlot, state.dialogue, state.inspection, state.lootReveal, state.shop, state.noticeboard, state.carriage, state.situation, state.situationPending, state.worldDrawerOpen]);
 
   if (state.screen === "login") {
     return (
@@ -227,6 +230,7 @@ export default function App() {
       <ShopModal />
       <NoticeboardModal />
       <CarriageModal />
+      <SituationModal />
       <WorldDrawer />
       <DiscoveryToast />
 

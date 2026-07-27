@@ -46,7 +46,10 @@ def tick_room_hunger(room, dt: float) -> tuple[list[GameEvent], bool]:
                 events.append(GameEvent(
                     EventType.PLAYER_STARVING, {"target_id": player.id}, room.round,
                 ))
-            events.extend(apply_effect(room, Damage(player.id, HUNGER_STARVE_DAMAGE)))
+            events.extend(apply_effect(
+                room,
+                Damage(player.id, HUNGER_STARVE_DAMAGE, cause="starvation"),
+            ))
         elif (player.hunger >= HUNGER_REGEN_THRESHOLD
                 and player.hp < effective_stat(player, "max_hp")):
             events.extend(apply_effect(room, Heal(player.id, 1)))

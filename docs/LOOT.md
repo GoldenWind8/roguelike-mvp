@@ -78,6 +78,15 @@ fails — no forfeit rule needed.
 - Weights are DATA passed per call, never boolean flags — a boss chest is
   `spawn_loot(weights=...)`. Future loot sources (NPC gifts, `on_death`
   drops) call this same function.
+- Authored rooms may also pass their stable `room_content_id`. Drazna rolls
+  then choose its five regional items 72% of the time when both a matching
+  regional item and an ordinary item exist at the rolled rarity. The other
+  28% remains the global/LLM-grown pool; a missing local rarity always falls
+  back. Generated rooms have no authored content id and retain ordinary loot.
+- Regional definitions are idempotently backfilled by their bundled URL-art
+  marker even when a world already has items. They are scoped out of
+  non-Drazna draws, so the migration neither replays the starter batch nor
+  dilutes unrelated player-grown pools.
 - First-to-open triggers the roll (decided under the state lock by flipping
   `opened` before the slow roll) and gets first pick; anything left waits
   in `chest.contents` for anyone adjacent to take.

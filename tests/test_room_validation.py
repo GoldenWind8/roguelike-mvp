@@ -73,6 +73,16 @@ def test_rejects_spawn_far_from_entry():
         validate_room(_broken(spawn_points=[[1, 5]]))
 
 
+def test_rejects_frontier_exit_on_an_unenterable_wall():
+    with pytest.raises(ValueError, match="frontier exit.*door/portal"):
+        validate_room(_broken(frontier_exits=[{
+            "x": 9,
+            "y": 5,
+            "biome_hint": "amberfall_fields",
+            "label": "A road no player could enter",
+        }]))
+
+
 def test_rejects_enemy_without_id():
     bad = _broken(enemy_spawns=[{"x": 4, "y": 3}])
     with pytest.raises(ValueError, match="enemy_id"):

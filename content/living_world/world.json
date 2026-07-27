@@ -201,6 +201,110 @@
       "tags": ["rot_signs", "work"]
     },
     {
+      "id": "drazna_eel_and_ember",
+      "name": "The Eel and Ember",
+      "kingdom_id": "drazna",
+      "kind": "city_district",
+      "description": "Drina Sable's smoke-dark inn is a warm room above Lantern Quays, where ferrymen, clerks, and thieves trade stories only after the shutters close.",
+      "tags": ["lodging", "safe_at_night", "work"]
+    },
+    {
+      "id": "drazna_reed_market",
+      "name": "Drazna, Reed Market",
+      "kingdom_id": "drazna",
+      "kind": "city_district",
+      "description": "A roofed market of reed screens and narrow counters where salvage becomes merchandise and provenance is negotiated more fiercely than price.",
+      "tags": ["market", "rot_signs", "work"]
+    },
+    {
+      "id": "drazna_mud_crown",
+      "name": "Drazna, Mud Crown",
+      "kingdom_id": "drazna",
+      "kind": "city_district",
+      "description": "A crane platform and ferry crown built over the old waterline, crowded by cargo cages, contraband ropes, and names chalked where rain cannot reach.",
+      "tags": ["docks", "market", "rot_signs", "work"]
+    },
+    {
+      "id": "drazna_low_lantern_den",
+      "name": "The Low Lantern",
+      "kingdom_id": "drazna",
+      "kind": "city_district",
+      "description": "A hidden cellar reached through three respectable businesses, where stolen manifests, false passage seals, and guarded favors sustain the city's underbelly.",
+      "tags": ["lodging", "market", "work"]
+    },
+    {
+      "id": "drazna_roofwright_loft",
+      "name": "Roofwright Loft",
+      "kingdom_id": "drazna",
+      "kind": "city_district",
+      "description": "A scaffold workshop above Walking Ward stores bridge braces, rescue lines, and the quiet debts incurred whenever a house must learn to move.",
+      "tags": ["lodging", "safe_at_night", "work"]
+    },
+    {
+      "id": "drazna_birch_stair",
+      "name": "Drazna, Birch Stair",
+      "kingdom_id": "drazna",
+      "kind": "city_district",
+      "description": "Memorial steps climb from the wet wards through white birches, each landing carrying flood heights, carriage bells, and names too contested for the archive.",
+      "tags": ["carriage_stop", "safe_at_night", "work"]
+    },
+    {
+      "id": "drazna_house_of_names",
+      "name": "The House of Names",
+      "kingdom_id": "drazna",
+      "kind": "city_district",
+      "description": "Public tablets and household rolls preserve the kingdom's first verified record of the rot alongside corrections, omissions, and disputes over who was counted.",
+      "tags": ["archive", "safe_at_night", "work"]
+    },
+    {
+      "id": "drazna_tablet_vault",
+      "name": "The Tablet Vault",
+      "kingdom_id": "drazna",
+      "kind": "road_site",
+      "description": "A cramped archival undercroft where scraped tablets, sealed witness rolls, and uncatalogued flood orders survive behind salt-stiff doors.",
+      "tags": ["archive", "rot_signs", "work"]
+    },
+    {
+      "id": "drazna_palace_still_water",
+      "name": "Palace of Still Water",
+      "kingdom_id": "drazna",
+      "kind": "city_district",
+      "description": "The surviving crown offices occupy a palace built around a motionless cistern whose drains and dates complicate every official telling of the First Scar.",
+      "tags": ["archive", "safe_at_night", "work"]
+    },
+    {
+      "id": "drazna_pressure_gallery",
+      "name": "Crown Pressure Gallery",
+      "kingdom_id": "drazna",
+      "kind": "road_site",
+      "description": "Buried gauges and chained wheels translate the lake's weight into a language only floodwardens trust, while old reverse-water marks point toward the palace.",
+      "tags": ["rot_signs", "work"]
+    },
+    {
+      "id": "drazna_first_scar",
+      "name": "The First Scar",
+      "kingdom_id": "drazna",
+      "kind": "road_site",
+      "description": "The publicly dated blackwater breach remains preserved as evidence of Drazna's first verified record, not proof that the corruption originated here.",
+      "tags": ["rot_signs"]
+    },
+    {
+      "id": "drazna_dry_dock",
+      "name": "Undertide Dry Dock",
+      "kingdom_id": "drazna",
+      "kind": "road_site",
+      "description": "A drowned repair hall emerges during low water, exposing survivor bunks, a cut dive rope, and a sealed route toward Gate Seven.",
+      "tags": ["docks", "rot_signs", "work"]
+    },
+    {
+      "id": "drazna_gate_seven",
+      "name": "Gate Seven",
+      "kingdom_id": "drazna",
+      "kind": "road_site",
+      "description": "The deepest accessible sluice gate answers pressure changes with fourteen chain beats, though the public memorial names only nine closure workers.",
+      "tags": ["rot_signs", "work"]
+    },
+    {
       "id": "bellifont",
       "name": "Bellifont",
       "kingdom_id": "rouvray",
@@ -431,6 +535,226 @@
       "risk": "dire",
       "hostile_passage_ids": ["undertide-mouth"],
       "description": "Mud stairs and old dock roofs emerge beneath the quay as the lake falls."
+    },
+    {
+      "id": "drazna-quay-ember",
+      "name": "Ember Steps",
+      "from_location_id": "drazna_lantern_quays",
+      "to_location_id": "drazna_eel_and_ember",
+      "passage": "city_road",
+      "travel_minutes": 8,
+      "risk": "safe",
+      "hostile_passage_ids": [],
+      "description": "A smoke-warm stair rises from the ferry stalls to Drina's side door."
+    },
+    {
+      "id": "drazna-quay-reed",
+      "name": "Reed Arcade",
+      "from_location_id": "drazna_lantern_quays",
+      "to_location_id": "drazna_reed_market",
+      "passage": "city_road",
+      "travel_minutes": 12,
+      "risk": "guarded",
+      "hostile_passage_ids": [],
+      "description": "Covered counters and reed screens make a crooked commercial lane above the wet quay."
+    },
+    {
+      "id": "drazna-quay-mud",
+      "name": "Mud Crown Ramp",
+      "from_location_id": "drazna_lantern_quays",
+      "to_location_id": "drazna_mud_crown",
+      "passage": "city_road",
+      "travel_minutes": 14,
+      "risk": "guarded",
+      "hostile_passage_ids": [],
+      "description": "A cargo ramp follows crane ropes to the old waterline and its salvage platforms."
+    },
+    {
+      "id": "drazna-ember-low-lantern",
+      "name": "The Ash Door",
+      "from_location_id": "drazna_eel_and_ember",
+      "to_location_id": "drazna_low_lantern_den",
+      "passage": "city_road",
+      "travel_minutes": 10,
+      "risk": "guarded",
+      "hostile_passage_ids": [],
+      "description": "An oven-cleaning passage descends behind three false walls into the Low Lantern."
+    },
+    {
+      "id": "drazna-reed-low-lantern",
+      "name": "Latch's Passage",
+      "from_location_id": "drazna_reed_market",
+      "to_location_id": "drazna_low_lantern_den",
+      "passage": "city_road",
+      "travel_minutes": 8,
+      "risk": "guarded",
+      "hostile_passage_ids": [],
+      "description": "A folding stall and counterfeit lock conceal the market's quickest undercellar route."
+    },
+    {
+      "id": "drazna-mud-low-lantern",
+      "name": "Smuggler's Lift",
+      "from_location_id": "drazna_mud_crown",
+      "to_location_id": "drazna_low_lantern_den",
+      "passage": "city_road",
+      "travel_minutes": 9,
+      "risk": "dangerous",
+      "hostile_passage_ids": [],
+      "description": "A hand-cranked cargo cage drops from the salvage crane into the thieves' receiving room."
+    },
+    {
+      "id": "drazna-walking-roofwright",
+      "name": "Roofwright Ladder",
+      "from_location_id": "drazna_walking_ward",
+      "to_location_id": "drazna_roofwright_loft",
+      "passage": "city_road",
+      "travel_minutes": 7,
+      "risk": "guarded",
+      "hostile_passage_ids": [],
+      "description": "A counterweighted ladder climbs from the inhabited bridge to the brace loft."
+    },
+    {
+      "id": "drazna-roofwright-birch",
+      "name": "High Brace Walk",
+      "from_location_id": "drazna_roofwright_loft",
+      "to_location_id": "drazna_birch_heights",
+      "passage": "city_road",
+      "travel_minutes": 18,
+      "risk": "dangerous",
+      "hostile_passage_ids": [],
+      "description": "An exposed maintenance beam gives roofwrights a fast path to the dry heights."
+    },
+    {
+      "id": "drazna-walking-birch-stair",
+      "name": "Household Stair",
+      "from_location_id": "drazna_walking_ward",
+      "to_location_id": "drazna_birch_stair",
+      "passage": "city_road",
+      "travel_minutes": 14,
+      "risk": "guarded",
+      "hostile_passage_ids": [],
+      "description": "Rope handrails and flood-height tablets guide displaced households toward the birch slope."
+    },
+    {
+      "id": "drazna-birch-stair-heights",
+      "name": "White Birch Landings",
+      "from_location_id": "drazna_birch_stair",
+      "to_location_id": "drazna_birch_heights",
+      "passage": "city_road",
+      "travel_minutes": 10,
+      "risk": "safe",
+      "hostile_passage_ids": [],
+      "description": "Dry stone landings climb through memorial birches to the archival ward."
+    },
+    {
+      "id": "drazna-birch-house-names",
+      "name": "Archivists' Walk",
+      "from_location_id": "drazna_birch_heights",
+      "to_location_id": "drazna_house_of_names",
+      "passage": "city_road",
+      "travel_minutes": 6,
+      "risk": "safe",
+      "hostile_passage_ids": [],
+      "description": "A short covered walk joins the carriage landing to the public name racks."
+    },
+    {
+      "id": "drazna-house-tablet-vault",
+      "name": "Salt Door",
+      "from_location_id": "drazna_house_of_names",
+      "to_location_id": "drazna_tablet_vault",
+      "passage": "city_road",
+      "travel_minutes": 8,
+      "risk": "guarded",
+      "hostile_passage_ids": [],
+      "description": "A salt-stiff stair descends from public memorials to disputed and scraped records."
+    },
+    {
+      "id": "drazna-high-palace",
+      "name": "Still Water Court",
+      "from_location_id": "drazna_high_crown",
+      "to_location_id": "drazna_palace_still_water",
+      "passage": "city_road",
+      "travel_minutes": 5,
+      "risk": "safe",
+      "hostile_passage_ids": [],
+      "description": "A watched courtyard crosses from the crown square into the surviving palace offices."
+    },
+    {
+      "id": "drazna-high-first-scar",
+      "name": "Proclamation Walk",
+      "from_location_id": "drazna_high_crown",
+      "to_location_id": "drazna_first_scar",
+      "passage": "city_road",
+      "travel_minutes": 12,
+      "risk": "guarded",
+      "hostile_passage_ids": [],
+      "description": "A ceremonial descent leads from the crown balcony to the kingdom's first publicly dated scar."
+    },
+    {
+      "id": "drazna-house-first-scar",
+      "name": "Witness Passage",
+      "from_location_id": "drazna_house_of_names",
+      "to_location_id": "drazna_first_scar",
+      "passage": "city_road",
+      "travel_minutes": 9,
+      "risk": "guarded",
+      "hostile_passage_ids": [],
+      "description": "Archivists carry public tablets directly to the preserved breach without passing the palace."
+    },
+    {
+      "id": "drazna-sluice-pressure",
+      "name": "Gauge Stair",
+      "from_location_id": "drazna_crown_sluice",
+      "to_location_id": "drazna_pressure_gallery",
+      "passage": "city_road",
+      "travel_minutes": 8,
+      "risk": "dangerous",
+      "hostile_passage_ids": [],
+      "description": "A chained service stair descends beside live pressure pipes and emergency wheels."
+    },
+    {
+      "id": "drazna-pressure-tablet",
+      "name": "Maintenance Archive Cut",
+      "from_location_id": "drazna_pressure_gallery",
+      "to_location_id": "drazna_tablet_vault",
+      "passage": "city_road",
+      "travel_minutes": 15,
+      "risk": "dangerous",
+      "hostile_passage_ids": [],
+      "description": "A sealed survey cut links old engineering records to the gauges they describe."
+    },
+    {
+      "id": "drazna-undertide-dry-dock",
+      "name": "Dry-Line Roofs",
+      "from_location_id": "drazna_undertide",
+      "to_location_id": "drazna_dry_dock",
+      "passage": "marsh_road",
+      "travel_minutes": 12,
+      "risk": "dire",
+      "hostile_passage_ids": [],
+      "description": "Chalked roof ridges cross drowned streets during the narrow low-water window."
+    },
+    {
+      "id": "drazna-dry-dock-gate-seven",
+      "name": "Closure Crew Cut",
+      "from_location_id": "drazna_dry_dock",
+      "to_location_id": "drazna_gate_seven",
+      "passage": "marsh_road",
+      "travel_minutes": 15,
+      "risk": "dire",
+      "hostile_passage_ids": [],
+      "description": "A service tunnel passes survivor bunks and the cut dive rope before reaching the chained gate."
+    },
+    {
+      "id": "drazna-gate-pressure",
+      "name": "Fourteen-Step Gallery",
+      "from_location_id": "drazna_gate_seven",
+      "to_location_id": "drazna_pressure_gallery",
+      "passage": "city_road",
+      "travel_minutes": 12,
+      "risk": "dire",
+      "hostile_passage_ids": [],
+      "description": "Fourteen steep landings climb beside the gate chain to the pressure gallery."
     },
     {
       "id": "drazna-hollow-bells",

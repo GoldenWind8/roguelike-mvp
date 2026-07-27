@@ -760,6 +760,1231 @@
           "discoverable_for_days": 40
         }
       ]
+    },
+    {
+      "id": "drina-teo-passenger-list",
+      "kind": "conversation",
+      "participants": ["drina-sable", "teo-latch"],
+      "window": {"opens_day": 0, "closes_day": null, "cooldown_minutes": 4320, "max_firings": 20},
+      "conditions": [
+        {"kind": "co_located", "npc_ids": ["drina-sable", "teo-latch"]},
+        {"kind": "day_phase", "phases": ["dusk", "night"]}
+      ],
+      "effects": [
+        {
+          "kind": "share_rumor",
+          "speaker_npc_id": "drina-sable",
+          "listener_npc_id": "teo-latch",
+          "rumor_id": "mudwheel-uncounted-names"
+        },
+        {
+          "kind": "remember",
+          "npc_id": "teo-latch",
+          "summary": "Drina warned that one passenger list could erase the same people Lina was carrying home by name.",
+          "importance": 7,
+          "tags": ["person", "warning", "carriage", "testimony"]
+        }
+      ],
+      "conversation": {
+        "opening_speaker_npc_id": "drina-sable",
+        "opening_line": "You may sell seats, Teo. Sell a name and you answer to everyone drinking under it.",
+        "mode": "continuous",
+        "max_turns": 6,
+        "topics": ["carriages", "missing_people", "rumors"],
+        "stop_when": ["danger", "separated", "speaker_refuses", "topic_exhausted"],
+        "followup_trigger_ids": ["teo-sells-low-lantern-list"]
+      },
+      "missed_consequences": [],
+      "aftermath_clues": []
+    },
+    {
+      "id": "mudwheel-names-at-ember",
+      "kind": "story",
+      "participants": ["drina-sable", "lina-pell"],
+      "window": {"opens_day": 0, "closes_day": null, "cooldown_minutes": 4320, "max_firings": 100},
+      "conditions": [
+        {"kind": "carriage_arrives", "carriage_id": "mudwheel", "location_id": "drazna_lantern_quays"},
+        {"kind": "npc_alive", "npc_id": "drina-sable", "value": true},
+        {"kind": "npc_alive", "npc_id": "lina-pell", "value": true}
+      ],
+      "effects": [
+        {
+          "kind": "share_rumor",
+          "speaker_npc_id": "drina-sable",
+          "listener_npc_id": "lina-pell",
+          "rumor_id": "mudwheel-uncounted-names"
+        },
+        {
+          "kind": "remember",
+          "npc_id": "drina-sable",
+          "summary": "Lina's Mudwheel delivered another bundle whose arrival dates matched the hidden inn book.",
+          "importance": 6,
+          "tags": ["carriage", "person", "testimony"]
+        }
+      ],
+      "conversation": null,
+      "missed_consequences": [],
+      "aftermath_clues": []
+    },
+    {
+      "id": "teo-sells-low-lantern-list",
+      "kind": "story",
+      "participants": ["teo-latch", "drina-sable", "rada-velic"],
+      "window": {"opens_day": 1, "closes_day": 3, "cooldown_minutes": 0, "max_firings": 1},
+      "conditions": [
+        {"kind": "fact_absent", "fact_key": "drazna.low_lantern_list"},
+        {"kind": "npc_alive", "npc_id": "teo-latch", "value": true},
+        {"kind": "npc_alive", "npc_id": "rada-velic", "value": true}
+      ],
+      "effects": [
+        {
+          "kind": "set_fact",
+          "fact_key": "drazna.low_lantern_list",
+          "subject_id": "teo-latch",
+          "predicate": "passenger_list_fate",
+          "value": {"state": "sold", "buyer": "floodwarden-office", "altered": true}
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "teo-latch",
+          "goal_id": "destroy-sold-list",
+          "status": "active",
+          "reason": "The sold list returned with unauthorized arrest marks in a third hand."
+        },
+        {
+          "kind": "remember",
+          "npc_id": "teo-latch",
+          "summary": "Teo sold Rada four passenger names to prevent a full raid, then saw three extra arrest marks on the crown copy.",
+          "importance": 9,
+          "tags": ["person", "warning", "danger", "testimony"]
+        },
+        {
+          "kind": "relationship_shift",
+          "from_npc_id": "drina-sable",
+          "to_npc_id": "teo-latch",
+          "axis": "trust",
+          "delta": -12
+        }
+      ],
+      "conversation": null,
+      "missed_consequences": [
+        {
+          "kind": "set_fact",
+          "fact_key": "drazna.low_lantern_list",
+          "subject_id": "teo-latch",
+          "predicate": "passenger_list_fate",
+          "value": {"state": "withheld", "buyer": "none", "altered": false}
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "teo-latch",
+          "goal_id": "destroy-sold-list",
+          "status": "dormant",
+          "reason": "Teo kept the passenger list out of crown hands."
+        },
+        {
+          "kind": "leave_evidence",
+          "location_id": "drazna_low_lantern_den",
+          "description": "An unsold passenger list lies under Teo's false manifest, its four selected names never circled."
+        }
+      ],
+      "aftermath_clues": [
+        {
+          "location_id": "drazna_reed_market",
+          "description": "A crown receipt in Teo's stall pays for four names while a later arrest copy circles seven.",
+          "discoverable_for_days": 40
+        },
+        {
+          "location_id": "drazna_low_lantern_den",
+          "description": "Three wicks burn beneath a wall scratched with the words FOUR SOLD, SEVEN TAKEN.",
+          "discoverable_for_days": 18
+        }
+      ]
+    },
+    {
+      "id": "rada-sima-pressure-warning",
+      "kind": "conversation",
+      "participants": ["rada-velic", "sima-dren"],
+      "window": {"opens_day": 0, "closes_day": null, "cooldown_minutes": 2880, "max_firings": 20},
+      "conditions": [
+        {"kind": "co_located", "npc_ids": ["rada-velic", "sima-dren"]},
+        {"kind": "believes", "npc_id": "rada-velic", "rumor_id": "gate-seven-fourteen", "minimum_confidence": 90}
+      ],
+      "effects": [
+        {
+          "kind": "share_rumor",
+          "speaker_npc_id": "rada-velic",
+          "listener_npc_id": "sima-dren",
+          "rumor_id": "gate-seven-fourteen"
+        },
+        {
+          "kind": "remember",
+          "npc_id": "sima-dren",
+          "summary": "Rada taught Sima to count fourteen chain beats before crossing the pressure gallery.",
+          "importance": 8,
+          "tags": ["person", "warning", "danger"]
+        },
+        {
+          "kind": "relationship_shift",
+          "from_npc_id": "sima-dren",
+          "to_npc_id": "rada-velic",
+          "axis": "respect",
+          "delta": 5
+        }
+      ],
+      "conversation": {
+        "opening_speaker_npc_id": "rada-velic",
+        "opening_line": "The memorial says nine. The chain says fourteen. Trust the chain when the floor begins to breathe.",
+        "mode": "continuous",
+        "max_turns": 5,
+        "topics": ["flood", "missing_people", "roads"],
+        "stop_when": ["danger", "separated", "topic_exhausted"],
+        "followup_trigger_ids": ["sima-joins-undertide-descent"]
+      },
+      "missed_consequences": [],
+      "aftermath_clues": []
+    },
+    {
+      "id": "sima-bridge-injury",
+      "kind": "story",
+      "participants": ["sima-dren"],
+      "window": {"opens_day": 2, "closes_day": 4, "cooldown_minutes": 0, "max_firings": 1},
+      "conditions": [
+        {"kind": "fact_absent", "fact_key": "drazna.walking_bridge_injury"},
+        {"kind": "npc_alive", "npc_id": "sima-dren", "value": true}
+      ],
+      "effects": [
+        {
+          "kind": "wound_npc",
+          "npc_id": "sima-dren",
+          "damage": 12,
+          "summary": "A moving bridge brace snapped across Sima's ribs while she held the span for a trapped household."
+        },
+        {
+          "kind": "set_fact",
+          "fact_key": "drazna.walking_bridge_injury",
+          "subject_id": "sima-dren",
+          "predicate": "bridge_rescue",
+          "value": {"state": "injured", "household_saved": true}
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "sima-dren",
+          "goal_id": "brace-walking-ward",
+          "status": "blocked",
+          "reason": "Sima saved the household but cannot finish the brace while her ribs heal."
+        }
+      ],
+      "conversation": null,
+      "missed_consequences": [
+        {
+          "kind": "set_fact",
+          "fact_key": "drazna.walking_bridge_injury",
+          "subject_id": "sima-dren",
+          "predicate": "bridge_rescue",
+          "value": {"state": "averted", "household_saved": true}
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "sima-dren",
+          "goal_id": "brace-walking-ward",
+          "status": "completed",
+          "reason": "The old span was braced before the pressure release reached Walking Ward."
+        }
+      ],
+      "aftermath_clues": [
+        {
+          "location_id": "drazna_walking_ward",
+          "description": "A blood-marked roofwright sling hangs beside a newly doubled bridge brace.",
+          "discoverable_for_days": 25
+        }
+      ]
+    },
+    {
+      "id": "sima-joins-undertide-descent",
+      "kind": "story",
+      "participants": ["sima-dren", "rada-velic"],
+      "window": {"opens_day": 2, "closes_day": 6, "cooldown_minutes": 0, "max_firings": 1},
+      "conditions": [
+        {"kind": "trigger_fired", "trigger_id": "rada-sima-pressure-warning"},
+        {"kind": "npc_alive", "npc_id": "sima-dren", "value": true},
+        {"kind": "npc_alive", "npc_id": "rada-velic", "value": true}
+      ],
+      "effects": [
+        {
+          "kind": "set_goal_status",
+          "npc_id": "sima-dren",
+          "goal_id": "repay-vasko",
+          "status": "active",
+          "reason": "Rada gives Sima a pressure key and permits her to carry a roofwright line into Undertide."
+        },
+        {
+          "kind": "set_direction",
+          "npc_id": "sima-dren",
+          "location_id": "drazna_undertide",
+          "reason": "Sima joins the low-water descent before her courage or the gauge changes."
+        },
+        {
+          "kind": "remember",
+          "npc_id": "rada-velic",
+          "summary": "Rada authorized an injured apprentice to carry the fourteenth line because no unwounded volunteer knew the cadence.",
+          "importance": 8,
+          "tags": ["person", "warning", "promise", "injury"]
+        }
+      ],
+      "conversation": null,
+      "missed_consequences": [
+        {
+          "kind": "set_goal_status",
+          "npc_id": "sima-dren",
+          "goal_id": "repay-vasko",
+          "status": "failed",
+          "reason": "The low-water window closed before Sima received a pressure key."
+        },
+        {
+          "kind": "leave_evidence",
+          "location_id": "drazna_roofwright_loft",
+          "description": "Sima's carefully coiled rescue line remains on its peg after the Undertide bells stop."
+        }
+      ],
+      "aftermath_clues": [
+        {
+          "location_id": "drazna_crown_sluice",
+          "description": "A junior pressure key is missing from Rada's board; its hook carries Sima's blue roof-thread.",
+          "discoverable_for_days": 20
+        }
+      ]
+    },
+    {
+      "id": "luka-confronts-teo",
+      "kind": "story",
+      "participants": ["luka-nen", "teo-latch"],
+      "window": {"opens_day": 2, "closes_day": 5, "cooldown_minutes": 0, "max_firings": 1},
+      "conditions": [
+        {"kind": "fact_equals", "fact_key": "drazna.low_lantern_list", "value": {"state": "sold", "buyer": "floodwarden-office", "altered": true}},
+        {"kind": "npc_alive", "npc_id": "luka-nen", "value": true},
+        {"kind": "npc_alive", "npc_id": "teo-latch", "value": true}
+      ],
+      "effects": [
+        {
+          "kind": "relocate_npc",
+          "npc_id": "teo-latch",
+          "location_id": "drazna_undertide",
+          "reason": "Luka drags Teo below the public waterline to compare the sold list against the uncounted bunks."
+        },
+        {
+          "kind": "relationship_shift",
+          "from_npc_id": "luka-nen",
+          "to_npc_id": "teo-latch",
+          "axis": "trust",
+          "delta": -18
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "teo-latch",
+          "goal_id": "destroy-sold-list",
+          "status": "active",
+          "reason": "Luka proves the altered arrest copy now endangers omitted Gate Seven witnesses."
+        },
+        {
+          "kind": "remember",
+          "npc_id": "teo-latch",
+          "summary": "Luka matched the extra arrest marks to bunks occupied by people the crown had already omitted once.",
+          "importance": 10,
+          "tags": ["person", "warning", "danger", "testimony"]
+        }
+      ],
+      "conversation": null,
+      "missed_consequences": [
+        {
+          "kind": "set_disposition",
+          "npc_id": "teo-latch",
+          "disposition": "neutral"
+        },
+        {
+          "kind": "leave_evidence",
+          "location_id": "drazna_dry_dock",
+          "description": "An arrest copy is nailed to a survivor bunk, but no one remains to ask who added the extra names."
+        }
+      ],
+      "aftermath_clues": [
+        {
+          "location_id": "drazna_undertide",
+          "description": "Wet footprints from a market shoe end beside Luka's copied list and turn back uphill alone.",
+          "discoverable_for_days": 15
+        }
+      ]
+    },
+    {
+      "id": "luka-testifies-names",
+      "kind": "story",
+      "participants": ["luka-nen", "nera-bell"],
+      "window": {"opens_day": 3, "closes_day": 7, "cooldown_minutes": 0, "max_firings": 1},
+      "conditions": [
+        {"kind": "trigger_fired", "trigger_id": "luka-confronts-teo"},
+        {"kind": "npc_alive", "npc_id": "luka-nen", "value": true},
+        {"kind": "npc_alive", "npc_id": "nera-bell", "value": true}
+      ],
+      "effects": [
+        {
+          "kind": "share_rumor",
+          "speaker_npc_id": "luka-nen",
+          "listener_npc_id": "nera-bell",
+          "rumor_id": "gate-seven-fourteen"
+        },
+        {
+          "kind": "set_fact",
+          "fact_key": "drazna.omitted_names_testified",
+          "subject_id": "luka-nen",
+          "predicate": "closure_crew_testimony",
+          "value": {"state": "deposited", "count": 14, "public_names": 9}
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "luka-nen",
+          "goal_id": "testify-uncounted",
+          "status": "completed",
+          "reason": "Nera takes Luka's fourteen names into the supplemental archive."
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "nera-bell",
+          "goal_id": "restore-uncounted-names",
+          "status": "active",
+          "reason": "Luka's testimony supplies the missing closure-crew sequence."
+        }
+      ],
+      "conversation": null,
+      "missed_consequences": [
+        {
+          "kind": "set_fact",
+          "fact_key": "drazna.omitted_names_testified",
+          "subject_id": "luka-nen",
+          "predicate": "closure_crew_testimony",
+          "value": {"state": "missed", "count": 9, "public_names": 9}
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "luka-nen",
+          "goal_id": "testify-uncounted",
+          "status": "failed",
+          "reason": "The archive window closed before Luka could put his testimony on a tablet."
+        }
+      ],
+      "aftermath_clues": [
+        {
+          "location_id": "drazna_house_of_names",
+          "description": "Freshly cut numerals count to fourteen beneath a public tablet that still stops at nine.",
+          "discoverable_for_days": 90
+        }
+      ]
+    },
+    {
+      "id": "undertide-expedition-launch",
+      "kind": "story",
+      "participants": ["pava-mirek", "vasko-mirek", "vesna-korr", "luka-nen"],
+      "window": {"opens_day": 3, "closes_day": 6, "cooldown_minutes": 0, "max_firings": 1},
+      "conditions": [
+        {"kind": "fact_absent", "fact_key": "drazna.undertide_expedition"},
+        {"kind": "npc_alive", "npc_id": "pava-mirek", "value": true},
+        {"kind": "npc_alive", "npc_id": "vasko-mirek", "value": true},
+        {"kind": "npc_alive", "npc_id": "luka-nen", "value": true}
+      ],
+      "effects": [
+        {
+          "kind": "set_fact",
+          "fact_key": "drazna.undertide_expedition",
+          "subject_id": "pava-mirek",
+          "predicate": "low_water_descent",
+          "value": {"state": "launched", "route": "dry-dock", "crew": ["pava", "vasko", "vesna", "luka"]}
+        },
+        {
+          "kind": "set_direction",
+          "npc_id": "pava-mirek",
+          "location_id": "drazna_undertide",
+          "reason": "Pava leaves Walking Ward before dawn to find Vasko's marked dry line."
+        },
+        {
+          "kind": "set_direction",
+          "npc_id": "vesna-korr",
+          "location_id": "drazna_dry_dock",
+          "reason": "Vesna guides the expedition through a smuggler drain while the crown gauge falls."
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "vasko-mirek",
+          "goal_id": "mark-safe-dry-line",
+          "status": "active",
+          "reason": "Vasko has witnesses, rope, and one low-water cycle to finish his route."
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "luka-nen",
+          "goal_id": "rescue-dry-dock",
+          "status": "active",
+          "reason": "The expedition can finally reach the answering knocks beyond the survivor bunks."
+        }
+      ],
+      "conversation": null,
+      "missed_consequences": [
+        {
+          "kind": "relocate_npc",
+          "npc_id": "luka-nen",
+          "location_id": "drazna_dry_dock",
+          "reason": "Luka follows the closing dry line alone and is stranded beside the survivor wall."
+        },
+        {
+          "kind": "wound_npc",
+          "npc_id": "luka-nen",
+          "damage": 12,
+          "summary": "Luka attempted the closing dry-dock route alone and returned with a crushed leg and blackwater burns."
+        },
+        {
+          "kind": "set_fact",
+          "fact_key": "drazna.undertide_expedition",
+          "subject_id": "luka-nen",
+          "predicate": "low_water_descent",
+          "value": {"state": "missed", "route": "dry-dock", "crew": ["luka"]}
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "luka-nen",
+          "goal_id": "rescue-dry-dock",
+          "status": "blocked",
+          "reason": "Luka's solitary attempt ended under falling water before the survivor wall."
+        },
+        {
+          "kind": "set_direction",
+          "npc_id": "vesna-korr",
+          "location_id": "drazna_lantern_quays",
+          "reason": "Vesna returns to the quay after the dry line floods and refuses another descent."
+        }
+      ],
+      "aftermath_clues": [
+        {
+          "location_id": "drazna_undertide",
+          "description": "Four colored wrist strips are tied at the dry-line chalk; a fifth knot was cut before it could be tightened.",
+          "discoverable_for_days": 18
+        },
+        {
+          "location_id": "drazna_dry_dock",
+          "description": "Fresh knocks answer from behind the survivor wall only during the lowest half-bell.",
+          "discoverable_for_days": 10
+        }
+      ]
+    },
+    {
+      "id": "vasko-returns-with-ledger",
+      "kind": "story",
+      "participants": ["vasko-mirek", "olek-var", "luka-nen"],
+      "window": {"opens_day": 5, "closes_day": 9, "cooldown_minutes": 0, "max_firings": 1},
+      "conditions": [
+        {"kind": "fact_equals", "fact_key": "drazna.undertide_expedition", "value": {"state": "launched", "route": "dry-dock", "crew": ["pava", "vasko", "vesna", "luka"]}},
+        {"kind": "npc_alive", "npc_id": "vasko-mirek", "value": true},
+        {"kind": "npc_alive", "npc_id": "luka-nen", "value": true}
+      ],
+      "effects": [
+        {
+          "kind": "set_fact",
+          "fact_key": "drazna.vasko_return",
+          "subject_id": "vasko-mirek",
+          "predicate": "undertide_return",
+          "value": {"state": "returned", "ledger": "closure-payroll", "survivor_route": "marked"}
+        },
+        {
+          "kind": "relocate_npc",
+          "npc_id": "vasko-mirek",
+          "location_id": "drazna_mud_crown",
+          "reason": "Vasko returns by salvage skiff with the closure payroll wrapped beneath his shirt."
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "vasko-mirek",
+          "goal_id": "mark-safe-dry-line",
+          "status": "completed",
+          "reason": "The survivor route is marked in roofwright blue and floodwarden white."
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "luka-nen",
+          "goal_id": "rescue-dry-dock",
+          "status": "completed",
+          "reason": "The expedition opened the survivor wall before the pressure reversal."
+        },
+        {
+          "kind": "remember",
+          "npc_id": "olek-var",
+          "summary": "Vasko returned alive with a payroll naming fourteen closure workers and refused Olek's first offer for it.",
+          "importance": 10,
+          "tags": ["person", "promise", "testimony"]
+        }
+      ],
+      "conversation": null,
+      "missed_consequences": [
+        {
+          "kind": "wound_npc",
+          "npc_id": "vasko-mirek",
+          "damage": 16,
+          "summary": "Vasko surfaced alone after losing the payroll satchel and two fingers to the closing chain."
+        },
+        {
+          "kind": "set_fact",
+          "fact_key": "drazna.vasko_return",
+          "subject_id": "vasko-mirek",
+          "predicate": "undertide_return",
+          "value": {"state": "injured", "ledger": "lost", "survivor_route": "collapsed"}
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "vasko-mirek",
+          "goal_id": "mark-safe-dry-line",
+          "status": "failed",
+          "reason": "The marked line collapsed before Vasko could lead anyone back through it."
+        }
+      ],
+      "aftermath_clues": [
+        {
+          "location_id": "drazna_mud_crown",
+          "description": "Vasko's salvage skiff rests high on the mud with fourteen payroll notches cut into its gunwale.",
+          "discoverable_for_days": 45
+        },
+        {
+          "location_id": "drazna_dry_dock",
+          "description": "A torn oilskin ledger cover is pinned beneath the dry-dock chain.",
+          "discoverable_for_days": 24
+        }
+      ]
+    },
+    {
+      "id": "nera-tablet-theft",
+      "kind": "story",
+      "participants": ["nera-bell", "teo-latch"],
+      "window": {"opens_day": 4, "closes_day": 8, "cooldown_minutes": 0, "max_firings": 1},
+      "conditions": [
+        {"kind": "fact_equals", "fact_key": "drazna.low_lantern_list", "value": {"state": "sold", "buyer": "floodwarden-office", "altered": true}},
+        {"kind": "npc_alive", "npc_id": "nera-bell", "value": true},
+        {"kind": "npc_alive", "npc_id": "teo-latch", "value": true}
+      ],
+      "effects": [
+        {
+          "kind": "set_fact",
+          "fact_key": "drazna.omitted_tablet",
+          "subject_id": "teo-latch",
+          "predicate": "archive_tablet_fate",
+          "value": {"state": "stolen", "motive": "erase-arrest-link", "copy_survives": true}
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "teo-latch",
+          "goal_id": "destroy-sold-list",
+          "status": "completed",
+          "reason": "Teo steals the comparison tablet, not knowing Nera already pressed a paper copy."
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "nera-bell",
+          "goal_id": "restore-uncounted-names",
+          "status": "blocked",
+          "reason": "The public comparison tablet vanished before its morning reading."
+        },
+        {
+          "kind": "relationship_shift",
+          "from_npc_id": "nera-bell",
+          "to_npc_id": "teo-latch",
+          "axis": "trust",
+          "delta": -20
+        }
+      ],
+      "conversation": null,
+      "missed_consequences": [
+        {
+          "kind": "set_fact",
+          "fact_key": "drazna.omitted_tablet",
+          "subject_id": "nera-bell",
+          "predicate": "archive_tablet_fate",
+          "value": {"state": "secured", "motive": "public-reading", "copy_survives": true}
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "teo-latch",
+          "goal_id": "destroy-sold-list",
+          "status": "failed",
+          "reason": "Nera sealed the comparison tablet before Teo could reach it."
+        }
+      ],
+      "aftermath_clues": [
+        {
+          "location_id": "drazna_tablet_vault",
+          "description": "A tablet-shaped absence in the salt dust is bordered by fibers from a Reed Market wrapping cloth.",
+          "discoverable_for_days": 35
+        },
+        {
+          "location_id": "drazna_house_of_names",
+          "description": "Nera's paper rubbing preserves the omitted names in reverse, hidden behind a public flood map.",
+          "discoverable_for_days": 120
+        }
+      ]
+    },
+    {
+      "id": "mara-alin-hearing-outcome",
+      "kind": "story",
+      "participants": ["mara-vey", "alin-vey", "nera-bell", "rada-velic"],
+      "window": {"opens_day": 6, "closes_day": 11, "cooldown_minutes": 0, "max_firings": 1},
+      "conditions": [
+        {"kind": "trigger_fired", "trigger_id": "luka-testifies-names"},
+        {"kind": "npc_alive", "npc_id": "mara-vey", "value": true},
+        {"kind": "npc_alive", "npc_id": "alin-vey", "value": true},
+        {"kind": "npc_alive", "npc_id": "nera-bell", "value": true}
+      ],
+      "effects": [
+        {
+          "kind": "set_fact",
+          "fact_key": "drazna.crown_hearing",
+          "subject_id": "alin-vey",
+          "predicate": "omitted_names_hearing",
+          "value": {"state": "opened", "crew_count": 14, "first_scar_source": "unresolved"}
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "alin-vey",
+          "goal_id": "publish-flood-record",
+          "status": "completed",
+          "reason": "Alin reads Luka's fourteen names and the contradictory drain evidence into the public record."
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "mara-vey",
+          "goal_id": "control-flood-account",
+          "status": "failed",
+          "reason": "Mara permits a hearing she can frame but can no longer fully control."
+        },
+        {
+          "kind": "relationship_shift",
+          "from_npc_id": "mara-vey",
+          "to_npc_id": "alin-vey",
+          "axis": "respect",
+          "delta": 8
+        },
+        {
+          "kind": "set_disposition",
+          "npc_id": "mara-vey",
+          "disposition": "neutral"
+        }
+      ],
+      "conversation": null,
+      "missed_consequences": [
+        {
+          "kind": "wound_npc",
+          "npc_id": "alin-vey",
+          "damage": 8,
+          "summary": "Palace guards broke Alin's writing hand while clearing the unlicensed hearing."
+        },
+        {
+          "kind": "set_fact",
+          "fact_key": "drazna.crown_hearing",
+          "subject_id": "mara-vey",
+          "predicate": "omitted_names_hearing",
+          "value": {"state": "suppressed", "crew_count": 9, "first_scar_source": "officially-uncertain"}
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "alin-vey",
+          "goal_id": "publish-flood-record",
+          "status": "blocked",
+          "reason": "The hearing was cleared before Alin could read the supplemental tablet."
+        },
+        {
+          "kind": "relationship_shift",
+          "from_npc_id": "alin-vey",
+          "to_npc_id": "mara-vey",
+          "axis": "trust",
+          "delta": -15
+        }
+      ],
+      "aftermath_clues": [
+        {
+          "location_id": "drazna_palace_still_water",
+          "description": "Fourteen empty witness stools face a crown table set with only nine name cards.",
+          "discoverable_for_days": 60
+        },
+        {
+          "location_id": "drazna_birch_stair",
+          "description": "Alin's hearing text is pasted to the memorial arch in strips narrow enough to evade a single clean tear.",
+          "discoverable_for_days": 25
+        }
+      ]
+    },
+    {
+      "id": "gate-seven-climax",
+      "kind": "story",
+      "participants": ["odran-third-bell", "rada-velic", "vasko-mirek", "sima-dren"],
+      "window": {"opens_day": 7, "closes_day": null, "cooldown_minutes": 0, "max_firings": 1},
+      "conditions": [
+        {"kind": "fact_absent", "fact_key": "drazna.gate_seven_resolution"},
+        {"kind": "fact_equals", "fact_key": "drazna.undertide_expedition", "value": {"state": "launched", "route": "dry-dock", "crew": ["pava", "vasko", "vesna", "luka"]}},
+        {"kind": "npc_alive", "npc_id": "odran-third-bell", "value": true},
+        {"kind": "npc_alive", "npc_id": "rada-velic", "value": true}
+      ],
+      "effects": [
+        {
+          "kind": "set_fact",
+          "fact_key": "drazna.gate_seven_climax",
+          "subject_id": "odran-third-bell",
+          "predicate": "gate_confrontation",
+          "value": {"state": "engaged", "gate": "locked", "cadence_known": true}
+        },
+        {
+          "kind": "set_disposition",
+          "npc_id": "odran-third-bell",
+          "disposition": "hostile"
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "rada-velic",
+          "goal_id": "stabilize-gate-seven",
+          "status": "active",
+          "reason": "Odran has chained Gate Seven shut while pressure climbs beneath Walking Ward."
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "odran-third-bell",
+          "goal_id": "hold-gate-seven",
+          "status": "active",
+          "reason": "Living floodwardens have entered the gate hall without first restoring the five omitted names."
+        },
+        {
+          "kind": "remember",
+          "npc_id": "rada-velic",
+          "summary": "Odran answered the fourteen-beat cadence, then attacked when the ninth memorial name was spoken.",
+          "importance": 10,
+          "tags": ["person", "warning", "danger", "testimony"]
+        }
+      ],
+      "conversation": null,
+      "missed_consequences": [],
+      "aftermath_clues": []
+    },
+    {
+      "id": "gate-seven-unanswered-flood",
+      "kind": "story",
+      "participants": ["odran-third-bell", "rada-velic"],
+      "window": {"opens_day": 13, "closes_day": null, "cooldown_minutes": 0, "max_firings": 1},
+      "conditions": [
+        {"kind": "fact_absent", "fact_key": "drazna.gate_seven_resolution"},
+        {"kind": "fact_absent", "fact_key": "drazna.gate_seven_climax"},
+        {"kind": "npc_alive", "npc_id": "odran-third-bell", "value": true},
+        {"kind": "npc_alive", "npc_id": "rada-velic", "value": true}
+      ],
+      "effects": [
+        {
+          "kind": "wound_npc",
+          "npc_id": "rada-velic",
+          "damage": 20,
+          "summary": "Gate Seven reversed under full pressure and drove its chain through Rada's shoulder."
+        },
+        {
+          "kind": "set_fact",
+          "fact_key": "drazna.gate_seven_climax",
+          "subject_id": "odran-third-bell",
+          "predicate": "gate_confrontation",
+          "value": {"state": "flooded", "gate": "jammed", "cadence_known": true}
+        },
+        {
+          "kind": "set_disposition",
+          "npc_id": "odran-third-bell",
+          "disposition": "hostile"
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "rada-velic",
+          "goal_id": "stabilize-gate-seven",
+          "status": "blocked",
+          "reason": "The missed descent left Gate Seven jammed beneath a rising pressure head."
+        },
+        {
+          "kind": "leave_evidence",
+          "location_id": "drazna_gate_seven",
+          "description": "Fourteen chain dents ring the gate drum; the deepest five have been filled with memorial wax."
+        },
+        {
+          "kind": "leave_evidence",
+          "location_id": "drazna_pressure_gallery",
+          "description": "The pressure needle is pinned above its red field with a roofwright nail."
+        }
+      ],
+      "conversation": null,
+      "missed_consequences": [],
+      "aftermath_clues": []
+    },
+    {
+      "id": "odran-cadence-pacified",
+      "kind": "story",
+      "participants": ["odran-third-bell", "rada-velic", "luka-nen"],
+      "window": {"opens_day": 8, "closes_day": null, "cooldown_minutes": 0, "max_firings": 1},
+      "conditions": [
+        {"kind": "fact_absent", "fact_key": "drazna.gate_seven_resolution"},
+        {"kind": "fact_equals", "fact_key": "drazna.gate_seven_climax", "value": {"state": "engaged", "gate": "locked", "cadence_known": true}},
+        {"kind": "believes", "npc_id": "rada-velic", "rumor_id": "gate-seven-fourteen", "minimum_confidence": 90},
+        {"kind": "npc_alive", "npc_id": "odran-third-bell", "value": true},
+        {"kind": "npc_alive", "npc_id": "luka-nen", "value": true}
+      ],
+      "effects": [
+        {
+          "kind": "set_disposition",
+          "npc_id": "odran-third-bell",
+          "disposition": "neutral"
+        },
+        {
+          "kind": "set_fact",
+          "fact_key": "drazna.gate_seven_resolution",
+          "subject_id": "odran-third-bell",
+          "predicate": "gate_outcome",
+          "value": {"state": "pacified", "gate": "vented", "names_spoken": 14}
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "odran-third-bell",
+          "goal_id": "answer-fourteen",
+          "status": "completed",
+          "reason": "Luka speaks all fourteen names in the closure cadence while Rada vents the gate."
+        },
+        {
+          "kind": "relationship_shift",
+          "from_npc_id": "rada-velic",
+          "to_npc_id": "luka-nen",
+          "axis": "respect",
+          "delta": 12
+        }
+      ],
+      "conversation": null,
+      "missed_consequences": [],
+      "aftermath_clues": []
+    },
+    {
+      "id": "gate-seven-pacified-aftermath",
+      "kind": "story",
+      "participants": ["odran-third-bell", "rada-velic", "sima-dren"],
+      "window": {"opens_day": 0, "closes_day": null, "cooldown_minutes": 0, "max_firings": 1},
+      "conditions": [
+        {"kind": "fact_equals", "fact_key": "drazna.gate_seven_resolution", "value": {"state": "pacified", "gate": "vented", "names_spoken": 14}}
+      ],
+      "effects": [
+        {
+          "kind": "set_fact",
+          "fact_key": "drazna.walking_ward_after_gate",
+          "subject_id": "rada-velic",
+          "predicate": "ward_damage",
+          "value": {"state": "stabilized", "evacuated_houses": 0}
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "rada-velic",
+          "goal_id": "stabilize-gate-seven",
+          "status": "completed",
+          "reason": "Odran releases the chain after all fourteen closure workers are acknowledged."
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "sima-dren",
+          "goal_id": "brace-walking-ward",
+          "status": "completed",
+          "reason": "The vented gate drops below the pressure that threatened Walking Ward's oldest braces."
+        },
+        {
+          "kind": "remember",
+          "npc_id": "rada-velic",
+          "summary": "All fourteen closure names were answered before Odran released Gate Seven's emergency pawl.",
+          "importance": 10,
+          "tags": ["person", "promise", "warning", "testimony"]
+        }
+      ],
+      "conversation": null,
+      "missed_consequences": [],
+      "aftermath_clues": []
+    },
+    {
+      "id": "gate-seven-cadence-expired",
+      "kind": "story",
+      "participants": ["odran-third-bell", "rada-velic"],
+      "window": {"opens_day": 15, "closes_day": null, "cooldown_minutes": 0, "max_firings": 1},
+      "conditions": [
+        {"kind": "fact_absent", "fact_key": "drazna.gate_seven_resolution"},
+        {"kind": "fact_equals", "fact_key": "drazna.gate_seven_climax", "value": {"state": "engaged", "gate": "locked", "cadence_known": true}},
+        {"kind": "npc_alive", "npc_id": "odran-third-bell", "value": true},
+        {"kind": "npc_alive", "npc_id": "rada-velic", "value": true}
+      ],
+      "effects": [
+        {
+          "kind": "set_disposition",
+          "npc_id": "odran-third-bell",
+          "disposition": "hostile"
+        },
+        {
+          "kind": "wound_npc",
+          "npc_id": "rada-velic",
+          "damage": 14,
+          "summary": "Odran tore the vent wheel free after the fourteen-name cadence went unanswered."
+        },
+        {
+          "kind": "set_fact",
+          "fact_key": "drazna.gate_seven_cadence",
+          "subject_id": "odran-third-bell",
+          "predicate": "cadence_attempt",
+          "value": {"state": "failed", "names_spoken": 9}
+        },
+        {
+          "kind": "set_fact",
+          "fact_key": "drazna.gate_seven_climax",
+          "subject_id": "odran-third-bell",
+          "predicate": "gate_confrontation",
+          "value": {"state": "flooded", "gate": "jammed", "cadence_known": true}
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "rada-velic",
+          "goal_id": "stabilize-gate-seven",
+          "status": "blocked",
+          "reason": "The fourteen-name answer never came, leaving Gate Seven jammed under full pressure."
+        },
+        {
+          "kind": "leave_evidence",
+          "location_id": "drazna_gate_seven",
+          "description": "Fourteen names are cut into fresh gate wax, but only the first nine carry answering chain marks."
+        }
+      ],
+      "conversation": null,
+      "missed_consequences": [],
+      "aftermath_clues": []
+    },
+    {
+      "id": "odran-falls-gate-held",
+      "kind": "story",
+      "participants": ["odran-third-bell", "rada-velic"],
+      "window": {"opens_day": 0, "closes_day": null, "cooldown_minutes": 0, "max_firings": 1},
+      "conditions": [
+        {"kind": "npc_alive", "npc_id": "odran-third-bell", "value": false},
+        {"kind": "fact_absent", "fact_key": "drazna.gate_seven_resolution"}
+      ],
+      "effects": [
+        {
+          "kind": "set_fact",
+          "fact_key": "drazna.gate_seven_resolution",
+          "subject_id": "odran-third-bell",
+          "predicate": "gate_outcome",
+          "value": {"state": "odran-killed", "gate": "held-by-chain", "names_spoken": 0}
+        }
+      ],
+      "conversation": null,
+      "missed_consequences": [],
+      "aftermath_clues": []
+    },
+    {
+      "id": "gate-seven-killed-aftermath",
+      "kind": "story",
+      "participants": ["odran-third-bell", "rada-velic"],
+      "window": {"opens_day": 0, "closes_day": null, "cooldown_minutes": 0, "max_firings": 1},
+      "conditions": [
+        {"kind": "fact_equals", "fact_key": "drazna.gate_seven_resolution", "value": {"state": "odran-killed", "gate": "held-by-chain", "names_spoken": 0}}
+      ],
+      "effects": [
+        {
+          "kind": "set_goal_status",
+          "npc_id": "odran-third-bell",
+          "goal_id": "hold-gate-seven",
+          "status": "failed",
+          "reason": "Odran was killed before Gate Seven's pressure could be resolved."
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "odran-third-bell",
+          "goal_id": "answer-fourteen",
+          "status": "failed",
+          "reason": "Odran died before anyone answered the fourteen-person closure roll."
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "rada-velic",
+          "goal_id": "stabilize-gate-seven",
+          "status": "blocked",
+          "reason": "Odran's body still holds the chain assembly in its emergency notch."
+        },
+        {
+          "kind": "remember",
+          "npc_id": "rada-velic",
+          "summary": "Odran died with Gate Seven caught in the emergency notch and the lower pressure still unresolved.",
+          "importance": 10,
+          "tags": ["person", "death", "danger", "warning"]
+        }
+      ],
+      "conversation": null,
+      "missed_consequences": [],
+      "aftermath_clues": []
+    },
+    {
+      "id": "gate-seven-contained-aftermath",
+      "kind": "story",
+      "participants": ["odran-third-bell", "rada-velic", "sima-dren"],
+      "window": {"opens_day": 0, "closes_day": null, "cooldown_minutes": 0, "max_firings": 1},
+      "conditions": [
+        {"kind": "fact_equals", "fact_key": "drazna.gate_seven_resolution", "value": {"state": "contained", "gate": "braced", "names_spoken": 0}}
+      ],
+      "effects": [
+        {
+          "kind": "set_fact",
+          "fact_key": "drazna.walking_ward_after_gate",
+          "subject_id": "rada-velic",
+          "predicate": "ward_damage",
+          "value": {"state": "stabilized", "evacuated_houses": 0}
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "rada-velic",
+          "goal_id": "stabilize-gate-seven",
+          "status": "completed",
+          "reason": "The contained chain load is transferred to Sima's roofwright braces."
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "sima-dren",
+          "goal_id": "brace-walking-ward",
+          "status": "completed",
+          "reason": "Walking Ward remains stable after Odran is contained and Gate Seven is mechanically braced."
+        },
+        {
+          "kind": "remember",
+          "npc_id": "rada-velic",
+          "summary": "Odran remained alive behind the counterpressure brace while the pressure needle returned below red; none of the omitted names were answered.",
+          "importance": 10,
+          "tags": ["person", "promise", "danger", "testimony"]
+        }
+      ],
+      "conversation": null,
+      "missed_consequences": [],
+      "aftermath_clues": []
+    },
+    {
+      "id": "gate-seven-flood-aftermath",
+      "kind": "story",
+      "participants": ["odran-third-bell", "rada-velic", "sima-dren"],
+      "window": {"opens_day": 13, "closes_day": null, "cooldown_minutes": 0, "max_firings": 1},
+      "conditions": [
+        {"kind": "fact_absent", "fact_key": "drazna.gate_seven_resolution"},
+        {"kind": "fact_equals", "fact_key": "drazna.gate_seven_climax", "value": {"state": "flooded", "gate": "jammed", "cadence_known": true}},
+        {"kind": "npc_alive", "npc_id": "sima-dren", "value": true}
+      ],
+      "effects": [
+        {
+          "kind": "wound_npc",
+          "npc_id": "sima-dren",
+          "damage": 10,
+          "summary": "The Walking Ward shifted during Gate Seven's pressure surge and threw Sima from a roof bridge."
+        },
+        {
+          "kind": "set_fact",
+          "fact_key": "drazna.walking_ward_after_gate",
+          "subject_id": "sima-dren",
+          "predicate": "ward_damage",
+          "value": {"state": "partly-collapsed", "evacuated_houses": 3}
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "sima-dren",
+          "goal_id": "brace-walking-ward",
+          "status": "active",
+          "reason": "Three houses shifted when the missed Gate Seven release reached the ward."
+        },
+        {
+          "kind": "leave_evidence",
+          "location_id": "drazna_walking_ward",
+          "description": "Three front doors now open onto empty air while their furniture hangs bundled from roof ropes."
+        }
+      ],
+      "conversation": null,
+      "missed_consequences": [],
+      "aftermath_clues": []
+    },
+    {
+      "id": "luka-dry-dock-last-window",
+      "kind": "story",
+      "participants": ["luka-nen", "vesna-korr"],
+      "window": {"opens_day": 7, "closes_day": null, "cooldown_minutes": 0, "max_firings": 1},
+      "conditions": [
+        {"kind": "fact_equals", "fact_key": "drazna.undertide_expedition", "value": {"state": "missed", "route": "dry-dock", "crew": ["luka"]}},
+        {"kind": "fact_absent", "fact_key": "drazna.luka_last_window"},
+        {"kind": "npc_health_at_most", "npc_id": "luka-nen", "hp": 10},
+        {"kind": "npc_alive", "npc_id": "luka-nen", "value": true}
+      ],
+      "effects": [
+        {
+          "kind": "kill_npc",
+          "npc_id": "luka-nen",
+          "summary": "Luka died in the dry dock after returning alone for the unanswered knocks."
+        },
+        {
+          "kind": "set_fact",
+          "fact_key": "drazna.luka_last_window",
+          "subject_id": "luka-nen",
+          "predicate": "survivor_fate",
+          "value": {"state": "dead", "location": "dry-dock", "testimony_deposited": false}
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "luka-nen",
+          "goal_id": "rescue-dry-dock",
+          "status": "failed",
+          "reason": "The final low-water route closed before Luka reached the survivor wall."
+        },
+        {
+          "kind": "remember",
+          "npc_id": "vesna-korr",
+          "summary": "Vesna heard Luka's last three rope knocks after refusing the second descent.",
+          "importance": 10,
+          "tags": ["person", "death", "grief", "warning"]
+        },
+        {
+          "kind": "leave_evidence",
+          "location_id": "drazna_dry_dock",
+          "description": "Luka's rope ends in three deliberate knots beside a wall that no longer answers."
+        }
+      ],
+      "conversation": null,
+      "missed_consequences": [],
+      "aftermath_clues": []
+    },
+    {
+      "id": "luka-dry-dock-survives-window",
+      "kind": "story",
+      "participants": ["luka-nen", "vesna-korr"],
+      "window": {"opens_day": 10, "closes_day": null, "cooldown_minutes": 0, "max_firings": 1},
+      "conditions": [
+        {"kind": "fact_equals", "fact_key": "drazna.undertide_expedition", "value": {"state": "missed", "route": "dry-dock", "crew": ["luka"]}},
+        {"kind": "fact_absent", "fact_key": "drazna.luka_last_window"},
+        {"kind": "npc_alive", "npc_id": "luka-nen", "value": true}
+      ],
+      "effects": [
+        {
+          "kind": "set_fact",
+          "fact_key": "drazna.luka_last_window",
+          "subject_id": "luka-nen",
+          "predicate": "survivor_fate",
+          "value": {"state": "survived-injured", "location": "dry-dock", "testimony_deposited": false}
+        },
+        {
+          "kind": "set_goal_status",
+          "npc_id": "luka-nen",
+          "goal_id": "rescue-dry-dock",
+          "status": "blocked",
+          "reason": "Luka survives the final window but cannot walk back to the survivor wall."
+        },
+        {
+          "kind": "leave_evidence",
+          "location_id": "drazna_dry_dock",
+          "description": "A splinted leg-rest and three days of scored ration bark mark where Luka waited out the pressure."
+        }
+      ],
+      "conversation": null,
+      "missed_consequences": [],
+      "aftermath_clues": []
     }
   ]
 }

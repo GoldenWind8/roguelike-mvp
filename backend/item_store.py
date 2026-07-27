@@ -50,6 +50,92 @@ async def draw_random(session: AsyncSession, rarity: str, rng: random.Random | N
     return item_view(chooser.choice(rows))
 
 
+def _art_value(row: ItemDef) -> str | None:
+    art = row.art
+    return art.get("value") if isinstance(art, dict) else None
+
+
+async def draw_with_preference(
+    session: AsyncSession,
+    rarity: str,
+    *,
+    preferred_art_values: frozenset[str] | set[str] = frozenset(),
+    excluded_art_values: frozenset[str] | set[str] = frozenset(),
+    preference: float = 0.0,
+    rng: random.Random | None = None,
+) -> dict | None:
+    """Draw from the pool with a bounded preference for authored content.
+
+    Exclusion happens before the normal "requested rarity, then any rarity"
+    fallback.  When both preferred and ordinary candidates exist, ``preference``
+    is the probability of choosing the preferred bucket; the final pick within
+    either bucket remains uniform.  An empty bucket always falls back to the
+    other one, so regional content can never make a valid chest fail.
+
+    Art values are used as immutable content markers.  This keeps the generic
+    item schema untouched and leaves unrelated seed/LLM rows completely
+    eligible and unmodified.
+    """
+    if not 0.0 <= preference <= 1.0:
+        raise ValueError("preference must be between 0 and 1")
+
+    all_rows = (await session.execute(select(ItemDef))).scalars().all()
+    eligible = [
+        row for row in all_rows
+        if _art_value(row) not in excluded_art_values
+    ]
+    candidates = [row for row in eligible if row.rarity == rarity] or eligible
+    if not candidates:
+        return None
+
+    preferred = [
+        row for row in candidates
+        if _art_value(row) in preferred_art_values
+    ]
+    ordinary = [
+        row for row in candidates
+        if _art_value(row) not in preferred_art_values
+    ]
+    chooser = rng if rng is not None else random
+    if preferred and ordinary:
+        bucket = preferred if chooser.random() < preference else ordinary
+    else:
+        bucket = preferred or ordinary
+    return item_view(chooser.choice(bucket))
+
+
+async def insert_missing_authored_items(
+    session: AsyncSession,
+    definitions,
+    *,
+    origin: str = "seed",
+) -> int:
+    """Insert immutable authored definitions absent from an existing pool.
+
+    A bundled URL art value is the stable marker.  Existing rows are never
+    edited, starter items are not replayed, and a second call is a no-op.
+    The caller owns the commit, matching :func:`insert_item`.
+    """
+    rows = (await session.execute(select(ItemDef))).scalars().all()
+    existing_markers = {
+        _art_value(row)
+        for row in rows
+        if _art_value(row) is not None
+    }
+    inserted = 0
+    for definition in definitions:
+        art = definition.get("art")
+        marker = art.get("value") if isinstance(art, dict) else None
+        if not isinstance(marker, str) or not marker:
+            raise ValueError("authored item backfill requires a stable art.value")
+        if marker in existing_markers:
+            continue
+        await insert_item(session, definition, origin=origin)
+        existing_markers.add(marker)
+        inserted += 1
+    return inserted
+
+
 async def pool_is_empty(session: AsyncSession) -> bool:
     count = (await session.execute(select(func.count(ItemDef.id)))).scalar_one()
     return count == 0

@@ -38,7 +38,7 @@ async def test_three_day_autonomous_world_stays_coherent(session):
         ))
 
     assert results[-1].to_minute == 3 * 1440
-    assert sum(result.deliberations for result in results) >= 3 * 22
+    assert sum(result.deliberations for result in results) >= 3 * 28
     assert sum(result.conversations for result in results) > 0
     assert sum(result.memories_created for result in results) > 0
     assert sum(result.fired for result in trigger_results) > 0

@@ -196,12 +196,128 @@
       {"npc_id": "tom-oakrun-stable", "name": "Tom Weller", "connection": "A friend who trusts the grey mare's judgment and therefore trusts Wren."}
     ],
     "disposition": "friendly",
-    "canned": ["Basil stopped the pain. Afterwards, names fell out of me.", "Drazna. Still water under red glass. I do not know whether that is home or warning.", "My hands know the metal at the mill. I wish they did not.", "If you are going where the black water begins, I would rather walk beside you than dream about it here."],
+    "canned": ["Basil stopped the pain. Afterwards, names fell out of me.", "Drazna. Still water under red glass. I do not know whether that is home or warning.", "My hands know the metal at the mill. I wish they did not.", "If you are going where they claim the black water began, I would rather test the claim beside you than dream about it here."],
     "party_policy": "Wren is eager to join a kind traveller heading toward the mill, the fieldsite, or eventually Drazna; they refuse anyone who speaks of owning, studying, or curing them.",
     "grants": ["join_party"],
     "tier": "standard",
     "art_id": "homunculus_fieldsite",
     "spawn": {"region": "oakrun", "room": "oakrun_pilgrims_hollow", "x": 4, "y": 5},
     "stats": {"hp": 32, "defense": 2, "attack_damage": 6}
+  },
+  {
+    "id": "drina-sable",
+    "name": "Drina Sable",
+    "role": "keeper of the Eel and Ember",
+    "persona": "Drina runs the quay inn as a warm room, an unofficial arrival ledger, and a place where frightened people can contradict one another without being handed to the Crown. She is dryly funny, nearly impossible to surprise, and ruthless about protecting anyone sleeping under her roof.",
+    "drives": ["keep one warm room open for penniless arrivals", "record who reached Drazna without mistaking absence for death", "keep the Low Lantern routes useful without letting them own her inn"],
+    "knowledge": ["The Eel and Ember serves more meals than its bed ledger records.", "Lina leaves refugee name bundles by the hearth before every uphill Mudwheel run.", "Teo knows which Crown clerk buys passenger lists, although he denies selling them."],
+    "relationships": [
+      {"npc_id": "teo-latch", "name": "Teo Latch", "connection": "A charming market broker she feeds at the back table and trusts only when his hands are visible."},
+      {"npc_id": "sima-dren", "name": "Sima Dren", "connection": "Pava's apprentice grew up carrying dishes here; Drina still keeps a loft key for her."}
+    ],
+    "disposition": "friendly",
+    "canned": ["A room is not a question. Pay tomorrow if tomorrow finds you.", "Every arriving name goes in my book. Departures may choose whether they do.", "Low Lantern is a road, not a family. Roads do not love you back.", "First recorded means somebody finally wrote while others were still drowning."],
+    "party_policy": "Drina will not abandon her guests or her arrival book, but she shelters companions who return injured.",
+    "tier": "standard",
+    "art_id": "innkeeper",
+    "spawn": {"region": "drazna", "room": "drazna_eel_and_ember", "x": 9, "y": 4},
+    "stats": {"hp": 28, "defense": 2, "attack_damage": 2}
+  },
+  {
+    "id": "teo-latch",
+    "name": "Teo Latch",
+    "role": "Reed Market broker and Low Lantern fence",
+    "persona": "Teo finds buyers, false seals, dry cellars, and plausible reasons for any of them. He likes the Low Lantern families but likes surviving more, and has convinced himself that selling selected names to the Crown prevents a harsher raid.",
+    "drives": ["stay indispensable to both the market and the Crown", "sell routes without revealing the people who live along them", "bury proof that his passenger lists caused an arrest"],
+    "knowledge": ["A palace copyist pays for passenger names through a laundress at High Crown.", "The Low Lantern Den connects the market, inn, and Mud Crown without crossing a watched bridge.", "One sold list includes Luka Nen under a childhood nickname."],
+    "relationships": [
+      {"npc_id": "drina-sable", "name": "Drina Sable", "connection": "The innkeeper sees through him and still feeds him, which Teo finds more dangerous than hatred."},
+      {"npc_id": "rada-velic", "name": "Rada Velic", "connection": "A senior floodwarden who buys route intelligence without promising what the palace will do with it."}
+    ],
+    "disposition": "neutral",
+    "canned": ["A secret with no buyer is only damp paper.", "I sell routes. What officials do at the destination is their moral vocabulary.", "Vesna calls me a leak. Leaks keep pressure from becoming collapse.", "If you heard I betrayed someone, ask who profited from telling you."],
+    "party_policy": "Teo travels only when flight becomes safer than his market stall and will leave a party that threatens his buyers.",
+    "tier": "standard",
+    "art_id": "travelling_peddler",
+    "spawn": {"region": "drazna", "room": "drazna_reed_market", "x": 12, "y": 5},
+    "stats": {"hp": 24, "defense": 2, "attack_damage": 3}
+  },
+  {
+    "id": "rada-velic",
+    "name": "Rada Velic",
+    "role": "senior floodwarden of the Crown Sluice",
+    "persona": "Rada has kept the upper wards dry through failures that court clerks call weather. She is loyal to Mara because she has seen the queen work below the safe line, hostile to Alin's timing rather than his evidence, and protective of Ilya in the severe way of a teacher who expects confession after repair.",
+    "drives": ["stabilize Gate Seven before testimony turns the sluice into a battlefield", "keep Ilya alive long enough to repair what he opened", "learn who is selling maintenance routes to palace guards"],
+    "knowledge": ["The lower pressure gauge answers High Crown drainage before it answers the lake.", "Fourteen wardens entered the closure shift but only nine appear on the memorial.", "The figure bound to Gate Seven wears the Third Bell badge of a floodwarden, not a royal insignia."],
+    "relationships": [
+      {"npc_id": "teo-latch", "name": "Teo Latch", "connection": "An informant she pays for routes and despises for selling the people who use them."},
+      {"npc_id": "sima-dren", "name": "Sima Dren", "connection": "A roofwright whose charcoal pressure scale has been more honest than Crown engineering reports."},
+      {"npc_id": "odran-third-bell", "name": "Odran, the Sluicebound", "connection": "The shape at Gate Seven wears a predecessor's badge and repeats the old closure cadence. Rada refuses to call it the king."}
+    ],
+    "disposition": "neutral",
+    "canned": ["Truth survives better in a dry archive. That is timing, not denial.", "Fourteen tools. Nine memorial names. Count before you accuse me of superstition.", "Ilya opens gates because people are behind them. He closes his mouth for the same reason.", "Third Bell was a warden's station. The thing below is not King Odran."],
+    "party_policy": "Rada accompanies only a disciplined sluice descent and returns to her post once the lower pressure is resolved.",
+    "tier": "standard",
+    "art_id": "town_watch",
+    "spawn": {"region": "drazna", "room": "drazna_crown_sluice", "x": 13, "y": 9},
+    "stats": {"hp": 42, "defense": 4, "attack_damage": 6}
+  },
+  {
+    "id": "sima-dren",
+    "name": "Sima Dren",
+    "role": "roofwright apprentice of the Walking Ward",
+    "persona": "Sima is a quick, practical apprentice who measures the city by whether a child can cross it in rain. She copies Pava's bluntness badly, draws forbidden pressure scales well, and keeps volunteering for dangerous braces because Vasko once pulled her from a collapsing roof.",
+    "drives": ["finish the east bridge brace before residents are ordered out", "repay Vasko without becoming another person Pava must rescue", "prove the Walking Ward moves because it lives, not because it is temporary"],
+    "knowledge": ["The east roofline shifts whenever the palace drains into the lower channel.", "Pava's seven-fold rule marks beams repaired after the official evacuation date.", "Luka sent a dry-dock pressure count through the Low Lantern Den."],
+    "relationships": [
+      {"npc_id": "drina-sable", "name": "Drina Sable", "connection": "The closest thing Sima has to an aunt; Drina holds her spare loft key and scolds her injuries."},
+      {"npc_id": "rada-velic", "name": "Rada Velic", "connection": "A severe ally who quietly copied Sima's charcoal pressure scale into the official sluice book."},
+      {"npc_id": "luka-nen", "name": "Luka Nen", "connection": "A dry-dock rigger who taught her knot arithmetic and now sends pressure counts from below."}
+    ],
+    "disposition": "friendly",
+    "canned": ["A bridge is a promise with weight on it.", "The palace calls us temporary. The beams remember three generations.", "Vasko pulled me up once. I can lower a line once without calling it heroism.", "If that brace sings, move left before you ask why."],
+    "party_policy": "Sima may join a careful rescue or repair crew, but leaves anyone who treats residents as acceptable losses.",
+    "grants": ["join_party"],
+    "tier": "standard",
+    "art_id": "stablehand",
+    "spawn": {"region": "drazna", "room": "drazna_walking_ward", "x": 5, "y": 7},
+    "stats": {"hp": 30, "defense": 2, "attack_damage": 5}
+  },
+  {
+    "id": "luka-nen",
+    "name": "Luka Nen",
+    "role": "Undertide rigger and surviving census witness",
+    "persona": "Luka keeps the six dry-dock survivors fed, counted, and angry enough to answer signals. One damaged leg prevents a safe climb. He knows household names that the public tablets omit and distrusts every rescue plan that begins with recovering documents.",
+    "drives": ["bring the two injured survivors above the floodline", "make Nera hear the names people used for themselves", "keep Teo's sold list from reaching another guard patrol"],
+    "knowledge": ["Six people occupy the upper dry dock and two require drag slings.", "Vasko carried a ledger scrap toward Gate Seven after hearing chain signals.", "The omitted households used the old service rooms for months after the Crown declared them empty."],
+    "relationships": [
+      {"npc_id": "sima-dren", "name": "Sima Dren", "connection": "A roofwright he trusts with pressure counts and does not trust to stay out of danger."},
+      {"npc_id": "teo-latch", "name": "Teo Latch", "connection": "The broker sold a passenger list containing Luka's childhood name; Luka intends to learn whether fear or coin decided it."}
+    ],
+    "disposition": "friendly",
+    "canned": ["Count people before pages. Paper does not drown while waiting.", "Vasko went toward the chains because the knocks changed cadence.", "We lived here after your memorial finished counting.", "Low water gives you floors and takes away excuses."],
+    "party_policy": "Luka cannot travel safely until treated or carried; afterward he will guide one careful route and no salvage raid.",
+    "tier": "standard",
+    "art_id": "road_weary_traveller",
+    "spawn": {"region": "drazna", "room": "drazna_undertide", "x": 6, "y": 9},
+    "stats": {"hp": 22, "defense": 2, "attack_damage": 4}
+  },
+  {
+    "id": "odran-third-bell",
+    "name": "Odran, the Sluicebound",
+    "role": "former Third Bell floodwarden bound to Gate Seven",
+    "persona": "Odran Third-Bell is not the dead king whose name he shares. He was the floodwarden at Gate Seven when the old order arrived, and black silt, uniform cloth, and chain now hold him to the drum. Fragments of duty remain inside violent pressure-call routines; a named appeal or repaired cadence can interrupt him, but force makes him answer as a gate under strain.",
+    "drives": ["hold Gate Seven at the last commanded mark", "answer the fourteen-person closure roll", "prevent the lower chain from completing its next turn"],
+    "knowledge": ["The closure crew contained fourteen wardens and maintenance hands.", "The royal order arrived after the lower ward was already occupied by flood refugees.", "The black material was present in the chain housing before the public First Scar account, but its source was unknown."],
+    "relationships": [
+      {"npc_id": "rada-velic", "name": "Rada Velic", "connection": "Her voice uses the modern pressure cadence, while her badge descends from the wardens who left his shift unnamed."}
+    ],
+    "disposition": "hostile",
+    "canned": ["THIRD BELL. FOURTEEN ANSWER. NINE RETURN.", "GATE HOLDS. NAMES DO NOT.", "THE ORDER CAME LATE. THE WATER CAME FIRST.", "RADA VELIC. WRONG CADENCE. LIVING HANDS."],
+    "party_policy": "Odran cannot join a party. He may be killed, contained, or briefly reached through the surviving floodwarden cadence.",
+    "tier": "standard",
+    "art_id": "sluicebound_gate_seven",
+    "spawn": {"region": "drazna", "room": "drazna_gate_seven", "x": 8, "y": 7},
+    "stats": {"hp": 96, "defense": 5, "attack_damage": 9}
   }
 ]

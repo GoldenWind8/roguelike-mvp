@@ -38,6 +38,98 @@ async def test_authored_fieldsite_exposes_one_persistent_frontier_door(session):
     assert row.biome_hint == "amberfall_fields"
 
 
+async def test_temporary_drazna_bridge_does_not_count_as_frontier_discovery(
+    session,
+):
+    fieldsite = await _fieldsite(session)
+    drazna = (await session.execute(
+        select(Room).where(Room.content_id == "drazna_lantern_quays")
+    )).scalar_one()
+    oakrun_template = await load_room(session, fieldsite.id)
+    drazna_template = await load_room(session, drazna.id)
+
+    assert oakrun_template.connections[(16, 1)] == drazna.id
+    assert drazna_template.connections[(0, 9)] == fieldsite.id
+    assert any(
+        gateway.region_id == "drazna"
+        for gateway in await available_authored_gateways(session)
+    )
+    assert (await session.execute(
+        select(FrontierNode).where(
+            FrontierNode.authored_region_id == "drazna"
+        )
+    )).scalars().first() is None
+    stop = (await session.execute(
+        select(CarriageStop).where(
+            CarriageStop.stop_key == "stop:drazna-lantern-quays"
+        )
+    )).scalar_one()
+    assert stop.status == "closed"
+
+
+async def test_authored_resync_preserves_runtime_external_region_edge(session):
+    await _fieldsite(session)
+    drazna = (await session.execute(
+        select(Room).where(Room.content_id == "drazna_lantern_quays")
+    )).scalar_one()
+    generated = Room(
+        name="A Runtime Road",
+        width=5,
+        height=5,
+        terrain=["##+##", "#...#", "#...#", "#...#", "#####"],
+        objects=[],
+        spawn_points=[[2, 1]],
+        enemy_spawns=[],
+    )
+    session.add(generated)
+    await session.flush()
+    session.add(RoomConnection(
+        from_room_id=drazna.id,
+        to_room_id=generated.id,
+        from_x=0,
+        from_y=6,
+    ))
+    await session.commit()
+
+    await get_or_seed_default_room(session)
+
+    preserved = (await session.execute(
+        select(RoomConnection).where(
+            RoomConnection.from_room_id == drazna.id,
+            RoomConnection.from_x == 0,
+            RoomConnection.from_y == 6,
+        )
+    )).scalar_one()
+    assert preserved.to_room_id == generated.id
+
+
+async def test_authored_resync_removes_stale_internal_region_edge(session):
+    await _fieldsite(session)
+    drazna = (await session.execute(
+        select(Room).where(Room.content_id == "drazna_lantern_quays")
+    )).scalar_one()
+    internal = (await session.execute(
+        select(RoomConnection).where(
+            RoomConnection.from_room_id == drazna.id,
+            RoomConnection.from_x == 16,
+            RoomConnection.from_y == 6,
+        )
+    )).scalar_one()
+    target_room_id = internal.to_room_id
+    internal.from_x, internal.from_y = 0, 6
+    await session.commit()
+
+    await get_or_seed_default_room(session)
+
+    repaired = (await session.execute(
+        select(RoomConnection).where(
+            RoomConnection.from_room_id == drazna.id,
+            RoomConnection.to_room_id == target_room_id,
+        )
+    )).scalars().all()
+    assert [(edge.from_x, edge.from_y) for edge in repaired] == [(16, 6)]
+
+
 async def test_materializing_frontier_creates_reproducible_room_and_edges(session):
     fieldsite = await _fieldsite(session)
     before = (await session.execute(

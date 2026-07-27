@@ -653,7 +653,7 @@
         {"rumor_id": "drazna-first-record", "belief_id": "mara-drazna-first"},
         {"rumor_id": "drazna-crown-drowned-ward", "belief_id": "mara-drowned-ward"}
       ],
-      "trigger_ids": ["mara-alin-gate-hearing", "mara-ilya-sluice-choice"],
+      "trigger_ids": ["mara-alin-gate-hearing", "mara-ilya-sluice-choice", "mara-alin-hearing-outcome"],
       "offscreen_policy": {
         "can_relocate": true,
         "can_die": true,
@@ -773,7 +773,13 @@
         {"rumor_id": "drazna-first-record", "belief_id": "nera-drazna-first"},
         {"rumor_id": "black-silt-erases-names", "belief_id": "nera-silt-names"}
       ],
-      "trigger_ids": ["ilya-nera-channel-names", "lina-carries-names-uphill"],
+      "trigger_ids": [
+        "ilya-nera-channel-names",
+        "lina-carries-names-uphill",
+        "luka-testifies-names",
+        "nera-tablet-theft",
+        "mara-alin-hearing-outcome"
+      ],
       "offscreen_policy": {
         "can_relocate": true,
         "can_die": true,
@@ -835,7 +841,7 @@
         {"rumor_id": "undertide-survivors", "belief_id": "olek-undertide"},
         {"rumor_id": "low-water-road-safe", "belief_id": "olek-low-water"}
       ],
-      "trigger_ids": ["olek-vasko-ledger-return", "pava-olek-diver-bargain"],
+      "trigger_ids": ["olek-vasko-ledger-return", "pava-olek-diver-bargain", "vasko-returns-with-ledger"],
       "offscreen_policy": {
         "can_relocate": true,
         "can_die": true,
@@ -895,7 +901,7 @@
         {"rumor_id": "black-silt-erases-names", "belief_id": "pava-silt-names"},
         {"rumor_id": "undertide-survivors", "belief_id": "pava-undertide"}
       ],
-      "trigger_ids": ["pava-olek-diver-bargain", "vasko-low-water-return"],
+      "trigger_ids": ["pava-olek-diver-bargain", "vasko-low-water-return", "undertide-expedition-launch"],
       "offscreen_policy": {
         "can_relocate": true,
         "can_die": true,
@@ -953,7 +959,13 @@
         {"rumor_id": "undertide-survivors", "belief_id": "vasko-undertide"},
         {"rumor_id": "low-water-road-safe", "belief_id": "vasko-low-water"}
       ],
-      "trigger_ids": ["olek-vasko-ledger-return", "vasko-low-water-return"],
+      "trigger_ids": [
+        "olek-vasko-ledger-return",
+        "vasko-low-water-return",
+        "undertide-expedition-launch",
+        "vasko-returns-with-ledger",
+        "gate-seven-climax"
+      ],
       "offscreen_policy": {
         "can_relocate": true,
         "can_die": true,
@@ -1013,7 +1025,12 @@
         {"rumor_id": "drazna-crown-drowned-ward", "belief_id": "vesna-drowned-ward"},
         {"rumor_id": "undertide-survivors", "belief_id": "vesna-undertide"}
       ],
-      "trigger_ids": ["vasko-low-water-return"],
+      "trigger_ids": [
+        "vasko-low-water-return",
+        "undertide-expedition-launch",
+        "luka-dry-dock-last-window",
+        "luka-dry-dock-survives-window"
+      ],
       "offscreen_policy": {
         "can_relocate": true,
         "can_die": true,
@@ -1072,7 +1089,7 @@
       "belief_refs": [
         {"rumor_id": "drazna-crown-drowned-ward", "belief_id": "alin-drowned-ward"}
       ],
-      "trigger_ids": ["mara-alin-gate-hearing"],
+      "trigger_ids": ["mara-alin-gate-hearing", "mara-alin-hearing-outcome"],
       "offscreen_policy": {
         "can_relocate": true,
         "can_die": true,
@@ -1317,9 +1334,419 @@
         {"rumor_id": "rot-speaks-in-dreams", "belief_id": "lina-rot-dreams"},
         {"rumor_id": "rouvray-burns-refugees", "belief_id": "lina-rouvray-gates"}
       ],
-      "trigger_ids": ["elowen-lina-refugee-night", "lina-carries-names-uphill"],
+      "trigger_ids": ["elowen-lina-refugee-night", "lina-carries-names-uphill", "mudwheel-names-at-ember"],
       "offscreen_policy": {
         "can_relocate": true,
+        "can_die": true,
+        "missed_windows_are_final": true,
+        "minimum_warning_memories": 1
+      }
+    },
+    {
+      "id": "drina-sable",
+      "name": "Drina Sable",
+      "role": "Innkeeper of the Eel and Ember and discreet keeper of arrival books",
+      "kind": "resident",
+      "home_location_id": "drazna_eel_and_ember",
+      "deliberation_windows": [
+        {"minute": 300, "purpose": "care"},
+        {"minute": 600, "purpose": "work"},
+        {"minute": 900, "purpose": "replan"},
+        {"minute": 1200, "purpose": "social"}
+      ],
+      "schedule": [
+        {"start_minute": 0, "location_id": "drazna_eel_and_ember", "activity": "sleep", "commitment": 80},
+        {"start_minute": 300, "location_id": "drazna_eel_and_ember", "activity": "work", "commitment": 90},
+        {"start_minute": 600, "location_id": "drazna_lantern_quays", "activity": "care", "commitment": 65},
+        {"start_minute": 780, "location_id": "drazna_eel_and_ember", "activity": "work", "commitment": 85},
+        {"start_minute": 1140, "location_id": "drazna_eel_and_ember", "activity": "socialize", "commitment": 75}
+      ],
+      "needs": [
+        {"kind": "belonging", "weight": 86, "satisfiers": ["care", "socialize", "protect"]},
+        {"kind": "coin", "weight": 64, "satisfiers": ["earn_coin", "work"]},
+        {"kind": "safety", "weight": 78, "satisfiers": ["hide", "seek_safety", "protect"]}
+      ],
+      "private_goals": [
+        {
+          "id": "keep-warm-room",
+          "desire": "Keep one warm room where quay workers, refugees, and thieves can speak without crown listeners.",
+          "priority": 5,
+          "approach": "protective",
+          "target": {"kind": "location", "id": "drazna_eel_and_ember"},
+          "risk_tolerance": "measured"
+        },
+        {
+          "id": "preserve-arrival-book",
+          "desire": "Preserve the uncensored arrival book long enough for Lina's returned names to be compared against it.",
+          "priority": 4,
+          "approach": "secretive",
+          "target": {"kind": "npc", "id": "lina-pell"},
+          "risk_tolerance": "bold"
+        }
+      ],
+      "movement": {
+        "travel_modes": ["walk", "ferry"],
+        "maximum_route_risk": "dangerous",
+        "avoid_threats": ["zealots", "black_silt"],
+        "fallback_location_id": "drazna_eel_and_ember"
+      },
+      "belief_refs": [
+        {"rumor_id": "first-scar-salt-barge", "belief_id": "drina-first-scar-barge"},
+        {"rumor_id": "low-lantern-sold-list", "belief_id": "drina-sold-list"},
+        {"rumor_id": "mudwheel-uncounted-names", "belief_id": "drina-mudwheel-names"}
+      ],
+      "trigger_ids": [
+        "drina-teo-passenger-list",
+        "mudwheel-names-at-ember",
+        "teo-sells-low-lantern-list"
+      ],
+      "offscreen_policy": {
+        "can_relocate": true,
+        "can_die": true,
+        "missed_windows_are_final": true,
+        "minimum_warning_memories": 2
+      }
+    },
+    {
+      "id": "teo-latch",
+      "name": "Teo Latch",
+      "role": "Reed Market broker, fence, and reluctant crown informant",
+      "kind": "worker",
+      "home_location_id": "drazna_reed_market",
+      "deliberation_windows": [
+        {"minute": 270, "purpose": "safety"},
+        {"minute": 510, "purpose": "work"},
+        {"minute": 750, "purpose": "replan"},
+        {"minute": 990, "purpose": "travel"},
+        {"minute": 1230, "purpose": "social"}
+      ],
+      "schedule": [
+        {"start_minute": 0, "location_id": "drazna_low_lantern_den", "activity": "sleep", "commitment": 75},
+        {"start_minute": 270, "location_id": "drazna_reed_market", "activity": "work", "commitment": 90},
+        {"start_minute": 720, "location_id": "drazna_high_crown", "activity": "travel", "commitment": 45},
+        {"start_minute": 900, "location_id": "drazna_reed_market", "activity": "work", "commitment": 80},
+        {"start_minute": 1170, "location_id": "drazna_eel_and_ember", "activity": "socialize", "commitment": 95}
+      ],
+      "needs": [
+        {"kind": "coin", "weight": 92, "satisfiers": ["earn_coin", "work"]},
+        {"kind": "safety", "weight": 88, "satisfiers": ["hide", "seek_safety"]},
+        {"kind": "belonging", "weight": 51, "satisfiers": ["socialize", "care"]}
+      ],
+      "private_goals": [
+        {
+          "id": "balance-crown-and-lantern",
+          "desire": "Keep both the crown office and the Low Lantern convinced that he betrays only the other side.",
+          "priority": 4,
+          "approach": "opportunistic",
+          "target": {"kind": "location", "id": "drazna_low_lantern_den"},
+          "risk_tolerance": "measured"
+        },
+        {
+          "id": "destroy-sold-list",
+          "desire": "Recover or destroy the passenger list he sold before its arrests can be traced back to him.",
+          "priority": 4,
+          "approach": "secretive",
+          "target": {"kind": "rumor", "id": "low-lantern-sold-list"},
+          "risk_tolerance": "bold"
+        }
+      ],
+      "movement": {
+        "travel_modes": ["walk", "ferry"],
+        "maximum_route_risk": "dangerous",
+        "avoid_threats": ["drowned_dead", "zealots"],
+        "fallback_location_id": "drazna_low_lantern_den"
+      },
+      "belief_refs": [
+        {"rumor_id": "first-scar-salt-barge", "belief_id": "teo-first-scar-barge"},
+        {"rumor_id": "low-lantern-sold-list", "belief_id": "teo-sold-list"},
+        {"rumor_id": "mudwheel-uncounted-names", "belief_id": "teo-mudwheel-names"}
+      ],
+      "trigger_ids": [
+        "drina-teo-passenger-list",
+        "teo-sells-low-lantern-list",
+        "luka-confronts-teo",
+        "nera-tablet-theft"
+      ],
+      "offscreen_policy": {
+        "can_relocate": true,
+        "can_die": true,
+        "missed_windows_are_final": true,
+        "minimum_warning_memories": 1
+      }
+    },
+    {
+      "id": "rada-velic",
+      "name": "Rada Velic",
+      "role": "Senior floodwarden and custodian of Gate Seven",
+      "kind": "official",
+      "home_location_id": "drazna_crown_sluice",
+      "deliberation_windows": [
+        {"minute": 240, "purpose": "safety"},
+        {"minute": 540, "purpose": "work"},
+        {"minute": 840, "purpose": "replan"},
+        {"minute": 1140, "purpose": "care"}
+      ],
+      "schedule": [
+        {"start_minute": 0, "location_id": "drazna_crown_sluice", "activity": "sleep", "commitment": 80},
+        {"start_minute": 240, "location_id": "drazna_pressure_gallery", "activity": "patrol", "commitment": 95},
+        {"start_minute": 600, "location_id": "drazna_high_crown", "activity": "work", "commitment": 70},
+        {"start_minute": 780, "location_id": "drazna_gate_seven", "activity": "investigate", "commitment": 90},
+        {"start_minute": 1080, "location_id": "drazna_crown_sluice", "activity": "repair", "commitment": 100}
+      ],
+      "needs": [
+        {"kind": "duty", "weight": 98, "satisfiers": ["protect", "repair", "work"]},
+        {"kind": "answers", "weight": 84, "satisfiers": ["investigate", "travel"]},
+        {"kind": "safety", "weight": 72, "satisfiers": ["seek_safety", "protect"]}
+      ],
+      "private_goals": [
+        {
+          "id": "stabilize-gate-seven",
+          "desire": "Stabilize Gate Seven without repeating the hidden order that sacrificed its closure crew.",
+          "priority": 5,
+          "approach": "dutiful",
+          "target": {"kind": "location", "id": "drazna_gate_seven"},
+          "risk_tolerance": "bold"
+        },
+        {
+          "id": "protect-ilya",
+          "desire": "Keep Ilya alive long enough to testify about the lower pressure gallery and the missing crew names.",
+          "priority": 4,
+          "approach": "protective",
+          "target": {"kind": "npc", "id": "ilya-sorn"},
+          "risk_tolerance": "measured"
+        }
+      ],
+      "movement": {
+        "travel_modes": ["walk", "ferry"],
+        "maximum_route_risk": "dire",
+        "avoid_threats": ["zealots"],
+        "fallback_location_id": "drazna_crown_sluice"
+      },
+      "belief_refs": [
+        {"rumor_id": "first-scar-palace-drain", "belief_id": "rada-first-scar-drain"},
+        {"rumor_id": "low-lantern-sold-list", "belief_id": "rada-sold-list"},
+        {"rumor_id": "gate-seven-fourteen", "belief_id": "rada-gate-fourteen"}
+      ],
+      "trigger_ids": [
+        "teo-sells-low-lantern-list",
+        "rada-sima-pressure-warning",
+        "sima-joins-undertide-descent",
+        "mara-alin-hearing-outcome",
+        "gate-seven-climax",
+        "gate-seven-unanswered-flood",
+        "odran-cadence-pacified",
+        "gate-seven-pacified-aftermath",
+        "gate-seven-cadence-expired",
+        "odran-falls-gate-held",
+        "gate-seven-killed-aftermath",
+        "gate-seven-contained-aftermath",
+        "gate-seven-flood-aftermath"
+      ],
+      "offscreen_policy": {
+        "can_relocate": true,
+        "can_die": true,
+        "missed_windows_are_final": true,
+        "minimum_warning_memories": 2
+      }
+    },
+    {
+      "id": "sima-dren",
+      "name": "Sima Dren",
+      "role": "Roofwright apprentice and Walking Ward rescue runner",
+      "kind": "worker",
+      "home_location_id": "drazna_walking_ward",
+      "deliberation_windows": [
+        {"minute": 300, "purpose": "work"},
+        {"minute": 660, "purpose": "safety"},
+        {"minute": 960, "purpose": "replan"},
+        {"minute": 1230, "purpose": "social"}
+      ],
+      "schedule": [
+        {"start_minute": 0, "location_id": "drazna_roofwright_loft", "activity": "sleep", "commitment": 75},
+        {"start_minute": 300, "location_id": "drazna_walking_ward", "activity": "repair", "commitment": 95},
+        {"start_minute": 660, "location_id": "drazna_lantern_quays", "activity": "work", "commitment": 60},
+        {"start_minute": 840, "location_id": "drazna_gate_seven", "activity": "travel", "commitment": 55},
+        {"start_minute": 1050, "location_id": "drazna_crown_sluice", "activity": "socialize", "commitment": 100}
+      ],
+      "needs": [
+        {"kind": "duty", "weight": 89, "satisfiers": ["repair", "protect", "work"]},
+        {"kind": "belonging", "weight": 76, "satisfiers": ["socialize", "care"]},
+        {"kind": "answers", "weight": 58, "satisfiers": ["investigate", "travel"]}
+      ],
+      "private_goals": [
+        {
+          "id": "brace-walking-ward",
+          "desire": "Brace the ward's oldest moving bridge before the next crown release shifts its foundations.",
+          "priority": 4,
+          "approach": "direct",
+          "target": {"kind": "location", "id": "drazna_walking_ward"},
+          "risk_tolerance": "bold"
+        },
+        {
+          "id": "repay-vasko",
+          "desire": "Repay Vasko for a childhood rescue by carrying a roofwright line into Undertide.",
+          "priority": 4,
+          "approach": "protective",
+          "target": {"kind": "npc", "id": "vasko-mirek"},
+          "risk_tolerance": "bold"
+        }
+      ],
+      "movement": {
+        "travel_modes": ["walk", "ferry"],
+        "maximum_route_risk": "dire",
+        "avoid_threats": ["zealots"],
+        "fallback_location_id": "drazna_roofwright_loft"
+      },
+      "belief_refs": [
+        {"rumor_id": "first-scar-palace-drain", "belief_id": "sima-first-scar-drain"},
+        {"rumor_id": "gate-seven-fourteen", "belief_id": "sima-gate-fourteen"}
+      ],
+      "trigger_ids": [
+        "rada-sima-pressure-warning",
+        "sima-bridge-injury",
+        "sima-joins-undertide-descent",
+        "gate-seven-climax",
+        "gate-seven-pacified-aftermath",
+        "gate-seven-contained-aftermath",
+        "gate-seven-flood-aftermath"
+      ],
+      "offscreen_policy": {
+        "can_relocate": true,
+        "can_die": true,
+        "missed_windows_are_final": true,
+        "minimum_warning_memories": 1
+      }
+    },
+    {
+      "id": "luka-nen",
+      "name": "Luka Nen",
+      "role": "Undertide survivor and uncounted closure-crew witness",
+      "kind": "resident",
+      "home_location_id": "drazna_undertide",
+      "deliberation_windows": [
+        {"minute": 360, "purpose": "safety"},
+        {"minute": 720, "purpose": "work"},
+        {"minute": 1080, "purpose": "replan"}
+      ],
+      "schedule": [
+        {"start_minute": 0, "location_id": "drazna_undertide", "activity": "hide", "commitment": 90},
+        {"start_minute": 360, "location_id": "drazna_dry_dock", "activity": "investigate", "commitment": 80},
+        {"start_minute": 720, "location_id": "drazna_undertide", "activity": "repair", "commitment": 70},
+        {"start_minute": 1080, "location_id": "drazna_dry_dock", "activity": "hide", "commitment": 85}
+      ],
+      "needs": [
+        {"kind": "safety", "weight": 96, "satisfiers": ["hide", "seek_safety", "protect"]},
+        {"kind": "answers", "weight": 91, "satisfiers": ["investigate", "travel"]},
+        {"kind": "grief", "weight": 80, "satisfiers": ["grieve", "create"]}
+      ],
+      "private_goals": [
+        {
+          "id": "rescue-dry-dock",
+          "desire": "Reach the knocking survivors beyond the dry dock before the next release drowns the route.",
+          "priority": 5,
+          "approach": "direct",
+          "target": {"kind": "location", "id": "drazna_dry_dock"},
+          "risk_tolerance": "bold"
+        },
+        {
+          "id": "testify-uncounted",
+          "desire": "Put all fourteen Gate Seven workers into Nera's archive, including himself and Odran.",
+          "priority": 5,
+          "approach": "dutiful",
+          "target": {"kind": "npc", "id": "nera-bell"},
+          "risk_tolerance": "bold"
+        }
+      ],
+      "movement": {
+        "travel_modes": ["walk", "ferry"],
+        "maximum_route_risk": "dire",
+        "avoid_threats": ["zealots"],
+        "fallback_location_id": "drazna_undertide"
+      },
+      "belief_refs": [
+        {"rumor_id": "first-scar-palace-drain", "belief_id": "luka-first-scar-drain"},
+        {"rumor_id": "low-lantern-sold-list", "belief_id": "luka-sold-list"},
+        {"rumor_id": "gate-seven-fourteen", "belief_id": "luka-gate-fourteen"}
+      ],
+      "trigger_ids": [
+        "luka-confronts-teo",
+        "luka-testifies-names",
+        "undertide-expedition-launch",
+        "vasko-returns-with-ledger",
+        "odran-cadence-pacified",
+        "luka-dry-dock-last-window",
+        "luka-dry-dock-survives-window"
+      ],
+      "offscreen_policy": {
+        "can_relocate": true,
+        "can_die": true,
+        "missed_windows_are_final": true,
+        "minimum_warning_memories": 1
+      }
+    },
+    {
+      "id": "odran-third-bell",
+      "name": "Odran, the Sluicebound",
+      "role": "Former Third Bell floodwarden bound to Gate Seven",
+      "kind": "official",
+      "home_location_id": "drazna_gate_seven",
+      "deliberation_windows": [
+        {"minute": 300, "purpose": "safety"},
+        {"minute": 720, "purpose": "work"},
+        {"minute": 1080, "purpose": "replan"}
+      ],
+      "schedule": [
+        {"start_minute": 0, "location_id": "drazna_gate_seven", "activity": "hide", "commitment": 100},
+        {"start_minute": 300, "location_id": "drazna_gate_seven", "activity": "work", "commitment": 100},
+        {"start_minute": 720, "location_id": "drazna_gate_seven", "activity": "investigate", "commitment": 100},
+        {"start_minute": 1080, "location_id": "drazna_gate_seven", "activity": "patrol", "commitment": 100}
+      ],
+      "needs": [
+        {"kind": "duty", "weight": 100, "satisfiers": ["protect", "repair", "work"]},
+        {"kind": "answers", "weight": 95, "satisfiers": ["investigate"]},
+        {"kind": "grief", "weight": 90, "satisfiers": ["grieve", "create"]}
+      ],
+      "private_goals": [
+        {
+          "id": "hold-gate-seven",
+          "desire": "Hold Gate Seven shut until someone proves the crown will not sacrifice another ward above it.",
+          "priority": 5,
+          "approach": "direct",
+          "target": {"kind": "location", "id": "drazna_gate_seven"},
+          "risk_tolerance": "bold"
+        },
+        {
+          "id": "answer-fourteen",
+          "desire": "Make the living answer for all fourteen closure workers, not only the nine named by the crown.",
+          "priority": 5,
+          "approach": "dutiful",
+          "target": {"kind": "rumor", "id": "gate-seven-fourteen"},
+          "risk_tolerance": "bold"
+        }
+      ],
+      "movement": {
+        "travel_modes": ["walk"],
+        "maximum_route_risk": "dire",
+        "avoid_threats": [],
+        "fallback_location_id": "drazna_gate_seven"
+      },
+      "belief_refs": [
+        {"rumor_id": "first-scar-palace-drain", "belief_id": "odran-first-scar-drain"},
+        {"rumor_id": "gate-seven-fourteen", "belief_id": "odran-gate-fourteen"}
+      ],
+      "trigger_ids": [
+        "gate-seven-climax",
+        "gate-seven-unanswered-flood",
+        "odran-cadence-pacified",
+        "gate-seven-pacified-aftermath",
+        "gate-seven-cadence-expired",
+        "odran-falls-gate-held",
+        "gate-seven-killed-aftermath",
+        "gate-seven-contained-aftermath",
+        "gate-seven-flood-aftermath"
+      ],
+      "offscreen_policy": {
+        "can_relocate": false,
         "can_die": true,
         "missed_windows_are_final": true,
         "minimum_warning_memories": 1

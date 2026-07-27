@@ -1,0 +1,34 @@
+{
+  "id": "drazna_undertide",
+  "name": "Undertide Mouth",
+  "width": 17,
+  "height": 13,
+  "terrain": [
+    "########+########",
+    "#...............#",
+    "#.###.......###.#",
+    "#...............#",
+    "#....###.###....#",
+    "#...............#",
+    "#...............+",
+    "#...............#",
+    "#....###.###....#",
+    "#...............#",
+    "#.###.......###.#",
+    "#...............#",
+    "#################"
+  ],
+  "spawn_points": [[7, 1], [8, 1], [9, 1], [8, 2]],
+  "enemy_spawns": [
+    {"enemy_id": 14, "x": 13, "y": 3},
+    {"enemy_id": 15, "x": 12, "y": 9},
+    {"enemy_id": 9, "x": 8, "y": 6}
+  ],
+  "objects": [
+    {"id": "drazna_undertide_dryline", "type": "drazna_dryline_chalk", "x": 9, "y": 3},
+    {"id": "drazna_undertide_rope", "type": "drazna_cut_dive_rope", "x": 4, "y": 4},
+    {"id": "drazna_undertide_knocks", "type": "drazna_knock_wall", "x": 14, "y": 9},
+    {"id": "drazna_undertide_cache", "type": "low_lantern_cache", "x": 5, "y": 9},
+    {"id": "drazna_undertide_chest", "type": "chest", "x": 2, "y": 9}
+  ]
+}

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import hashlib
+import heapq
 import re
 
 from sqlalchemy import select
@@ -17,6 +18,12 @@ from backend.models import (
 )
 
 CARRIAGE_STOP_NAME_LIMIT = 32
+MINUTES_PER_DAY = 24 * 60
+DRAZNA_CARRIAGE_ACTIVATION_GROUP = "authored:drazna"
+# A traveller standing beside the coach should not miss it because a routine
+# action advanced the shared clock by a handful of minutes. Routes may
+# override this in ``details.boarding_grace_minutes``.
+DEFAULT_BOARDING_GRACE_MINUTES = 10
 _VALID_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 '\-]{1,31}$")
 
 
@@ -32,6 +39,21 @@ class CarriageDestination:
     travel_minutes: int
     fare: int
     route_stop_ids: tuple[int, ...]
+    wait_minutes: int = 0
+    transfer_wait_minutes: int = 0
+    journey_minutes: int = 0
+    next_departure_minute: int | None = None
+    boarding_minute: int | None = None
+    arrival_minute: int | None = None
+    available_now: bool = True
+    boarding_grace_minutes: int = 0
+    route_status: str = "operating"
+    route_statuses: tuple[str, ...] = ()
+    danger: int = 0
+    max_leg_danger: int = 0
+    route_ids: tuple[int, ...] = ()
+    leg_departure_minutes: tuple[int, ...] = ()
+    leg_arrival_minutes: tuple[int, ...] = ()
 
     def to_dict(self) -> dict:
         return {
@@ -41,6 +63,26 @@ class CarriageDestination:
             "travel_minutes": self.travel_minutes,
             "fare": self.fare,
             "route_stop_ids": list(self.route_stop_ids),
+            "wait_minutes": self.wait_minutes,
+            "transfer_wait_minutes": self.transfer_wait_minutes,
+            "journey_minutes": self.journey_minutes,
+            "next_departure_minute": self.next_departure_minute,
+            "next_departure_minute_of_day": (
+                self.next_departure_minute % MINUTES_PER_DAY
+                if self.next_departure_minute is not None
+                else None
+            ),
+            "boarding_minute": self.boarding_minute,
+            "arrival_minute": self.arrival_minute,
+            "available_now": self.available_now,
+            "boarding_grace_minutes": self.boarding_grace_minutes,
+            "route_status": self.route_status,
+            "route_statuses": list(self.route_statuses),
+            "danger": self.danger,
+            "max_leg_danger": self.max_leg_danger,
+            "route_ids": list(self.route_ids),
+            "leg_departure_minutes": list(self.leg_departure_minutes),
+            "leg_arrival_minutes": list(self.leg_arrival_minutes),
         }
 
 
@@ -93,6 +135,51 @@ async def activate_carriage_stop(
     )).scalars().first()
     if stop is None:
         return None
+    details = stop.details if isinstance(stop.details, dict) else {}
+    activation_group = details.get("activation_group")
+    if (
+        isinstance(activation_group, str)
+        and activation_group
+        and stop.public_name
+    ):
+        # Authored service groups open as one transaction. This is deliberately
+        # separate from the community waystop connector: revealing Drazna
+        # should open the Mudwheel and its one authored outside service, not
+        # manufacture arbitrary links to whichever three stops happen to have
+        # the lowest ids.
+        stops = (await session.execute(select(CarriageStop))).scalars().all()
+        grouped_stops = [
+            candidate
+            for candidate in stops
+            if isinstance(candidate.details, dict)
+            and candidate.details.get("activation_group") == activation_group
+        ]
+        grouped_stop_ids = {candidate.id for candidate in grouped_stops}
+        for candidate in grouped_stops:
+            if candidate.public_name and candidate.status == "closed":
+                candidate.status = "operating"
+
+        routes = (await session.execute(select(CarriageRoute))).scalars().all()
+        for route in routes:
+            route_details = (
+                route.details if isinstance(route.details, dict) else {}
+            )
+            if route_details.get("activation_group") != activation_group:
+                continue
+            if (
+                route.from_stop_id not in grouped_stop_ids
+                and route.to_stop_id not in grouped_stop_ids
+            ):
+                continue
+            activation_status = route_details.get(
+                "activation_status",
+                "operating",
+            )
+            if activation_status not in ("operating", "delayed", "dangerous"):
+                activation_status = "operating"
+            route.status = activation_status
+        return stop
+
     if stop.status == "closed" and stop.public_name:
         stop.status = "operating"
         await _connect_new_stop(session, stop)
@@ -165,6 +252,7 @@ async def carriage_view(
     room_id: int,
     player_id: str,
     world_minute: int,
+    boarding_grace_minutes: int | None = None,
 ) -> dict:
     stop = (await session.execute(
         select(CarriageStop).where(CarriageStop.room_id == room_id)
@@ -177,20 +265,73 @@ async def carriage_view(
         stop_id=stop.id,
         world_minute=world_minute,
     )
-    destinations = await reachable_destinations(session, stop.id)
+    destinations = await reachable_destinations(
+        session,
+        stop.id,
+        world_minute=world_minute,
+        boarding_grace_minutes=boarding_grace_minutes,
+    )
     await session.commit()
+    next_destination = min(
+        destinations,
+        key=lambda item: (
+            item.wait_minutes,
+            item.next_departure_minute
+            if item.next_departure_minute is not None
+            else world_minute,
+            item.name,
+        ),
+        default=None,
+    )
     return {
         "stop": _stop_view(stop),
         "destinations": [destination.to_dict() for destination in destinations],
         "can_name": stop.status == "unnamed" and stop.public_name is None,
         "name_limit": CARRIAGE_STOP_NAME_LIMIT,
+        "service": {
+            "world_minute": world_minute,
+            "minute_of_day": world_minute % MINUTES_PER_DAY,
+            "status": (
+                "boarding"
+                if any(item.available_now for item in destinations)
+                else "waiting"
+                if destinations
+                else "unavailable"
+            ),
+            "next_departure_minute": (
+                next_destination.next_departure_minute
+                if next_destination is not None
+                else None
+            ),
+            "wait_minutes": (
+                next_destination.wait_minutes
+                if next_destination is not None
+                else None
+            ),
+        },
     }
 
 
 async def reachable_destinations(
     session: AsyncSession,
     from_stop_id: int,
+    *,
+    world_minute: int | None = None,
+    boarding_grace_minutes: int | None = None,
+    require_boardable_now: bool = False,
 ) -> list[CarriageDestination]:
+    """Return earliest feasible itineraries through the operating network.
+
+    Persisted departure values are minutes-of-day and recur every in-world
+    day.  Passing no ``world_minute`` retains the old immediate-service
+    behaviour for older callers.  Routes with no valid departure values are
+    explicitly treated as on-demand, which also preserves pre-schedule and
+    community-generated data.
+    """
+    _validate_schedule_options(
+        world_minute=world_minute,
+        boarding_grace_minutes=boarding_grace_minutes,
+    )
     stops = (await session.execute(
         select(CarriageStop).where(CarriageStop.status == "operating")
     )).scalars().all()
@@ -199,52 +340,225 @@ async def reachable_destinations(
         return []
     routes = (await session.execute(
         select(CarriageRoute).where(
-            CarriageRoute.status.in_(("operating", "dangerous"))
+            CarriageRoute.status.in_(("operating", "delayed", "dangerous"))
         )
     )).scalars().all()
     adjacency: dict[int, list[CarriageRoute]] = {}
     for route in routes:
+        if (
+            route.from_stop_id not in stop_by_id
+            or route.to_stop_id not in stop_by_id
+        ):
+            continue
+        # A route that explicitly opts into weekday service but has corrupt
+        # or empty day metadata is unavailable, never silently daily.
+        service_days = _route_service_days(route)
+        if service_days == ():
+            continue
+        if service_days is not None and not _route_departures(route):
+            continue
         adjacency.setdefault(route.from_stop_id, []).append(route)
+    for outgoing in adjacency.values():
+        outgoing.sort(key=lambda route: (route.to_stop_id, route.id))
 
-    # Small shared network: plain Dijkstra keeps path/fare visible to clients.
-    import heapq
-    queue: list[tuple[int, int, tuple[int, ...], int]] = [
-        (0, 0, (from_stop_id,), from_stop_id)
+    # The shared network is small. A time-dependent Dijkstra is sufficient
+    # because arriving earlier at a stop can always wait for every service an
+    # otherwise-identical later arrival could catch.
+    start_minute = world_minute if world_minute is not None else 0
+    queue: list[tuple[
+        int,
+        int,
+        int,
+        tuple[int, ...],
+        int,
+        int,
+        tuple[int, ...],
+        tuple[str, ...],
+        tuple[int, ...],
+        tuple[int, ...],
+        tuple[int | None, ...],
+        tuple[int, ...],
+        tuple[int, ...],
+    ]] = [
+        (
+            start_minute,
+            0,
+            0,
+            (from_stop_id,),
+            from_stop_id,
+            0,
+            (),
+            (),
+            (),
+            (),
+            (),
+            (),
+            (),
+        )
     ]
-    best: dict[int, tuple[int, int, tuple[int, ...]]] = {}
+    best: dict[int, tuple[int, int, int, tuple[int, ...]]] = {}
+    itineraries: dict[int, tuple[
+        int,
+        int,
+        int,
+        tuple[int, ...],
+        int,
+        tuple[int, ...],
+        tuple[str, ...],
+        tuple[int, ...],
+        tuple[int, ...],
+        tuple[int | None, ...],
+        tuple[int, ...],
+        tuple[int, ...],
+    ]] = {}
     while queue:
-        minutes, fare, path, stop_id = heapq.heappop(queue)
-        score = (minutes, fare, path)
+        (
+            arrival,
+            fare,
+            danger,
+            path,
+            stop_id,
+            ride_minutes,
+            waits,
+            statuses,
+            route_ids,
+            route_dangers,
+            scheduled_departures,
+            actual_departures,
+            leg_arrivals,
+        ) = heapq.heappop(queue)
+        score = (arrival, fare, danger, path)
         if stop_id in best and best[stop_id] <= score:
             continue
         best[stop_id] = score
+        itineraries[stop_id] = (
+            arrival,
+            fare,
+            danger,
+            path,
+            ride_minutes,
+            waits,
+            statuses,
+            route_ids,
+            route_dangers,
+            scheduled_departures,
+            actual_departures,
+            leg_arrivals,
+        )
         for route in adjacency.get(stop_id, ()):
+            grace = _route_boarding_grace(
+                route,
+                override=boarding_grace_minutes,
+            )
+            if world_minute is None:
+                scheduled_departure = None
+                actual_departure = arrival
+                wait = 0
+            else:
+                (
+                    scheduled_departure,
+                    actual_departure,
+                    wait,
+                ) = _next_route_departure(
+                    route,
+                    ready_minute=arrival,
+                    boarding_grace_minutes=grace,
+                )
+            if (
+                require_boardable_now
+                and not route_ids
+                and not _is_boardable_now(
+                    world_minute=world_minute,
+                    scheduled_departure=scheduled_departure,
+                    boarding_grace_minutes=grace,
+                )
+            ):
+                continue
+            next_arrival = actual_departure + route.travel_minutes
             heapq.heappush(
                 queue,
                 (
-                    minutes + route.travel_minutes,
+                    next_arrival,
                     fare + route.fare,
+                    danger + route.danger,
                     (*path, route.to_stop_id),
                     route.to_stop_id,
+                    ride_minutes + route.travel_minutes,
+                    (*waits, wait),
+                    (*statuses, route.status),
+                    (*route_ids, route.id),
+                    (*route_dangers, route.danger),
+                    (*scheduled_departures, scheduled_departure),
+                    (*actual_departures, actual_departure),
+                    (*leg_arrivals, next_arrival),
                 ),
             )
 
     destinations = []
-    for stop_id, (minutes, fare, path) in best.items():
+    for stop_id, itinerary in itineraries.items():
         if stop_id == from_stop_id:
             continue
         stop = stop_by_id.get(stop_id)
         if stop is None or not stop.public_name:
             continue
+        (
+            arrival,
+            fare,
+            danger,
+            path,
+            ride_minutes,
+            waits,
+            statuses,
+            route_ids,
+            route_dangers,
+            scheduled_departures,
+            actual_departures,
+            leg_arrivals,
+        ) = itinerary
+        first_scheduled = scheduled_departures[0]
+        first_grace = _route_boarding_grace(
+            next(
+                route
+                for route in adjacency[from_stop_id]
+                if route.id == route_ids[0]
+            ),
+            override=boarding_grace_minutes,
+        )
+        initial_wait = waits[0] if waits else 0
         destinations.append(CarriageDestination(
             stop_id=stop.id,
             name=stop.public_name,
             room_id=stop.room_id,
-            travel_minutes=minutes,
+            travel_minutes=ride_minutes,
             fare=fare,
             route_stop_ids=path,
+            wait_minutes=initial_wait,
+            transfer_wait_minutes=sum(waits[1:]),
+            journey_minutes=arrival - start_minute,
+            # ``None`` is the public contract for an on-demand first leg.
+            # ``boarding_minute`` still records the immediate effective
+            # departure, while the UI can distinguish it from a timetable.
+            next_departure_minute=first_scheduled,
+            boarding_minute=actual_departures[0],
+            arrival_minute=arrival if world_minute is not None else None,
+            available_now=_is_boardable_now(
+                world_minute=world_minute,
+                scheduled_departure=first_scheduled,
+                boarding_grace_minutes=first_grace,
+            ),
+            boarding_grace_minutes=first_grace,
+            route_status=_aggregate_route_status(statuses),
+            route_statuses=statuses,
+            danger=danger,
+            max_leg_danger=max(route_dangers, default=0),
+            route_ids=route_ids,
+            leg_departure_minutes=actual_departures,
+            leg_arrival_minutes=leg_arrivals,
         ))
-    return sorted(destinations, key=lambda item: (item.travel_minutes, item.name))
+    return sorted(
+        destinations,
+        key=lambda item: (item.journey_minutes, item.fare, item.name),
+    )
 
 
 async def resolve_carriage_travel(
@@ -252,20 +566,58 @@ async def resolve_carriage_travel(
     *,
     from_room_id: int,
     destination_stop_id: object,
+    world_minute: int | None = None,
+    boarding_grace_minutes: int | None = None,
 ) -> CarriageDestination:
-    if not isinstance(destination_stop_id, int):
+    if (
+        isinstance(destination_stop_id, bool)
+        or not isinstance(destination_stop_id, int)
+    ):
         raise CarriageError("Choose a real carriage stop.")
     source = (await session.execute(
         select(CarriageStop).where(CarriageStop.room_id == from_room_id)
     )).scalars().first()
     if source is None or source.status != "operating":
         raise CarriageError("No operating carriage leaves from here.")
-    destinations = await reachable_destinations(session, source.id)
+    destinations = await reachable_destinations(
+        session,
+        source.id,
+        world_minute=world_minute,
+        boarding_grace_minutes=boarding_grace_minutes,
+        require_boardable_now=world_minute is not None,
+    )
     destination = next(
         (item for item in destinations if item.stop_id == destination_stop_id),
         None,
     )
     if destination is None:
+        if world_minute is not None:
+            future_destinations = await reachable_destinations(
+                session,
+                source.id,
+                world_minute=world_minute,
+                boarding_grace_minutes=boarding_grace_minutes,
+            )
+            future = next(
+                (
+                    item
+                    for item in future_destinations
+                    if item.stop_id == destination_stop_id
+                ),
+                None,
+            )
+            if future is not None:
+                departure = future.next_departure_minute
+                clock = (
+                    _clock_text(departure)
+                    if departure is not None
+                    else "on demand"
+                )
+                raise CarriageError(
+                    "That carriage is not boarding yet. "
+                    f"The next service is in {future.wait_minutes} minutes "
+                    f"({clock})."
+                )
         raise CarriageError("No known carriage route reaches that stop.")
     return destination
 
@@ -281,6 +633,12 @@ async def _connect_new_stop(
             CarriageStop.status == "operating",
         )
     )).scalars().all()
+    others = [
+        other
+        for other in others
+        if not isinstance(other.details, dict)
+        or other.details.get("accepts_generated_routes", True) is not False
+    ]
     if not others:
         return
     stop_depth = await _stop_depth(session, stop)
@@ -324,6 +682,178 @@ async def _stop_depth(session: AsyncSession, stop: CarriageStop) -> int:
         select(FrontierNode).where(FrontierNode.room_id == stop.room_id)
     )).scalars().first()
     return node.depth if node is not None else 0
+
+
+def _validate_schedule_options(
+    *,
+    world_minute: int | None,
+    boarding_grace_minutes: int | None,
+) -> None:
+    if world_minute is not None and (
+        isinstance(world_minute, bool)
+        or not isinstance(world_minute, int)
+        or world_minute < 0
+    ):
+        raise CarriageError("The carriage clock is not readable.")
+    if boarding_grace_minutes is not None and (
+        isinstance(boarding_grace_minutes, bool)
+        or not isinstance(boarding_grace_minutes, int)
+        or not 0 <= boarding_grace_minutes <= 60
+    ):
+        raise CarriageError("Boarding grace must be between 0 and 60 minutes.")
+
+
+def _route_departures(route: CarriageRoute) -> tuple[int, ...]:
+    """Return safe persisted minutes-of-day, or empty for on-demand service."""
+    values = route.departures if isinstance(route.departures, list) else []
+    return tuple(sorted({
+        value
+        for value in values
+        if (
+            isinstance(value, int)
+            and not isinstance(value, bool)
+            and 0 <= value < MINUTES_PER_DAY
+        )
+    }))
+
+
+def _route_service_days(route: CarriageRoute) -> tuple[int, ...] | None:
+    """Return optional Monday-first weekdays for an authored service.
+
+    Community routes omit this metadata and retain their original daily
+    recurrence. Authored routes use lowercase weekday names so their persisted
+    schedule stays legible beside the living-world source document.
+    """
+    details = route.details if isinstance(route.details, dict) else {}
+    raw = details.get("service_days")
+    if raw is None:
+        return None
+    if not isinstance(raw, list):
+        return ()
+    day_indexes = {
+        "monday": 0,
+        "tuesday": 1,
+        "wednesday": 2,
+        "thursday": 3,
+        "friday": 4,
+        "saturday": 5,
+        "sunday": 6,
+    }
+    parsed = {
+        day_indexes[value]
+        for value in raw
+        if isinstance(value, str) and value in day_indexes
+    }
+    return tuple(sorted(parsed))
+
+
+def _route_boarding_grace(
+    route: CarriageRoute,
+    *,
+    override: int | None,
+) -> int:
+    if override is not None:
+        return override
+    details = route.details if isinstance(route.details, dict) else {}
+    value = details.get(
+        "boarding_grace_minutes",
+        DEFAULT_BOARDING_GRACE_MINUTES,
+    )
+    if (
+        isinstance(value, int)
+        and not isinstance(value, bool)
+        and 0 <= value <= 60
+    ):
+        return value
+    return DEFAULT_BOARDING_GRACE_MINUTES
+
+
+def _route_delay(route: CarriageRoute) -> int:
+    """A delayed route may publish a deterministic offset in its details."""
+    if route.status != "delayed":
+        return 0
+    details = route.details if isinstance(route.details, dict) else {}
+    value = details.get("delay_minutes", 0)
+    if (
+        isinstance(value, int)
+        and not isinstance(value, bool)
+        and 0 <= value <= MINUTES_PER_DAY
+    ):
+        return value
+    return 0
+
+
+def _next_route_departure(
+    route: CarriageRoute,
+    *,
+    ready_minute: int,
+    boarding_grace_minutes: int,
+) -> tuple[int | None, int, int]:
+    """Find the first daily service this arrival can still board.
+
+    The scheduled minute remains visible even if the coach is holding within
+    its grace period. In that case the effective boarding minute is "now";
+    arriving early waits until the published departure.
+    """
+    departures = _route_departures(route)
+    if not departures:
+        return None, ready_minute, 0
+
+    delay = _route_delay(route)
+    service_days = _route_service_days(route)
+    first_day = max(
+        0,
+        (ready_minute - delay) // MINUTES_PER_DAY - 1,
+    )
+    # Eight days covers the previous/current day and a complete future week.
+    # Daily community services normally resolve on the first two iterations.
+    for day in range(first_day, first_day + 9):
+        if service_days is not None and day % 7 not in service_days:
+            continue
+        for minute_of_day in departures:
+            scheduled = day * MINUTES_PER_DAY + minute_of_day + delay
+            if ready_minute <= scheduled + boarding_grace_minutes:
+                actual = max(ready_minute, scheduled)
+                return scheduled, actual, max(0, scheduled - ready_minute)
+    # The finite scan above always reaches a recurrence, but retaining a
+    # deterministic fallback makes corrupt or extreme persisted data safe.
+    scheduled = (
+        (first_day + 9) * MINUTES_PER_DAY
+        + departures[0]
+        + delay
+    )
+    return scheduled, scheduled, scheduled - ready_minute
+
+
+def _is_boardable_now(
+    *,
+    world_minute: int | None,
+    scheduled_departure: int | None,
+    boarding_grace_minutes: int,
+) -> bool:
+    # ``None`` world time is the explicit compatibility mode. A route without
+    # departures is explicitly on-demand.
+    if world_minute is None or scheduled_departure is None:
+        return True
+    return (
+        scheduled_departure - boarding_grace_minutes
+        <= world_minute
+        <= scheduled_departure + boarding_grace_minutes
+    )
+
+
+def _aggregate_route_status(statuses: tuple[str, ...]) -> str:
+    distinct = {status for status in statuses if status != "operating"}
+    if not distinct:
+        return "operating"
+    if len(distinct) == 1:
+        return next(iter(distinct))
+    return "mixed"
+
+
+def _clock_text(world_minute: int) -> str:
+    minute_of_day = world_minute % MINUTES_PER_DAY
+    return f"{minute_of_day // 60:02d}:{minute_of_day % 60:02d}"
 
 
 def _normalize_name(value: object) -> str:

@@ -1,0 +1,33 @@
+{
+  "id": "drazna_dry_dock",
+  "name": "The Old Dry Dock",
+  "width": 17,
+  "height": 13,
+  "terrain": [
+    "########+########",
+    "#...............#",
+    "#..#####.#####..#",
+    "#...............#",
+    "#..#.........#..#",
+    "#..#.........#..#",
+    "+..#.........#..#",
+    "#..#.........#..#",
+    "#..#.........#..#",
+    "#...............#",
+    "#..#####.#####..#",
+    "#...............#",
+    "#################"
+  ],
+  "spawn_points": [[1, 5], [1, 6], [1, 7], [2, 6]],
+  "enemy_spawns": [
+    {"enemy_id": 14, "x": 11, "y": 3},
+    {"enemy_id": 15, "x": 10, "y": 9}
+  ],
+  "objects": [
+    {"id": "drazna_dock_entrance", "type": "dry_dock_entrance", "x": 4, "y": 4},
+    {"id": "drazna_dock_bunks", "type": "drazna_survivor_bunks", "x": 4, "y": 7},
+    {"id": "drazna_dock_rope", "type": "drazna_cut_dive_rope", "x": 12, "y": 5},
+    {"id": "drazna_dock_knocks", "type": "drazna_knock_wall", "x": 14, "y": 8},
+    {"id": "drazna_dock_chest", "type": "chest", "x": 14, "y": 10}
+  ]
+}

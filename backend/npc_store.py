@@ -82,10 +82,17 @@ async def load_npcs(session: AsyncSession, room_id: int) -> list[NPC]:
 
 
 async def save_npcs(
-    session: AsyncSession, npcs: list[NPC], room_id: int | None = None,
+    session: AsyncSession,
+    npcs: list[NPC],
+    room_id: int | None = None,
+    *,
+    commit: bool = True,
 ) -> None:
-    """Write live NPC state back to rows. Commits as one unit of work —
-    either the whole room's individuals persist or none do."""
+    """Write live NPC state back to rows.
+
+    Normal edge saves commit the complete group. A caller adding causal
+    records in the same transaction can request a flush instead.
+    """
     for npc in npcs:
         row = await session.get(NPCRow, npc.db_id)
         if row is None:
@@ -104,4 +111,7 @@ async def save_npcs(
         row.disposition = npc.disposition.value
         row.memory = list(npc.transcript)[-NPC_TRANSCRIPT_LIMIT:]
         row.party_owner_id = npc.party_owner_id
-    await session.commit()
+    if commit:
+        await session.commit()
+    else:
+        await session.flush()

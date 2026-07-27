@@ -236,6 +236,43 @@ def test_reflection_is_evidence_bounded_and_dedupes_by_day_and_subject():
     ) is None
 
 
+def test_retold_reflections_cannot_amplify_memory_text_without_bound():
+    evidence = [
+        _memory(
+            f"root-evidence-{index}",
+            tags=frozenset({"rot", tag}),
+            importance=7,
+            occurred_at=100 + index,
+        )
+        for index, tag in enumerate(("water", "road", "names"))
+    ]
+    reflection = synthesize_reflection(
+        evidence,
+        owner_id="rowan-oakrun-courier",
+        world_minute=600,
+    )
+    assert reflection is not None
+
+    for day in range(1, 11):
+        retellings = [
+            transmit_rumour(
+                reflection,
+                receiver_id=f"listener-{index}",
+                speaker_id="rowan-oakrun-courier",
+                world_minute=day * 1_440 + index,
+                precision=0.9,
+            )
+            for index in range(2)
+        ]
+        reflection = synthesize_reflection(
+            [*retellings, *evidence],
+            owner_id="rowan-oakrun-courier",
+            world_minute=day * 1_440 + 100,
+        )
+        assert reflection is not None
+        assert len(reflection.summary) < 500
+
+
 def test_conversation_respects_secrecy_and_rumour_provenance():
     public = _memory("public", secrecy=0.1)
     secret = _memory("secret", secrecy=0.9, importance=10)

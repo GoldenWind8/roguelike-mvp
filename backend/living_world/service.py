@@ -794,11 +794,15 @@ class LivingWorldService:
                     counters=counters,
                 )
 
-        counters.writes += await self._schedule_conversation(
-            session,
-            actor=actor,
-            world_minute=event.due_minute,
-        )
+        if (
+            counters.conversations
+            < self.config.max_conversations_per_advance
+        ):
+            counters.writes += await self._schedule_conversation(
+                session,
+                actor=actor,
+                world_minute=event.due_minute,
+            )
         store.resolve_scheduled_event(
             event, world_minute=event.due_minute,
         )
@@ -812,7 +816,10 @@ class LivingWorldService:
         npc_content_id: str,
         world_minute: int,
     ) -> int:
-        rows = await store.memory_rows(session, npc_content_id)
+        rows = await store.reflection_source_rows(
+            session,
+            npc_content_id,
+        )
         reflection = synthesize_reflection(
             (store.memory_from_row(row) for row in rows),
             owner_id=npc_content_id,

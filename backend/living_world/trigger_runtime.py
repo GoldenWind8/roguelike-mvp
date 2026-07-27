@@ -14,6 +14,7 @@ from backend.living_world.memory import Memory
 from backend.living_world import store
 from backend.living_world_content import LivingWorldContent, load_living_world_content
 from backend.models import (
+    NPCGoal,
     NPCMemory,
     NPCRow,
     TriggerFiring,
@@ -32,6 +33,7 @@ _EFFECT_NPC_FIELDS = (
     "speaker_npc_id",
     "listener_npc_id",
 )
+_WARNING_MEMORY_TAGS = frozenset({"danger", "health", "injury", "warning"})
 
 
 @dataclass(frozen=True)
@@ -135,6 +137,13 @@ async def advance_authored_triggers(
                 to_minute=candidate,
                 content=authored,
             )
+            if conditions_hold:
+                conditions_hold = await _effects_ready(
+                    session,
+                    effects=trigger["effects"],
+                    world_minute=candidate,
+                    content=authored,
+                )
             if conditions_hold:
                 if await _touches_active_room(
                     session,
@@ -275,7 +284,15 @@ async def _record_applied(
             if len(trigger["participants"]) > 1 else None
         ),
         room_id=participants[trigger["participants"][0]].room_id,
-        visibility="public_aftermath",
+        # An NPC conversation changes memories and beliefs, but spoken words
+        # do not leave a discoverable residue for a player who visits later.
+        # They must travel through a witness, dialogue, or rumor. Story turns
+        # may leave local aftermath that a later visitor can genuinely find.
+        visibility=(
+            "private"
+            if trigger["kind"] == "conversation"
+            else "public_aftermath"
+        ),
         payload={
             "trigger_id": trigger["id"],
             "opening_line": (
@@ -329,6 +346,26 @@ async def _record_missed(
             "aftermath_clues": trigger.get("aftermath_clues", []),
         },
     )
+    location_rooms = await store.room_id_by_content(session)
+    for clue_index, clue in enumerate(trigger.get("aftermath_clues", [])):
+        _clue_event, inserted = await store.chronicle_once(
+            session,
+            dedupe_key=f"trigger-aftermath:{trigger['id']}:{clue_index}",
+            kind="evidence_left",
+            world_minute=world_minute,
+            summary=clue["description"],
+            room_id=location_rooms.get(clue["location_id"]),
+            visibility="discoverable",
+            payload={
+                "trigger_id": trigger["id"],
+                "location_id": clue["location_id"],
+                "expires_at_minute": (
+                    world_minute
+                    + int(clue["discoverable_for_days"]) * MINUTES_PER_DAY
+                ),
+            },
+        )
+        applied_effects += int(inserted)
     session.add(TriggerFiring(
         trigger_id=trigger["id"],
         scope_id="world",
@@ -369,6 +406,40 @@ async def _conditions_hold(
             if not _interval_has_phase(
                 from_minute, to_minute, set(condition["phases"])
             ):
+                return False
+        elif kind in {"fact_absent", "fact_exists", "fact_equals"}:
+            fact = (await session.execute(
+                select(WorldFact).where(
+                    WorldFact.fact_key == condition["fact_key"]
+                )
+            )).scalar_one_or_none()
+            exists = (
+                fact is not None
+                and (
+                    fact.expires_at_minute is None
+                    or fact.expires_at_minute > to_minute
+                )
+            )
+            if kind == "fact_absent" and exists:
+                return False
+            if kind == "fact_exists" and not exists:
+                return False
+            if kind == "fact_equals" and (
+                not exists or fact.value != condition["value"]
+            ):
+                return False
+        elif kind in {"npc_alive", "npc_health_at_most"}:
+            npc = participants.get(condition["npc_id"])
+            if npc is None:
+                npc = await store.npc_by_content_id(
+                    session, condition["npc_id"],
+                )
+            if npc is None:
+                return False
+            if kind == "npc_alive":
+                if bool(npc.is_alive) is not bool(condition["value"]):
+                    return False
+            elif npc.hp > int(condition["hp"]):
                 return False
         elif kind == "believes":
             rows = (await session.execute(
@@ -546,10 +617,99 @@ async def _effect_destination_rooms(session, effects) -> set[int]:
         for effect in effects
         for location_id in (
             effect.get("destination_location_id"),
-            effect.get("location_id") if effect["kind"] == "set_direction" else None,
+            (
+                effect.get("location_id")
+                if effect["kind"] in {
+                    "disappear_npc",
+                    "relocate_npc",
+                    "set_direction",
+                }
+                else None
+            ),
         )
         if location_id in location_rooms
     }
+
+
+async def _effects_ready(
+    session: AsyncSession,
+    *,
+    effects,
+    world_minute: int,
+    content: LivingWorldContent,
+) -> bool:
+    """Preflight consequential effects before consuming a trigger firing.
+
+    In particular, an authored death cannot be recorded as successfully fired
+    and then silently do nothing because its safety policy was not met.
+    """
+    location_rooms: dict[str, int] | None = None
+    for effect in effects:
+        kind = effect["kind"]
+        if kind not in {
+            "disappear_npc",
+            "kill_npc",
+            "relocate_npc",
+            "set_disposition",
+            "set_goal_status",
+            "wound_npc",
+        }:
+            continue
+        npc = await store.npc_by_content_id(session, effect["npc_id"])
+        if npc is None:
+            return False
+        if kind in {
+            "disappear_npc",
+            "kill_npc",
+            "relocate_npc",
+            "wound_npc",
+        } and not npc.is_alive:
+            return False
+        if kind == "kill_npc" and not await _offscreen_death_allowed(
+            session,
+            npc_id=effect["npc_id"],
+            world_minute=world_minute,
+            content=content,
+        ):
+            return False
+        if kind in {"disappear_npc", "relocate_npc"}:
+            profile = content.npc_profiles.get(effect["npc_id"])
+            if not profile or not profile["offscreen_policy"]["can_relocate"]:
+                return False
+            if location_rooms is None:
+                location_rooms = await store.room_id_by_content(session)
+            if effect["location_id"] not in location_rooms:
+                return False
+    return True
+
+
+async def _offscreen_death_allowed(
+    session: AsyncSession,
+    *,
+    npc_id: str,
+    world_minute: int,
+    content: LivingWorldContent,
+) -> bool:
+    profile = content.npc_profiles.get(npc_id)
+    if not profile:
+        return False
+    policy = profile["offscreen_policy"]
+    if not policy["can_die"]:
+        return False
+    required = int(policy["minimum_warning_memories"])
+    if required <= 0:
+        return True
+    memories = (await session.execute(
+        select(NPCMemory).where(
+            NPCMemory.npc_content_id == npc_id,
+            NPCMemory.world_minute < world_minute,
+        )
+    )).scalars().all()
+    warnings = sum(
+        bool(set(memory.tags or ()) & _WARNING_MEMORY_TAGS)
+        for memory in memories
+    )
+    return warnings >= required
 
 
 async def _apply_effects(
@@ -589,6 +749,35 @@ async def _apply_effects(
             )
             _row, inserted = await store.remember_once(session, memory)
             applied += int(inserted)
+        elif kind == "wound_npc":
+            applied += int(await _wound_npc(
+                session,
+                npc_id=effect["npc_id"],
+                damage=effect["damage"],
+                summary=effect["summary"],
+                world_minute=world_minute,
+                trigger_id=trigger["id"],
+                key=key,
+            ))
+        elif kind == "kill_npc":
+            applied += int(await _kill_npc(
+                session,
+                npc_id=effect["npc_id"],
+                summary=effect["summary"],
+                world_minute=world_minute,
+                content=content,
+            ))
+        elif kind in {"disappear_npc", "relocate_npc"}:
+            applied += int(await _relocate_npc(
+                session,
+                npc_id=effect["npc_id"],
+                location_id=effect["location_id"],
+                reason=effect["reason"],
+                world_minute=world_minute,
+                key=key,
+                disappeared=(kind == "disappear_npc"),
+                active_room_ids=active_room_ids,
+            ))
         elif kind == "share_rumor":
             applied += await _share_rumor(
                 session,
@@ -644,7 +833,337 @@ async def _apply_effects(
                 world_minute=world_minute,
             )
             applied += 1
+        elif kind == "set_fact":
+            await store.set_fact(
+                session,
+                fact_key=effect["fact_key"],
+                subject_id=effect["subject_id"],
+                predicate=effect["predicate"],
+                value=effect["value"],
+                confidence=1.0,
+                visibility="hidden",
+                world_minute=world_minute,
+            )
+            applied += 1
+        elif kind == "set_disposition":
+            applied += int(await _set_disposition(
+                session,
+                npc_id=effect["npc_id"],
+                disposition=effect["disposition"],
+                world_minute=world_minute,
+                key=key,
+            ))
+        elif kind == "set_goal_status":
+            applied += int(await _set_goal_status(
+                session,
+                npc_id=effect["npc_id"],
+                goal_id=effect["goal_id"],
+                status=effect["status"],
+                reason=effect["reason"],
+                world_minute=world_minute,
+                key=key,
+                content=content,
+            ))
     return applied
+
+
+async def _wound_npc(
+    session: AsyncSession,
+    *,
+    npc_id: str,
+    damage: int,
+    summary: str,
+    world_minute: int,
+    trigger_id: str,
+    key: str,
+) -> bool:
+    npc = await store.npc_by_content_id(session, npc_id)
+    if npc is None or not npc.is_alive:
+        return False
+    previous_hp = npc.hp
+    npc.hp = max(1, npc.hp - int(damage))
+    if npc.hp == previous_hp:
+        return False
+    event, inserted = await store.chronicle_once(
+        session,
+        dedupe_key=f"npc-wounded:{key}",
+        kind="npc_wounded",
+        world_minute=world_minute,
+        summary=summary,
+        target_id=npc_id,
+        room_id=npc.room_id,
+        visibility="public_aftermath",
+        payload={
+            "damage": previous_hp - npc.hp,
+            "hp_remaining": npc.hp,
+            "source_trigger": trigger_id,
+        },
+    )
+    warning = Memory(
+        id=f"trigger-wound:{key}",
+        owner_id=npc_id,
+        kind="observation",
+        summary=summary,
+        tags=frozenset({"danger", "health", "injury", "warning"}),
+        importance=8.0,
+        confidence=1.0,
+        occurred_at=world_minute,
+        shareable=True,
+    )
+    await store.remember_once(
+        session,
+        warning,
+        source_event_id=event.id,
+        payload={
+            "damage": previous_hp - npc.hp,
+            "hp_remaining": npc.hp,
+            "source_trigger": trigger_id,
+        },
+    )
+    await store.set_fact(
+        session,
+        fact_key=f"npc-health:{npc_id}",
+        subject_id=npc_id,
+        predicate="health",
+        value={
+            "hp": npc.hp,
+            "max_hp": npc.max_hp,
+            "is_alive": True,
+            "source_trigger": trigger_id,
+        },
+        confidence=1.0,
+        visibility="hidden",
+        world_minute=world_minute,
+        source_event_id=event.id,
+    )
+    return inserted
+
+
+async def _kill_npc(
+    session: AsyncSession,
+    *,
+    npc_id: str,
+    summary: str,
+    world_minute: int,
+    content: LivingWorldContent,
+) -> bool:
+    npc = await store.npc_by_content_id(session, npc_id)
+    if (
+        npc is None
+        or not npc.is_alive
+        or not await _offscreen_death_allowed(
+            session,
+            npc_id=npc_id,
+            world_minute=world_minute,
+            content=content,
+        )
+    ):
+        return False
+    npc.hp = 0
+    npc.is_alive = False
+    npc.party_owner_id = None
+    _event, inserted = await store.record_npc_death(
+        session,
+        npc_content_id=npc_id,
+        npc_name=npc.name,
+        max_hp=npc.max_hp,
+        room_id=npc.room_id,
+        world_minute=world_minute,
+        summary=summary,
+        source="authored_trigger",
+    )
+    return inserted
+
+
+async def _relocate_npc(
+    session: AsyncSession,
+    *,
+    npc_id: str,
+    location_id: str,
+    reason: str,
+    world_minute: int,
+    key: str,
+    disappeared: bool,
+    active_room_ids: Collection[int],
+) -> bool:
+    npc = await store.npc_by_content_id(session, npc_id)
+    rooms = await store.room_id_by_content(session)
+    destination = rooms.get(location_id)
+    if (
+        npc is None
+        or not npc.is_alive
+        or destination is None
+        or npc.room_id in active_room_ids
+        or destination in active_room_ids
+    ):
+        return False
+    origin = npc.room_id
+    position = await store.arrival_position(
+        session,
+        room_id=destination,
+        from_room_id=origin,
+    )
+    if position is None:
+        return False
+    npc.room_id = destination
+    npc.x, npc.y = position
+    npc.party_owner_id = None
+    event_kind = "npc_disappeared" if disappeared else "npc_relocated"
+    event, inserted = await store.chronicle_once(
+        session,
+        dedupe_key=f"{event_kind}:{key}",
+        kind=event_kind,
+        world_minute=world_minute,
+        summary=reason,
+        actor_id=npc_id,
+        room_id=origin,
+        visibility="public_aftermath",
+        payload={
+            "destination_location_id": location_id,
+            "destination_room_id": destination,
+        },
+    )
+    await store.set_fact(
+        session,
+        fact_key=f"npc-whereabouts:{npc_id}",
+        subject_id=npc_id,
+        predicate="whereabouts",
+        value={
+            "location_id": location_id,
+            "room_id": destination,
+            "disappeared": disappeared,
+        },
+        confidence=1.0,
+        visibility="hidden",
+        world_minute=world_minute,
+        source_event_id=event.id,
+    )
+    if disappeared:
+        await store.chronicle_once(
+            session,
+            dedupe_key=f"disappearance-evidence:{key}",
+            kind="evidence_left",
+            world_minute=world_minute,
+            summary=reason,
+            actor_id=npc_id,
+            room_id=origin,
+            visibility="discoverable",
+            payload={"destination_hidden": True},
+        )
+    return inserted
+
+
+async def _set_disposition(
+    session: AsyncSession,
+    *,
+    npc_id: str,
+    disposition: str,
+    world_minute: int,
+    key: str,
+) -> bool:
+    npc = await store.npc_by_content_id(session, npc_id)
+    if npc is None:
+        return False
+    changed = npc.disposition != disposition
+    npc.disposition = disposition
+    await store.chronicle_once(
+        session,
+        dedupe_key=f"npc-disposition:{key}",
+        kind="npc_disposition_changed",
+        world_minute=world_minute,
+        summary=f"{npc.name}'s loyalties changed.",
+        actor_id=npc_id,
+        room_id=npc.room_id,
+        visibility="public_aftermath",
+        payload={"disposition": disposition},
+    )
+    return changed
+
+
+async def _set_goal_status(
+    session: AsyncSession,
+    *,
+    npc_id: str,
+    goal_id: str,
+    status: str,
+    reason: str,
+    world_minute: int,
+    key: str,
+    content: LivingWorldContent,
+) -> bool:
+    goal = (await session.execute(
+        select(NPCGoal).where(
+            NPCGoal.npc_content_id == npc_id,
+            NPCGoal.goal_key == goal_id,
+        )
+    )).scalar_one_or_none()
+    if goal is None:
+        profile = content.npc_profiles.get(npc_id)
+        definition = next(
+            (
+                item
+                for item in (profile or {}).get("private_goals", ())
+                if item["id"] == goal_id
+            ),
+            None,
+        )
+        if definition is None:
+            return False
+        target = definition["target"]
+        target_kind = target["kind"]
+        goal, _ = await store.ensure_goal(
+            session,
+            npc_content_id=npc_id,
+            goal_key=goal_id,
+            kind={
+                "location": "travel",
+                "npc": "social",
+                "rumor": "investigate",
+            }.get(target_kind, "work"),
+            target_id=target["id"],
+            priority=float(definition["priority"]) * 20.0,
+            next_deliberation_minute=world_minute,
+            world_minute=world_minute,
+            context={
+                "desire": definition["desire"],
+                "approach": definition["approach"],
+                "risk_tolerance": definition["risk_tolerance"],
+                "target_kind": target_kind,
+            },
+        )
+    changed = goal.status != status or goal.failure_reason != (
+        reason if status in {"blocked", "failed", "abandoned"} else None
+    )
+    goal.status = status
+    goal.failure_reason = (
+        reason if status in {"blocked", "failed", "abandoned"} else None
+    )
+    context = dict(goal.context or {})
+    context["last_status_reason"] = reason
+    context["last_status_minute"] = world_minute
+    goal.context = context
+    event, _ = await store.chronicle_once(
+        session,
+        dedupe_key=f"npc-goal-status:{key}",
+        kind="npc_goal_changed",
+        world_minute=world_minute,
+        summary=reason,
+        actor_id=npc_id,
+        visibility="public_aftermath",
+        payload={"goal_id": goal_id, "status": status},
+    )
+    await store.set_fact(
+        session,
+        fact_key=f"npc-goal:{npc_id}:{goal_id}",
+        subject_id=npc_id,
+        predicate="private_goal_status",
+        value={"goal_id": goal_id, "status": status, "reason": reason},
+        confidence=1.0,
+        visibility="hidden",
+        world_minute=world_minute,
+        source_event_id=event.id,
+    )
+    return changed
 
 
 async def _share_rumor(

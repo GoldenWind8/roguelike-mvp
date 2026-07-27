@@ -1,0 +1,30 @@
+{
+  "id": "drazna_walking_ward",
+  "name": "The Walking Ward",
+  "width": 17,
+  "height": 13,
+  "terrain": [
+    "########+########",
+    "#...............#",
+    "#...............#",
+    "#...............#",
+    "#..###.....###..#",
+    "#...............#",
+    "+...............#",
+    "#...............#",
+    "#..###.....###..#",
+    "#...............#",
+    "#...............#",
+    "#...............#",
+    "#################"
+  ],
+  "spawn_points": [[1, 5], [1, 6], [1, 7], [2, 6]],
+  "enemy_spawns": [],
+  "objects": [
+    {"id": "drazna_walking_houses", "type": "walking_bridge_houses", "x": 5, "y": 2},
+    {"id": "drazna_walking_scaffold", "type": "roofwright_scaffold", "x": 2, "y": 7},
+    {"id": "drazna_walking_nursery", "type": "drazna_flooded_nursery", "x": 10, "y": 9},
+    {"id": "drazna_walking_memorial", "type": "floodline_memorial", "x": 6, "y": 10},
+    {"id": "drazna_walking_chest", "type": "chest", "x": 14, "y": 10}
+  ]
+}

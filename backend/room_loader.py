@@ -125,6 +125,9 @@ class RoomTemplate:
     height: int
     spawn_points: list[tuple[int, int]]
     walls: set[tuple[int, int]]
+    # Stable authored identity. Generated rooms leave this None, which also
+    # keeps content-aware systems (such as regional loot) out of their way.
+    content_id: str | None = None
     enemies: list[EnemySpawn] = field(default_factory=list)
     objects: list[RoomObject] = field(default_factory=list)
     capacity: int = 0
@@ -242,6 +245,7 @@ async def load_room(session: AsyncSession, room_id: int) -> RoomTemplate:
         height=room.height,
         spawn_points=[tuple(p) for p in room.spawn_points],
         walls=walls,
+        content_id=room.content_id,
         enemies=enemies,
         objects=objects,
         capacity=room.capacity,

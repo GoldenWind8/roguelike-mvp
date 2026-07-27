@@ -1,0 +1,30 @@
+{
+  "id": "drazna_roofwright_loft",
+  "name": "The Roofwright Loft",
+  "width": 17,
+  "height": 13,
+  "terrain": [
+    "#################",
+    "#...............#",
+    "#..#####.#####..#",
+    "#...............#",
+    "#..#.........#..#",
+    "#..#.........#..#",
+    "#..#............+",
+    "#..#.........#..#",
+    "#..#.........#..#",
+    "#...............#",
+    "#..#####.#####..#",
+    "#...............#",
+    "########+########"
+  ],
+  "spawn_points": [[7, 11], [8, 11], [9, 11], [8, 10]],
+  "enemy_spawns": [],
+  "objects": [
+    {"id": "drazna_loft_scaffold", "type": "roofwright_scaffold", "x": 3, "y": 3},
+    {"id": "drazna_loft_rope", "type": "drazna_cut_dive_rope", "x": 10, "y": 4},
+    {"id": "drazna_loft_names", "type": "drazna_refugee_bundles", "x": 12, "y": 7},
+    {"id": "drazna_loft_memorial", "type": "floodline_memorial", "x": 5, "y": 9},
+    {"id": "drazna_loft_chest", "type": "chest", "x": 13, "y": 9}
+  ]
+}

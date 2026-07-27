@@ -13,9 +13,10 @@ from sqlalchemy.pool import StaticPool
 
 import backend.main as main
 from backend.db import Base
-from backend.entities import Position
+from backend.entities import Disposition, Position
+from backend.events import EventType, GameEvent
 from backend.seeds import seed_default_rooms
-from backend.models import NPCRow, Room
+from backend.models import NPCRow, Room, WorldEvent, WorldFact
 
 
 @pytest_asyncio.fixture
@@ -98,6 +99,106 @@ class _FakeWS:
         self.sent.append(msg)
 
 
+async def test_delayed_world_sync_cannot_observe_a_room_after_transfer(
+    world_db,
+    monkeypatch,
+):
+    hall, ante = world_db
+    origin, player = await join_room(hall.id, "Reader")
+    await main.get_or_load_room(ante.id)
+    websocket = _FakeWS()
+    origin.connections[player.id] = websocket
+    calls = []
+
+    async def fake_world_sync(
+        session,
+        *,
+        player_id,
+        current_room_id,
+        commit,
+    ):
+        calls.append((player_id, current_room_id, commit))
+        return {"type": "world_sync"}
+
+    monkeypatch.setattr(main, "world_sync", fake_world_sync)
+    # A task captured the origin, then ran only after traversal had changed
+    # the authoritative registry.
+    main.player_room[player.id] = ante.id
+    await main._send_world_sync_safely(origin, player.id, hall.id)
+
+    assert calls == []
+    assert websocket.sent == []
+
+
+async def test_world_sync_rolls_back_if_player_moves_during_database_work(
+    world_db,
+    monkeypatch,
+):
+    hall, ante = world_db
+    origin, player = await join_room(hall.id, "Reader")
+    await main.get_or_load_room(ante.id)
+    websocket = _FakeWS()
+    origin.connections[player.id] = websocket
+
+    async def move_during_sync(
+        session,
+        *,
+        player_id,
+        current_room_id,
+        commit,
+    ):
+        session.add(WorldEvent(
+            dedupe_key="stale-observation",
+            kind="evidence_left",
+            world_minute=1,
+            room_id=current_room_id,
+            summary="This observation must be rolled back.",
+            visibility="discoverable",
+        ))
+        await session.flush()
+        main._bind_player_room(player_id, ante.id)
+        return {"type": "world_sync"}
+
+    monkeypatch.setattr(main, "world_sync", move_during_sync)
+    await main._send_world_sync_safely(origin, player.id, hall.id)
+
+    assert websocket.sent == []
+    async with main.SessionMaker() as session:
+        stale = (await session.execute(
+            select(WorldEvent).where(
+                WorldEvent.dedupe_key == "stale-observation"
+            )
+        )).scalar_one_or_none()
+        assert stale is None
+
+
+async def test_situation_outcome_reconciles_a_domain_disposition_and_saves(
+    world_db,
+):
+    hall, _ante = world_db
+    runtime, _player = await join_room(hall.id, "Warden")
+    actor = next(
+        npc
+        for npc in runtime.engine.room.npcs.values()
+        if npc.persona.get("id") == "mara-pillared-hall"
+    )
+    actor.disposition = Disposition.HOSTILE
+
+    _events, changed = main._reconcile_situation_actor(
+        runtime,
+        "mara-pillared-hall",
+        "neutral",
+    )
+    assert changed is True
+    assert actor.disposition is Disposition.NEUTRAL
+    # Serialization and persistence both require the enum, not a raw string.
+    runtime.engine.get_state()
+    await main._save_individuals(runtime)
+    async with main.SessionMaker() as session:
+        saved = await session.get(NPCRow, actor.db_id)
+        assert saved.disposition == "neutral"
+
+
 async def test_dev_reset_discards_live_rooms_and_restores_seeds(world_db):
     hall, _ante = world_db
     runtime, player = await join_room(hall.id, "Hero")
@@ -121,6 +222,44 @@ async def test_dev_reset_discards_live_rooms_and_restores_seeds(world_db):
     assert mara2.is_alive
 
 
+async def test_active_npc_death_writes_through_before_room_eviction(world_db):
+    hall, _ = world_db
+    runtime, player = await join_room(hall.id, "Witness")
+    mara = next(n for n in runtime.engine.room.npcs.values() if n.name == "Mara")
+    mara.party_owner_id = "player_old"
+    mara.hp = 0
+    mara.is_alive = False
+    death = GameEvent(
+        EventType.NPC_DIED,
+        {"target_id": mara.id, "killer_id": "player_killer"},
+        runtime.engine.room.round,
+    )
+
+    await main.handle_round_events(runtime, [death])
+    # Retrying the same round edge remains idempotent.
+    await main.handle_round_events(runtime, [death])
+
+    async with main.SessionMaker() as session:
+        row = await session.get(NPCRow, mara.db_id)
+        assert (row.hp, row.is_alive, row.party_owner_id) == (0, False, None)
+        deaths = (await session.execute(
+            select(WorldEvent).where(
+                WorldEvent.kind == "npc_died",
+                WorldEvent.target_id == "mara-pillared-hall",
+            )
+        )).scalars().all()
+        assert len(deaths) == 1
+        assert deaths[0].visibility == "witnessed"
+        assert deaths[0].witnesses == [player.id]
+        fate = (await session.execute(
+            select(WorldFact).where(
+                WorldFact.fact_key == "npc-fate:mara-pillared-hall"
+            )
+        )).scalar_one()
+        assert fate.value["is_alive"] is False
+        assert fate.source_event_id == deaths[0].id
+
+
 async def test_traversal_round_trip(world_db):
     hall, ante = world_db
     runtime, player = await join_room(hall.id, "Hero")
@@ -135,7 +274,7 @@ async def test_traversal_round_trip(world_db):
     ante_runtime = main.active_rooms[ante.id]
     arrived = ante_runtime.engine.room.get_player(player.id)
     assert arrived is player and arrived.hp == 5
-    assert (arrived.position.x, arrived.position.y) == (1, 2)  # first free spawn
+    assert (arrived.position.x, arrived.position.y) == (1, 2)  # beside return door
 
     # Step back through the west door -> a FRESH hall (rooms have no memory).
     await step_through_door(ante_runtime, player.id, [-1, 0])
@@ -144,7 +283,9 @@ async def test_traversal_round_trip(world_db):
     assert ante.id not in main.active_rooms
     back = main.active_rooms[hall.id].engine.room.get_player(player.id)
     assert back is player and back.hp == 5
-    assert (back.position.x, back.position.y) == (3, 8)  # hall's first spawn
+    # The hall has two links back to the antechamber. The stable northern
+    # reverse edge wins, instead of the unrelated first capacity spawn.
+    assert (back.position.x, back.position.y) == (4, 1)
 
 
 async def test_owned_follower_travels_and_persists_with_player(world_db):

@@ -67,6 +67,10 @@ rent, salvage claims, court disputes, maintenance failures, missing relatives,
 and people who cannot agree whether public truth or immediate survival comes
 first.
 
+The complete playable chapter, including its nineteen-room graph, dedicated
+interiors, living situations, and Gate Seven outcomes, is documented in
+[Drazna Kingdom Chapter](DRAZNA.md).
+
 Its first resident web is deliberately interdependent:
 
 - Mara Vey needs the sluices and the city to survive disclosure.
@@ -77,6 +81,14 @@ Its first resident web is deliberately interdependent:
 - Pava Mirek keeps the Walking Ward standing while searching for Vasko.
 - Vasko Mirek is alive below the declared floodline for only a finite window.
 - Vesna Korr protects local dry routes from both the Crown and opportunists.
+- Drina Sable protects an uncensored arrival book above the quay.
+- Teo Latch balances the Crown against the Low Lantern until a sold list
+  exposes both sides.
+- Rada Velic keeps Gate Seven stable while hiding what the old closure cost.
+- Sima Dren braces Walking Ward and may carry a rescue line below.
+- Luka Nen remembers all fourteen closure workers.
+- Odran Third-Bell holds the deepest gate and can be killed, contained, or
+  reached through the surviving cadence.
 
 ### Rouvray
 
@@ -188,17 +200,18 @@ belief and may pass a distorted version when its confidence and social context
 allow. The same carriage therefore moves people, contamination, dates, and
 misinformation at the same physical speed.
 
-The ten initial rumors cover Drazna's first record, the supposedly closed east
+The fifteen initial rumors cover Drazna's first record, the supposedly closed east
 road, carriage contamination, lost names, the old Draznan flood, Undertide
 survivors, Rouvrain gate fires, shared dreams, low-water danger, and Basil's
-remedy.
+remedy, plus the salt barge, palace drain, sold passenger list, Mudwheel
+testimony, and Gate Seven's fourteen-person closure roll.
 
 ## Authored Data
 
 - `content/living_world/world.json`: kingdoms, locations, routes, hostile
   passages, carriage timetables, and generated-stop policy.
-- `content/living_world/npc_profiles.json`: the ten existing Oakrun people
-  plus twelve new residents and travellers.
+- `content/living_world/npc_profiles.json`: sixteen persistent core people
+  plus twelve additional residents and travellers.
 - `content/living_world/rumors.json`: truth, individual beliefs, sources, and
   transmission behavior.
 - `content/living_world/triggers.json`: conversation and story triggers,
@@ -209,4 +222,3 @@ remedy.
 Unknown fields, unknown executable verbs, dangling people or places, malformed
 source chains, invalid timetables, and tracked task-state structures fail
 validation before runtime.
-

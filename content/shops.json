@@ -5,5 +5,12 @@
     "label": "Oakrun General Goods",
     "stock_size": 5,
     "rarity_weights": {"common": 75, "rare": 23, "legendary": 2}
+  },
+  {
+    "id": "drazna_amber_quay_provisions",
+    "object_id": "drazna_quay_stall",
+    "label": "Amber Quay Provisions",
+    "stock_size": 6,
+    "rarity_weights": {"common": 68, "rare": 29, "legendary": 3}
   }
 ]

@@ -1,0 +1,32 @@
+{
+  "id": "drazna_low_lantern_den",
+  "name": "The Low Lantern Den",
+  "width": 17,
+  "height": 13,
+  "terrain": [
+    "#################",
+    "#...............#",
+    "#..#####.#####..#",
+    "#..#.........#..#",
+    "#..#..#####..#..#",
+    "#.....#...#.....#",
+    "+.....#...#.....+",
+    "#.....#...#.....#",
+    "#..#..##.##..#..#",
+    "#..#.........#..#",
+    "#..#####.#####..#",
+    "#...............#",
+    "########+########"
+  ],
+  "spawn_points": [[1, 5], [1, 6], [1, 7], [2, 6]],
+  "enemy_spawns": [
+    {"enemy_id": 7, "x": 14, "y": 9}
+  ],
+  "objects": [
+    {"id": "drazna_den_cache", "type": "low_lantern_cache", "x": 8, "y": 6},
+    {"id": "drazna_den_manifest", "type": "drazna_false_manifest", "x": 4, "y": 5},
+    {"id": "drazna_den_names", "type": "drazna_refugee_bundles", "x": 12, "y": 5},
+    {"id": "drazna_den_rope", "type": "drazna_cut_dive_rope", "x": 4, "y": 9},
+    {"id": "drazna_den_chest", "type": "chest", "x": 12, "y": 9}
+  ]
+}

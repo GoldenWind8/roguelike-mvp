@@ -1,0 +1,31 @@
+{
+  "id": "drazna_birch_heights",
+  "name": "Birch Heights",
+  "width": 17,
+  "height": 13,
+  "terrain": [
+    "#################",
+    "#...............#",
+    "#...............#",
+    "#...............#",
+    "#..###.....###..#",
+    "#...............#",
+    "+...............+",
+    "#...............#",
+    "#..###.....###..#",
+    "#...............#",
+    "#...............#",
+    "#...............#",
+    "########+########"
+  ],
+  "spawn_points": [[1, 5], [1, 6], [1, 7], [2, 6]],
+  "enemy_spawns": [],
+  "objects": [
+    {"id": "drazna_heights_mudwheel", "type": "drazna_mudwheel_stop", "x": 12, "y": 1},
+    {"id": "drazna_heights_archive", "type": "house_of_names", "x": 6, "y": 2},
+    {"id": "drazna_heights_rack", "type": "house_of_names_rack", "x": 3, "y": 6},
+    {"id": "drazna_heights_memorial", "type": "floodline_memorial", "x": 11, "y": 7},
+    {"id": "drazna_heights_letters", "type": "drazna_refugee_bundles", "x": 7, "y": 9},
+    {"id": "drazna_heights_chest", "type": "chest", "x": 14, "y": 10}
+  ]
+}

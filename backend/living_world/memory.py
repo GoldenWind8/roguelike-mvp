@@ -7,6 +7,9 @@ import math
 from typing import Iterable
 
 
+_REFLECTION_EVIDENCE_EXCERPT_CHARS = 180
+
+
 @dataclass(frozen=True)
 class Memory:
     id: str
@@ -123,7 +126,8 @@ def synthesize_reflection(
         kind="reflection",
         summary=(
             f"A pattern around {subject.replace('_', ' ')} connects "
-            f"“{first.summary}” with “{second.summary}”."
+            f'"{_reflection_excerpt(first.summary)}" with '
+            f'"{_reflection_excerpt(second.summary)}".'
         ),
         tags=frozenset({"reflection", subject}),
         importance=min(10.0, 5.0 + weighted_tags[subject] / 8.0),
@@ -134,6 +138,17 @@ def synthesize_reflection(
         occurred_at=world_minute,
         source_memory_id=first.id,
         secrecy=max(item.secrecy for item in evidence),
+    )
+
+
+def _reflection_excerpt(summary: str) -> str:
+    """Keep second-order memories compact even when conclusions are retold."""
+    compact = " ".join(summary.split())
+    if len(compact) <= _REFLECTION_EVIDENCE_EXCERPT_CHARS:
+        return compact
+    return (
+        compact[:_REFLECTION_EVIDENCE_EXCERPT_CHARS - 3].rstrip()
+        + "..."
     )
 
 

@@ -42,10 +42,6 @@ _LOCATION_ROOM_ALIASES = {
     "alderwick": "oakrun_crossroads",
     "briarwash_fields": "oakrun_orchard_lane",
     "hollowmere_post": "oakrun_fieldsite_verge",
-    "drazna_birch_heights": "drazna_high_crown",
-    "drazna_crown_sluice": "drazna_first_scar",
-    "drazna_walking_ward": "drazna_reed_market",
-    "drazna_undertide": "drazna_first_scar",
     "saint-oree-hospice": "bellifont",
 }
 
@@ -280,6 +276,33 @@ async def memory_rows(
     ]
 
 
+async def reflection_source_rows(
+    session: AsyncSession,
+    npc_content_id: str,
+    *,
+    limit: int = 4,
+) -> list[NPCMemory]:
+    """Load exactly the evidence set used by deterministic reflection.
+
+    ``synthesize_reflection`` ranks non-reflections by importance, recency,
+    then stable identity and consumes only four. Loading an NPC's complete,
+    ever-growing history at every deliberation produced quadratic long-run
+    work without changing the selected evidence.
+    """
+    if limit <= 0:
+        return []
+    return list((await session.execute(
+        select(NPCMemory).where(
+            NPCMemory.npc_content_id == npc_content_id,
+            NPCMemory.kind != "reflection",
+        ).order_by(
+            NPCMemory.importance.desc(),
+            NPCMemory.world_minute.desc(),
+            NPCMemory.memory_key,
+        ).limit(limit)
+    )).scalars())
+
+
 async def retrieve_memory_rows(
     session: AsyncSession,
     npc_content_id: str,
@@ -474,7 +497,10 @@ async def room_id_by_content(
     for location_id, room_content_id in _LOCATION_ROOM_ALIASES.items():
         room_id = result.get(room_content_id)
         if room_id is not None:
-            result[location_id] = room_id
+            # A dedicated authored room always wins once it exists; aliases
+            # are compatibility shims only for locations that still share a
+            # playable grid.
+            result.setdefault(location_id, room_id)
     return result
 
 
@@ -645,3 +671,117 @@ async def ensure_fact(
     session.add(row)
     await session.flush()
     return row, True
+
+
+async def set_fact(
+    session: AsyncSession,
+    *,
+    fact_key: str,
+    subject_id: str,
+    predicate: str,
+    value: Mapping[str, object],
+    confidence: float,
+    visibility: str,
+    world_minute: int,
+    source_event_id: int | None = None,
+    expires_at_minute: int | None = None,
+) -> tuple[WorldFact, bool]:
+    """Create or deliberately replace a mutable structured world truth.
+
+    ``ensure_fact`` is intentionally immutable and remains the right tool for
+    seed facts. Authored consequences need an explicit update operation so a
+    later branch can supersede an earlier state without creating conflicting
+    facts under different keys.
+    """
+    row = (await session.execute(
+        select(WorldFact).where(WorldFact.fact_key == fact_key)
+    )).scalar_one_or_none()
+    inserted = row is None
+    if row is None:
+        row = WorldFact(
+            fact_key=fact_key,
+            established_at_minute=world_minute,
+        )
+        session.add(row)
+    row.subject_id = subject_id
+    row.predicate = predicate
+    row.value = dict(value)
+    row.confidence = confidence
+    row.visibility = visibility
+    row.updated_at_minute = world_minute
+    row.source_event_id = source_event_id
+    row.expires_at_minute = expires_at_minute
+    await session.flush()
+    return row, inserted
+
+
+async def record_npc_death(
+    session: AsyncSession,
+    *,
+    npc_content_id: str,
+    npc_name: str,
+    max_hp: int | None,
+    room_id: int,
+    world_minute: int,
+    summary: str | None = None,
+    killer_id: str | None = None,
+    source: str,
+    witnesses: Iterable[str] = (),
+) -> tuple[WorldEvent, bool]:
+    """Persist one individual's death and the evidence players can discover."""
+    account = summary or f"{npc_name} died."
+    witness_ids = tuple(sorted(set(witnesses)))
+    event, inserted = await chronicle_once(
+        session,
+        dedupe_key=f"npc-death:{npc_content_id}",
+        kind="npc_died",
+        world_minute=world_minute,
+        summary=account,
+        actor_id=killer_id,
+        target_id=npc_content_id,
+        room_id=room_id,
+        visibility="witnessed" if witness_ids else "public_aftermath",
+        witnesses=witness_ids,
+        payload={"source": source},
+    )
+    await set_fact(
+        session,
+        fact_key=f"npc-fate:{npc_content_id}",
+        subject_id=npc_content_id,
+        predicate="fate",
+        value={
+            "is_alive": False,
+            "room_id": room_id,
+            "source": source,
+        },
+        confidence=1.0,
+        visibility="hidden",
+        world_minute=world_minute,
+        source_event_id=event.id,
+    )
+    health_value: dict[str, object] = {"hp": 0, "is_alive": False}
+    if max_hp is not None:
+        health_value["max_hp"] = max_hp
+    await set_fact(
+        session,
+        fact_key=f"npc-health:{npc_content_id}",
+        subject_id=npc_content_id,
+        predicate="health",
+        value=health_value,
+        confidence=1.0,
+        visibility="hidden",
+        world_minute=world_minute,
+        source_event_id=event.id,
+    )
+    await chronicle_once(
+        session,
+        dedupe_key=f"npc-death-evidence:{npc_content_id}",
+        kind="evidence_left",
+        world_minute=world_minute,
+        summary=account,
+        target_id=npc_content_id,
+        room_id=room_id,
+        visibility="discoverable",
+        payload={"source": source, "death_event_id": event.id},
+    )
+    return event, inserted

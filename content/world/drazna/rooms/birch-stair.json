@@ -1,0 +1,29 @@
+{
+  "id": "drazna_birch_stair",
+  "name": "The Birch Stair",
+  "width": 17,
+  "height": 13,
+  "terrain": [
+    "########+########",
+    "#...............#",
+    "#.##.........##.#",
+    "#...............#",
+    "#...##.....##...#",
+    "#...............#",
+    "#...##.....##...#",
+    "#...............#",
+    "#...##.....##...#",
+    "#...............#",
+    "#.##.........##.#",
+    "#...............#",
+    "########+########"
+  ],
+  "spawn_points": [[7, 11], [8, 11], [9, 11], [8, 10]],
+  "enemy_spawns": [],
+  "objects": [
+    {"id": "drazna_birch_arch", "type": "birch_stair_memorial_arch", "x": 6, "y": 4},
+    {"id": "drazna_birch_line", "type": "floodline_memorial", "x": 6, "y": 8},
+    {"id": "drazna_birch_letters", "type": "drazna_refugee_bundles", "x": 10, "y": 8},
+    {"id": "drazna_birch_shrine", "type": "roadside_shrine", "x": 2, "y": 5}
+  ]
+}

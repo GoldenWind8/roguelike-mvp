@@ -260,7 +260,10 @@ Reflection occurs when accumulated importance crosses a threshold, after a
 major event, or during a quiet schedule block. A reflection is a belief with
 supporting memory ids and confidence. The deterministic fallback creates
 tagged beliefs. A model may propose nuance, but it must cite existing memories
-and cannot create mechanics.
+and cannot create mechanics. Deterministic reflection reads only its four
+highest-ranked evidence rows and excerpts each cited summary to a fixed bound.
+This keeps long-running worlds linear even when one NPC retells another NPC's
+conclusion and that retelling later informs a new belief.
 
 ## Deliberation And Execution
 
@@ -317,7 +320,9 @@ misinformation according to authored traits.
 The exchange may change relationships or satisfy a `seek_person` intention.
 If new information makes another private goal urgent, a bounded follow-up
 conversation or unscheduled deliberation may fire. Cascades have depth and
-daily budgets so one rumour cannot create an infinite loop.
+daily budgets so one rumour cannot create an infinite loop. Once a simulation
+slice reaches its conversation budget, later deliberations do not enqueue
+additional conversation roots for that same slice.
 
 ## Typed Story Cards
 
@@ -404,16 +409,29 @@ passes, ruined tolls, and rare shortcuts. Carriages follow real timetables,
 carry NPCs and rumours, can be delayed or destroyed, and create temporary
 meetings between people who otherwise never share a room.
 
+### Temporary Oakrun–Drazna Bridge
+
+During chapter development, an ordinary two-way door connects Oakrun's
+Fieldsite Verge `(16, 1)` to Drazna's Lantern Quays `(0, 9)`. This isolated
+bridge is explicitly not frontier discovery: it creates no `FrontierNode`,
+does not consume Drazna's real Lantern Quays gateway at `(0, 6)`, and does not
+open the Drazna carriage stop. The intended release loop still discovers
+Drazna through procedural frontier generation. Remove or disable
+`TEMPORARY_OAKRUN_DRAZNA_BRIDGE` when direct playtest access is no longer
+needed.
+
 ## Player-Facing Surfaces
 
 Presentation remains restrained:
 
 - **Rumours** records only stories the player heard or evidence they found,
   with source and confidence rather than objectives;
-- **People** shows bond words, last-seen information, observable activity, and
-  known relationships—never omniscient plans;
+- **People** shows bond words, last-seen information, observable activity,
+  witnessed wounds or deaths, and evidence-shaped absences—never omniscient
+  plans or off-screen condition changes;
 - **Chronicle** records witnessed, heard, and personally discovered changes,
-  including a bounded “while you were away” summary;
+  including eligible public aftermath and a bounded, per-player history that
+  survives later syncs and client reloads;
 - NPC dialogue and inspection reveal changed schedules and aftermath;
 - companions interject when a choice crosses a conviction or relationship
   threshold.
@@ -457,3 +475,9 @@ and relationships never ride shared room broadcasts.
 - Catch-up respects its cap and records coalesced quiet time.
 - Active-room player actions win arbitration over an uncommitted off-screen
   action.
+- Off-screen death requires the profile's explicit permission and its full
+  count of warning memories from earlier simulated minutes.
+- A named NPC killed in active combat is written through with witnessed
+  Chronicle evidence before traversal or room eviction can occur.
+- Synchronizing an authored region may replace its internal graph, but never
+  deletes an external frontier- or runtime-owned edge.

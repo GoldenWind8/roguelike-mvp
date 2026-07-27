@@ -1,0 +1,64 @@
+[
+  {
+    "id": "drazna-gate-seven-reckoning",
+    "object_id": "drazna_gate_drum",
+    "actor_id": "odran-third-bell",
+    "title": "The Fourteenth Answer",
+    "kicker": "Gate Seven",
+    "description": "The chain drum answers the lake with fourteen measured blows. Odran's bound hand tightens on the emergency pawl whenever the ninth blow passes, as though five replies have been withheld.",
+    "fact_key": "drazna.gate_seven_resolution",
+    "defeat_outcome": {
+      "value": "odran-killed",
+      "fact_value": {
+        "state": "odran-killed",
+        "gate": "held-by-chain",
+        "names_spoken": 0
+      },
+      "result": "The last chain beat breaks out of cadence. Odran's body holds Gate Seven in its emergency notch, but the pressure below remains unresolved.",
+      "chronicle": "Odran Third-Bell was slain at Gate Seven. The lower chain stopped between its ninth and tenth answers."
+    },
+    "choices": [
+      {
+        "id": "answer-the-fourteenth",
+        "label": "Answer all fourteen names",
+        "description": "Match the Third Bell cadence and restore the five closure workers cut from the public roll.",
+        "requires_all_clues": [
+          "drazna:fourteen-tools",
+          "drazna:third-bell-cadence",
+          "drazna:omitted-households"
+        ],
+        "outcome": "pacified",
+        "fact_value": {
+          "state": "pacified",
+          "gate": "vented",
+          "names_spoken": 14
+        },
+        "actor_disposition": "neutral",
+        "actor_goal_id": "answer-fourteen",
+        "actor_goal_status": "completed",
+        "result": "At the fourteenth name, Odran releases the pawl. The black webbing stays in the chain, but the man inside it remembers how to stop pulling.",
+        "chronicle": "Fourteen names were answered at Gate Seven. Odran Third-Bell released the emergency pawl without opening the lower gate."
+      },
+      {
+        "id": "brace-the-counterpressure",
+        "label": "Brace the counterpressure",
+        "description": "Use the charcoal Walking Ward scale to arrest the Crown's late closure order at its safest surviving mark.",
+        "requires_all_clues": [
+          "drazna:counterpressure-scale",
+          "drazna:late-flood-order"
+        ],
+        "outcome": "contained",
+        "fact_value": {
+          "state": "contained",
+          "gate": "braced",
+          "names_spoken": 0
+        },
+        "actor_disposition": "neutral",
+        "actor_goal_id": "hold-gate-seven",
+        "actor_goal_status": "completed",
+        "result": "The counterweight settles one notch below the royal mark. Odran remains bound, breathing in time with a gate that can no longer complete its turn.",
+        "chronicle": "Gate Seven was rebraced to the Walking Ward's counterpressure scale. Odran remains bound, and the deepest passage stays sealed."
+      }
+    ]
+  }
+]

@@ -46,13 +46,13 @@ def test_living_world_catalogue_loads_as_one_cross_referenced_unit():
     content = load_living_world_content()
 
     assert set(content.kingdoms) == {"amberfall", "drazna", "rouvray"}
-    assert len(content.locations) == 21
-    assert len(content.routes) == 23
+    assert len(content.locations) == 34
+    assert len(content.routes) == 43
     assert len(content.hostile_passages) == 9
     assert len(content.carriages) == 4
-    assert len(content.npc_profiles) == 22
-    assert len(content.rumors) == 10
-    assert len(content.triggers) == 18
+    assert len(content.npc_profiles) == 28
+    assert len(content.rumors) == 15
+    assert len(content.triggers) == 41
 
 
 def test_all_core_npcs_have_profiles_and_new_people_are_natural_world_residents():
@@ -60,7 +60,7 @@ def test_all_core_npcs_have_profiles_and_new_people_are_natural_world_residents(
     with (CONTENT_ROOT / "npcs.json").open("r", encoding="utf-8") as handle:
         core = {entry["id"] for entry in json.load(handle)}
 
-    assert len(core) == 10
+    assert len(core) == 16
     assert core <= set(content.npc_profiles)
     assert {
         "mara-vey",
@@ -123,7 +123,6 @@ def test_content_has_no_tracked_task_or_state_shape():
         "quests",
         "quest_id",
         "quest_state",
-        "status",
     }
 
     for name in (
@@ -284,6 +283,46 @@ def test_unknown_fields_and_executable_vocabulary_are_rejected():
         validate_living_world_content(**documents)
 
 
+def test_consequence_conditions_and_effects_use_closed_validated_schemas():
+    documents = _raw_documents()
+    trigger = documents["trigger_document"]["triggers"][0]
+    trigger["conditions"] = [
+        {
+            "kind": "npc_alive",
+            "npc_id": "rowan-oakrun-courier",
+            "value": True,
+        },
+        {"kind": "fact_absent", "fact_key": "rowan-publication"},
+    ]
+    trigger["effects"] = [
+        {
+            "kind": "set_fact",
+            "fact_key": "rowan-publication",
+            "subject_id": "rowan-oakrun-courier",
+            "predicate": "publication",
+            "value": {"state": "dated"},
+        },
+        {
+            "kind": "set_disposition",
+            "npc_id": "rowan-oakrun-courier",
+            "disposition": "friendly",
+        },
+        {
+            "kind": "set_goal_status",
+            "npc_id": "rowan-oakrun-courier",
+            "goal_id": "date-first-record",
+            "status": "completed",
+            "reason": "Rowan dated the public copy without naming a source.",
+        },
+    ]
+
+    validate_living_world_content(**documents)
+
+    trigger["effects"][-1]["goal_id"] = "invented-goal"
+    with pytest.raises(LivingWorldContentError, match="unknown private goal"):
+        validate_living_world_content(**documents)
+
+
 def test_tracked_state_fields_are_rejected_even_before_shape_validation():
     documents = _raw_documents()
     documents["npc_document"]["profiles"][0]["status"] = "waiting"
@@ -341,4 +380,3 @@ def test_loader_reports_missing_or_invalid_documents(tmp_path):
 
     with pytest.raises(LivingWorldContentError, match="invalid authored content JSON"):
         load_living_world_content(tmp_path)
-

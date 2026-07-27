@@ -4,16 +4,16 @@
   "width": 17,
   "height": 13,
   "terrain": [
-    "#################",
+    "########+########",
     "#...............#",
     "#...............#",
-    "#..###########..#",
-    "#..#.........#..#",
-    "#..#.........#..#",
-    "#..#.........#..#",
-    "#..#.........#..#",
-    "#..#.........#..#",
-    "#..#####.#####..#",
+    "#...............#",
+    "#..###.....###..#",
+    "#...............#",
+    "+...............+",
+    "#...............#",
+    "#..###.....###..#",
+    "#...............#",
     "#...............#",
     "#...............#",
     "########+########"
@@ -21,7 +21,11 @@
   "spawn_points": [[7, 11], [8, 11], [9, 11], [8, 10]],
   "enemy_spawns": [],
   "objects": [
-    {"id": "drazna_crown_ledger", "type": "crown_ledger_plinth", "x": 8, "y": 6},
-    {"id": "drazna_crown_shrine", "type": "roadside_shrine", "x": 3, "y": 10}
+    {"id": "drazna_crown_mudwheel", "type": "drazna_mudwheel_stop", "x": 1, "y": 1},
+    {"id": "drazna_crown_palace", "type": "palace_of_still_water", "x": 9, "y": 1},
+    {"id": "drazna_crown_drain", "type": "drazna_palace_drain", "x": 4, "y": 2},
+    {"id": "drazna_crown_ledger", "type": "crown_ledger_plinth", "x": 8, "y": 9},
+    {"id": "drazna_crown_shrine", "type": "roadside_shrine", "x": 2, "y": 9},
+    {"id": "drazna_crown_gauge", "type": "drazna_pressure_gauge", "x": 14, "y": 9}
   ]
 }

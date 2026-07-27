@@ -136,6 +136,27 @@ def test_free_spawn_skips_occupied(make_template):
     assert room.free_spawn() is None
 
 
+def test_arrival_anchors_to_a_reverse_edge_across_multiple_entrances(
+    make_template,
+):
+    engine = RoomEngine(make_template(
+        spawn_points=[(2, 3)],
+        connections={(0, 2): DEST_ROOM_ID, (4, 2): DEST_ROOM_ID},
+    ))
+    assert engine.room.free_arrival(DEST_ROOM_ID) == (1, 2)
+
+    # Blocking the first doorway's adjacent cell selects the other doorway;
+    # neither connection tile itself can become an arrival position.
+    engine.room.add_enemy(
+        "Doorkeeper",
+        Position(1, 2),
+        hp=5,
+        attack_damage=1,
+        defense=0,
+    )
+    assert engine.room.free_arrival(DEST_ROOM_ID) == (3, 2)
+
+
 def test_detach_last_player_resets_game_phase(make_template):
     engine = RoomEngine(make_template())
     player, _ = engine.join("Hero")

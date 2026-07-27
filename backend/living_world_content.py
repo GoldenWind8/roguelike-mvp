@@ -201,12 +201,25 @@ MEMORY_TAGS = {
     "departure",
     "family",
     "grief",
+    "health",
+    "injury",
     "person",
     "promise",
     "road",
     "rot",
     "testimony",
+    "warning",
+    "death",
 }
+GOAL_STATUSES = {
+    "dormant",
+    "active",
+    "blocked",
+    "completed",
+    "failed",
+    "abandoned",
+}
+NPC_DISPOSITIONS = {"hostile", "neutral", "friendly"}
 
 
 class LivingWorldContentError(RuntimeError):
@@ -352,7 +365,14 @@ def _reject_forbidden_keys(value: Any, path: str = "$") -> None:
     if isinstance(value, dict):
         for key, child in value.items():
             normalized = str(key).lower()
-            if normalized in _FORBIDDEN_KEYS:
+            # ``set_goal_status`` changes an NPC's private simulation goal; it
+            # is not player quest state. Keep the broad anti-quest guard while
+            # allowing that one closed-schema effect field.
+            private_goal_status = (
+                normalized == "status"
+                and value.get("kind") == "set_goal_status"
+            )
+            if normalized in _FORBIDDEN_KEYS and not private_goal_status:
                 _fail(f"{path}.{key}", "tracked quest/objective state is not allowed")
             _reject_forbidden_keys(child, f"{path}.{key}")
     elif isinstance(value, list):
@@ -1517,7 +1537,12 @@ def _validate_condition(
             "carriage_arrives",
             "co_located",
             "day_phase",
+            "fact_absent",
+            "fact_equals",
+            "fact_exists",
+            "npc_alive",
             "npc_at",
+            "npc_health_at_most",
             "route_pressure_at_least",
             "trigger_fired",
         },
@@ -1527,7 +1552,12 @@ def _validate_condition(
         "carriage_arrives": {"kind", "carriage_id", "location_id"},
         "co_located": {"kind", "npc_ids"},
         "day_phase": {"kind", "phases"},
+        "fact_absent": {"kind", "fact_key"},
+        "fact_equals": {"kind", "fact_key", "value"},
+        "fact_exists": {"kind", "fact_key"},
+        "npc_alive": {"kind", "npc_id", "value"},
         "npc_at": {"kind", "npc_id", "location_id"},
+        "npc_health_at_most": {"kind", "npc_id", "hp"},
         "route_pressure_at_least": {"kind", "hostile_passage_id", "minimum"},
         "trigger_fired": {"kind", "trigger_id"},
     }
@@ -1570,6 +1600,15 @@ def _validate_condition(
             choices=DAY_PHASES,
             minimum=1,
         )
+    elif kind in {"fact_absent", "fact_exists", "fact_equals"}:
+        _string(item["fact_key"], f"{path}.fact_key")
+        if kind == "fact_equals" and not isinstance(item["value"], dict):
+            _fail(f"{path}.value", "must be an object")
+    elif kind == "npc_alive":
+        npc_id = _identifier(item["npc_id"], f"{path}.npc_id")
+        if npc_id not in npc_ids:
+            _fail(f"{path}.npc_id", f"unknown NPC {npc_id!r}")
+        _boolean(item["value"], f"{path}.value")
     elif kind == "npc_at":
         npc_id = _identifier(item["npc_id"], f"{path}.npc_id")
         location_id = _identifier(item["location_id"], f"{path}.location_id")
@@ -1577,6 +1616,11 @@ def _validate_condition(
             _fail(f"{path}.npc_id", f"unknown NPC {npc_id!r}")
         if location_id not in location_ids:
             _fail(f"{path}.location_id", f"unknown location {location_id!r}")
+    elif kind == "npc_health_at_most":
+        npc_id = _identifier(item["npc_id"], f"{path}.npc_id")
+        if npc_id not in npc_ids:
+            _fail(f"{path}.npc_id", f"unknown NPC {npc_id!r}")
+        _integer(item["hp"], f"{path}.hp", minimum=0)
     elif kind == "route_pressure_at_least":
         passage_id = _identifier(
             item["hostile_passage_id"],
@@ -1601,6 +1645,7 @@ def _validate_effect(
     location_ids: set[str],
     rumor_ids: set[str],
     carriage_ids: set[str],
+    npc_goal_ids: Mapping[str, set[str]],
 ) -> str:
     if not isinstance(effect, dict):
         _fail(path, "must be an object")
@@ -1610,17 +1655,27 @@ def _validate_effect(
         {
             "board_carriage",
             "change_need",
+            "disappear_npc",
+            "kill_npc",
             "leave_evidence",
+            "relocate_npc",
             "relationship_shift",
             "remember",
+            "set_disposition",
             "set_direction",
+            "set_fact",
+            "set_goal_status",
             "share_rumor",
+            "wound_npc",
         },
     )
     schemas = {
         "board_carriage": {"kind", "npc_id", "carriage_id", "destination_location_id"},
         "change_need": {"kind", "npc_id", "need", "delta"},
+        "disappear_npc": {"kind", "npc_id", "location_id", "reason"},
+        "kill_npc": {"kind", "npc_id", "summary"},
         "leave_evidence": {"kind", "location_id", "description"},
+        "relocate_npc": {"kind", "npc_id", "location_id", "reason"},
         "relationship_shift": {
             "kind",
             "from_npc_id",
@@ -1629,13 +1684,29 @@ def _validate_effect(
             "delta",
         },
         "remember": {"kind", "npc_id", "summary", "importance", "tags"},
+        "set_disposition": {"kind", "npc_id", "disposition"},
         "set_direction": {"kind", "npc_id", "location_id", "reason"},
+        "set_fact": {
+            "kind",
+            "fact_key",
+            "subject_id",
+            "predicate",
+            "value",
+        },
+        "set_goal_status": {
+            "kind",
+            "npc_id",
+            "goal_id",
+            "status",
+            "reason",
+        },
         "share_rumor": {
             "kind",
             "speaker_npc_id",
             "listener_npc_id",
             "rumor_id",
         },
+        "wound_npc": {"kind", "npc_id", "damage", "summary"},
     }
     item = _closed_object(effect, path, required=schemas[kind])
 
@@ -1663,6 +1734,13 @@ def _validate_effect(
         delta = _integer(item["delta"], f"{path}.delta", minimum=-100, maximum=100)
         if delta == 0:
             _fail(f"{path}.delta", "must change the need")
+    elif kind in {"disappear_npc", "relocate_npc"}:
+        npc_ref("npc_id")
+        location_ref("location_id")
+        _string(item["reason"], f"{path}.reason")
+    elif kind == "kill_npc":
+        npc_ref("npc_id")
+        _string(item["summary"], f"{path}.summary")
     elif kind == "leave_evidence":
         location_ref("location_id")
         _string(item["description"], f"{path}.description")
@@ -1685,10 +1763,37 @@ def _validate_effect(
             choices=MEMORY_TAGS,
             minimum=1,
         )
+    elif kind == "set_disposition":
+        npc_ref("npc_id")
+        _enum(
+            item["disposition"],
+            f"{path}.disposition",
+            NPC_DISPOSITIONS,
+        )
     elif kind == "set_direction":
         npc_ref("npc_id")
         location_ref("location_id")
         _string(item["reason"], f"{path}.reason")
+    elif kind == "set_fact":
+        _string(item["fact_key"], f"{path}.fact_key")
+        _string(item["subject_id"], f"{path}.subject_id")
+        _string(item["predicate"], f"{path}.predicate")
+        if not isinstance(item["value"], dict):
+            _fail(f"{path}.value", "must be an object")
+    elif kind == "set_goal_status":
+        npc_id = npc_ref("npc_id")
+        goal_id = _identifier(item["goal_id"], f"{path}.goal_id")
+        if goal_id not in npc_goal_ids.get(npc_id, set()):
+            _fail(
+                f"{path}.goal_id",
+                f"unknown private goal {goal_id!r} for NPC {npc_id!r}",
+            )
+        _enum(item["status"], f"{path}.status", GOAL_STATUSES)
+        _string(item["reason"], f"{path}.reason")
+    elif kind == "wound_npc":
+        npc_ref("npc_id")
+        _integer(item["damage"], f"{path}.damage", minimum=1, maximum=1000)
+        _string(item["summary"], f"{path}.summary")
     else:
         speaker = npc_ref("speaker_npc_id")
         listener = npc_ref("listener_npc_id")
@@ -1716,6 +1821,10 @@ def _validate_triggers(
     rumor_ids = set(rumors)
     carriage_ids = set(carriages)
     passage_ids = set(hostile_passages)
+    npc_goal_ids = {
+        npc_id: {goal["id"] for goal in profile["private_goals"]}
+        for npc_id, profile in npc_profiles.items()
+    }
     trigger_ids = {
         _identifier(trigger.get("id"), f"triggers.json.triggers[{index}].id")
         for index, trigger in enumerate(trigger_entries)
@@ -1804,6 +1913,7 @@ def _validate_triggers(
                 location_ids=location_ids,
                 rumor_ids=rumor_ids,
                 carriage_ids=carriage_ids,
+                npc_goal_ids=npc_goal_ids,
             )
 
         conversation = item["conversation"]
@@ -1877,6 +1987,7 @@ def _validate_triggers(
                 location_ids=location_ids,
                 rumor_ids=rumor_ids,
                 carriage_ids=carriage_ids,
+                npc_goal_ids=npc_goal_ids,
             )
         clues = _array(item["aftermath_clues"], f"{path}.aftermath_clues")
         for clue_index, clue in enumerate(clues):

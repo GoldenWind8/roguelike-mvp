@@ -4,13 +4,13 @@
   "width": 17,
   "height": 13,
   "terrain": [
-    "#################",
+    "########+########",
     "#...............#",
     "#...............#",
     "#....###.###....#",
     "#...............#",
     "#...............#",
-    "+...............#",
+    "+...............+",
     "#...............#",
     "#...............#",
     "#....###.###....#",
@@ -25,8 +25,10 @@
     {"enemy_id": 11, "x": 9, "y": 6}
   ],
   "objects": [
-    {"id": "drazna_first_record", "type": "first_rot_memorial", "x": 7, "y": 5},
-    {"id": "drazna_scar_cistern", "type": "blackened_cistern", "x": 3, "y": 9},
+    {"id": "drazna_first_record", "type": "first_rot_memorial", "x": 7, "y": 4},
+    {"id": "drazna_scar_cistern", "type": "blackened_cistern", "x": 2, "y": 8},
+    {"id": "drazna_scar_barge_claim", "type": "drazna_barge_plaque", "x": 12, "y": 5},
+    {"id": "drazna_scar_early_roll", "type": "drazna_preproclamation_roll", "x": 4, "y": 9},
     {"id": "drazna_scar_chest", "type": "chest", "x": 14, "y": 10}
   ]
 }

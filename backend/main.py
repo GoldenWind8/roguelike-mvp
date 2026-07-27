@@ -29,7 +29,7 @@ from backend.config import (
 )
 from backend.db import SessionMaker, init_db
 from backend.dialogue import DialogueContext, build_provider
-from backend.entities import NPC, Player, Position
+from backend.entities import Disposition, NPC, Player, Position
 from backend.events import EventType, GameEvent
 from backend.hunger import tick_room_hunger
 from backend.inventory import add_item, equip, prune_expired, unequip
@@ -39,6 +39,7 @@ from backend.living_world import store as living_store
 from backend.living_world.movement import shortest_route
 from backend.living_world.player_knowledge import (
     dialogue_memory_context,
+    record_object_discovery,
     record_player_conversation,
     world_sync,
     world_time_view,
@@ -54,6 +55,7 @@ from backend.notice_store import (
 )
 from backend.noticeboard_defs import get_noticeboard_for_object
 from backend.npc_store import load_npcs, save_npcs
+from backend.object_defs import get_object_definition
 from backend.object_store import reset_objects, save_object_state
 from backend.player_store import (
     UsernameTaken,
@@ -75,6 +77,14 @@ from backend.shop_store import (
     purchase,
     utc_day,
 )
+from backend.situation_defs import get_situation_for_object
+from backend.situation_store import (
+    SituationError,
+    record_situation_actor_defeat,
+    resolve_situation_choice,
+    situation_actor_disposition,
+    situation_view,
+)
 from backend.procgen.frontier_store import (
     available_authored_gateways,
     ensure_world_state,
@@ -95,6 +105,16 @@ class RoomRuntime:
     engine: RoomEngine
     connections: dict[str, WebSocket] = field(default_factory=dict)
     timeout_task: asyncio.Task | None = None
+
+
+@dataclass(frozen=True)
+class _TransferPlan:
+    """A side-effect-free reservation calculated under ``state_lock``."""
+
+    player: Player
+    player_spawn: tuple[int, int]
+    followers: tuple[NPC, ...]
+    follower_positions: tuple[tuple[int, int], ...]
 
 
 @asynccontextmanager
@@ -147,8 +167,23 @@ app = FastAPI(lifespan=lifespan)
 # double-loaded.
 active_rooms: dict[int, RoomRuntime] = {}
 player_room: dict[str, int] = {}
+# Monotonic room-membership generations let asynchronous knowledge work prove
+# that a player did not leave and return while it was querying the database.
+player_room_revision: dict[str, int] = {}
 state_lock = asyncio.Lock()
 default_room_id: int | None = None
+
+
+def _bind_player_room(player_id: str, room_id: int) -> None:
+    """Caller holds ``state_lock``; bind and invalidate stale room snapshots."""
+    player_room_revision[player_id] = player_room_revision.get(player_id, 0) + 1
+    player_room[player_id] = room_id
+
+
+def _unbind_player_room(player_id: str) -> None:
+    """Caller holds ``state_lock``; detach and invalidate pending snapshots."""
+    player_room_revision[player_id] = player_room_revision.get(player_id, 0) + 1
+    player_room.pop(player_id, None)
 
 # Dialogue source — LLM with canned fallback when a key is configured,
 # canned-only otherwise. One instance per process (it owns an HTTP client).
@@ -408,10 +443,12 @@ async def _round_timeout(runtime: RoomRuntime):
 
 async def handle_round_events(runtime: RoomRuntime, events) -> None:
     """Caller holds state_lock. React to domain events from a resolved round —
-    currently just PLAYER_ENTERED_DOOR. Must run at EVERY resolution site
-    (action submit, round timeout, disconnect auto-resolve), and must run
+    persists named deaths and resolves traversal intents. Must run at EVERY
+    resolution site (action submit, round timeout, disconnect auto-resolve),
+    and must run
     BEFORE the old room's state broadcast so a traveling player never renders
     the old room's post-round state ahead of their room_changed message."""
+    await _persist_active_npc_deaths(runtime, events)
     for event in events:
         if event.event_type is EventType.PLAYER_ENTERED_DOOR:
             await _transfer_player(
@@ -422,6 +459,94 @@ async def handle_round_events(runtime: RoomRuntime, events) -> None:
         elif event.event_type is EventType.PLAYER_ENTERED_FRONTIER:
             await _expand_and_transfer_frontier(runtime, event)
     await maybe_evict(runtime)
+
+
+async def _persist_active_npc_deaths(
+    runtime: RoomRuntime,
+    events: list[GameEvent],
+) -> None:
+    """Write combat deaths through before traversal or room eviction.
+
+    NPCs are durable individuals while ordinary enemies are intentionally
+    fungible. Waiting for eventual room eviction left a crash window in which
+    a named boss could return alive and its Chronicle outcome could vanish.
+    """
+    death_events = {
+        event.data.get("target_id"): event
+        for event in events
+        if event.event_type is EventType.NPC_DIED
+        and isinstance(event.data.get("target_id"), str)
+    }
+    dead_npcs = [
+        npc
+        for runtime_id, event in death_events.items()
+        if (
+            (npc := runtime.engine.room.npcs.get(runtime_id)) is not None
+            and not npc.is_alive
+            and isinstance(npc.persona.get("id"), str)
+        )
+    ]
+    if not dead_npcs:
+        return
+    for npc in dead_npcs:
+        npc.party_owner_id = None
+
+    async with SessionMaker() as session:
+        await save_npcs(
+            session,
+            dead_npcs,
+            runtime.room_id,
+            commit=False,
+        )
+        world = await ensure_world_state(session)
+        witnesses = [
+            player.id
+            for player in runtime.engine.room.living_players()
+        ]
+        revision_changed = False
+        situation_results = []
+        for npc in dead_npcs:
+            event = death_events[npc.id]
+            content_id = npc.persona["id"]
+            _row, inserted = await living_store.record_npc_death(
+                session,
+                npc_content_id=content_id,
+                npc_name=npc.name,
+                max_hp=npc.max_hp,
+                room_id=runtime.room_id,
+                world_minute=world.world_minute,
+                summary=f"{npc.name} was killed.",
+                killer_id=event.data.get("killer_id"),
+                source="active_room_combat",
+                witnesses=witnesses,
+            )
+            revision_changed = revision_changed or inserted
+            situation_result = await record_situation_actor_defeat(
+                session,
+                actor_id=content_id,
+                room_id=runtime.room_id,
+                world_minute=world.world_minute,
+                witnesses=witnesses,
+            )
+            if situation_result is not None and situation_result.inserted:
+                situation_results.append(situation_result)
+        if revision_changed:
+            world.revision += 1
+        await session.commit()
+    for result in situation_results:
+        for witness_id in witnesses:
+            await send_to(runtime, witness_id, {
+                "type": "situation_resolved",
+                "situation_id": result.situation_id,
+                "outcome": result.outcome,
+                "result": result.result,
+            })
+    for witness_id in witnesses:
+        asyncio.create_task(_send_world_sync_safely(
+            runtime,
+            witness_id,
+            runtime.room_id,
+        ))
 
 
 async def _expand_and_transfer_frontier(
@@ -480,45 +605,38 @@ async def _expand_and_transfer_frontier(
     await _transfer_player(origin, player_id, expansion.target_room_id)
 
 
-async def _transfer_player(origin: RoomRuntime, player_id: str, to_room_id: int) -> None:
-    """Caller holds state_lock. Validate everything, THEN mutate — a failure
-    at any check denies the traversal with zero state change."""
+def _transfer_plan(
+    origin: RoomRuntime,
+    destination: RoomRuntime,
+    player_id: str,
+) -> _TransferPlan | None:
+    """Calculate a complete party landing without mutating either room."""
     player = origin.engine.room.get_player(player_id)
     if player is None or not player.is_alive:
-        # The enemy phase runs after moves — the mover may have died on the
-        # doorstep, or already left. Dead players don't traverse.
-        return
+        return None
+    room = destination.engine.room
+    player_spawn = room.free_arrival(origin.room_id)
+    if len(room.players) >= room.template.capacity or player_spawn is None:
+        return None
 
-    dest_was_loaded = to_room_id in active_rooms
-    try:
-        dest = await get_or_load_room(to_room_id)
-    except Exception:
-        logging.exception("failed to load room %s for traversal", to_room_id)
-        await send_to(origin, player_id, {"type": "error", "message": "The way is blocked."})
-        return
-
-    player_spawn = dest.engine.room.free_spawn()
-    if (len(dest.engine.room.players) >= dest.engine.room.template.capacity
-            or player_spawn is None):
-        if not dest_was_loaded:
-            await maybe_evict(dest)  # don't keep a room we loaded only to be denied
-        await send_to(origin, player_id, {"type": "error", "message": "The way is blocked."})
-        return
-
-    # Reserve space for the full party before changing either room.
-    followers = [
+    followers = tuple(
         npc for npc in origin.engine.room.npcs.values()
         if npc.is_alive and npc.party_owner_id == player_id
-    ]
+    )
     reserved = {player_spawn}
     follower_positions: list[tuple[int, int]] = []
+    destination_exit_tiles = {
+        *room.template.connections.keys(),
+        *room.template.frontier_exits.keys(),
+    }
     candidates = sorted(
         (
             (x, y)
-            for y in range(dest.engine.room.template.height)
-            for x in range(dest.engine.room.template.width)
-            if dest.engine.room.is_valid_position(x, y)
-            and not dest.engine.room.is_occupied(x, y)
+            for y in range(room.template.height)
+            for x in range(room.template.width)
+            if room.is_valid_position(x, y)
+            and not room.is_occupied(x, y)
+            and (x, y) not in destination_exit_tiles
         ),
         key=lambda cell: (
             abs(cell[0] - player_spawn[0]) + abs(cell[1] - player_spawn[1]),
@@ -533,16 +651,51 @@ async def _transfer_player(origin: RoomRuntime, player_id: str, to_room_id: int)
             continue
         follower_positions.append(candidate)
         reserved.add(candidate)
-        if len(follower_positions) == len(followers):
-            break
     if len(follower_positions) != len(followers):
+        return None
+    return _TransferPlan(
+        player=player,
+        player_spawn=player_spawn,
+        followers=followers,
+        follower_positions=tuple(follower_positions),
+    )
+
+
+async def _transfer_player(
+    origin: RoomRuntime,
+    player_id: str,
+    to_room_id: int,
+) -> bool:
+    """Caller holds state_lock. Validate everything, THEN mutate — a failure
+    at any check denies the traversal with zero state change."""
+    player = origin.engine.room.get_player(player_id)
+    if player is None or not player.is_alive:
+        # The enemy phase runs after moves — the mover may have died on the
+        # doorstep, or already left. Dead players don't traverse.
+        return False
+
+    dest_was_loaded = to_room_id in active_rooms
+    try:
+        dest = await get_or_load_room(to_room_id)
+    except Exception:
+        logging.exception("failed to load room %s for traversal", to_room_id)
+        await send_to(origin, player_id, {"type": "error", "message": "The way is blocked."})
+        return False
+
+    plan = _transfer_plan(origin, dest, player_id)
+    if plan is None:
         if not dest_was_loaded:
             await maybe_evict(dest)
-        await send_to(origin, player_id, {
-            "type": "error",
-            "message": "There is no room for your companions beyond the way.",
-        })
-        return
+        await send_to(
+            origin,
+            player_id,
+            {"type": "error", "message": "The way is blocked."},
+        )
+        return False
+
+    player_spawn = plan.player_spawn
+    followers = plan.followers
+    follower_positions = plan.follower_positions
 
     # All checks passed — now mutate: detach from origin, rewire the socket,
     # and attach the full party at the destination.
@@ -568,7 +721,7 @@ async def _transfer_player(origin: RoomRuntime, player_id: str, to_room_id: int)
             )
     if ws is not None:
         dest.connections[player_id] = ws
-    player_room[player_id] = to_room_id
+    _bind_player_room(player_id, to_room_id)
 
     await send_to(dest, player_id, {
         "type": "room_changed",
@@ -580,6 +733,7 @@ async def _transfer_player(origin: RoomRuntime, player_id: str, to_room_id: int)
     ))
     await broadcast_state_and_events(dest, arrival_events)
     await broadcast_waiting(dest)
+    return True
 
 
 # --- NPC dialogue -----------------------------------------------------------------
@@ -721,7 +875,7 @@ async def handle_talk(websocket: WebSocket, player_id: str, data: dict) -> None:
         "text": reply.text,
     })
     if learned_rumor is not None:
-        await websocket.send_json(await _world_sync_for(player_id, room_id))
+        await _send_world_sync_safely(runtime, player_id, room_id)
 
 
 # --- loot: chests, packs, the world tick (docs/LOOT.md) --------------------------
@@ -793,7 +947,12 @@ async def living_world_ticker() -> None:
                         active_room_ids=active_ids,
                     )
                 players = [
-                    (player_id, room_id, active_rooms[room_id].connections.get(player_id))
+                    (
+                        player_id,
+                        room_id,
+                        active_rooms[room_id],
+                        active_rooms[room_id].connections.get(player_id),
+                    )
                     for player_id, room_id in player_room.items()
                     if room_id in active_rooms
                 ]
@@ -809,7 +968,7 @@ async def living_world_ticker() -> None:
                 "type": "world_time_updated",
                 "time": world_time_view(result.to_minute),
             }
-            for player_id, room_id, websocket in players:
+            for player_id, room_id, runtime, websocket in players:
                 if websocket is None:
                     continue
                 try:
@@ -821,8 +980,10 @@ async def living_world_ticker() -> None:
                         or trigger_result.fired
                         or trigger_result.missed
                     ):
-                        await websocket.send_json(
-                            await _world_sync_for(player_id, room_id)
+                        await _send_world_sync_safely(
+                            runtime,
+                            player_id,
+                            room_id,
                         )
                 except Exception:
                     logging.exception(
@@ -1099,7 +1260,10 @@ async def handle_open_chest(websocket: WebSocket, player_id: str, data: dict) ->
     try:
         async with SessionMaker() as session:
             for _ in range(roll_item_count()):
-                item, minted = await spawn_loot(session)
+                item, minted = await spawn_loot(
+                    session,
+                    room_content_id=runtime.engine.room.template.content_id,
+                )
                 if item is not None:
                     rolled.append((item, minted))
     except Exception:
@@ -1475,6 +1639,221 @@ async def handle_equip_toggle(websocket: WebSocket, player_id: str, data: dict,
         )])
 
 
+# --- evidence-gated authored situations -------------------------------------
+
+
+async def handle_inspect_object(
+    websocket: WebSocket,
+    player_id: str,
+    data: dict,
+) -> None:
+    """Show scenery at any distance, but learn authored evidence only nearby."""
+    async with state_lock:
+        runtime = runtime_for(player_id)
+        room = runtime.engine.room if runtime else None
+        player = room.get_player(player_id) if room else None
+        obj = (
+            room.get_object(data.get("object_id"))
+            if room and isinstance(data.get("object_id"), str)
+            else None
+        )
+        if obj is None:
+            await websocket.send_json({
+                "type": "error",
+                "message": "Object not found",
+            })
+            return
+        object_view = obj.to_dict()
+        adjacent = (
+            player is not None
+            and player.is_alive
+            and obj.distance_from(player.position.x, player.position.y) <= 1
+        )
+        room_id = runtime.room_id
+        definition = get_object_definition(obj.type)
+        discovery = (
+            definition.discovery
+            if adjacent and definition is not None
+            else None
+        )
+
+    await websocket.send_json({
+        "type": "object_inspection",
+        "object": object_view,
+    })
+    if discovery is None:
+        return
+    try:
+        async with SessionMaker() as session:
+            minute = await _current_world_minute(session)
+            _knowledge, inserted = await record_object_discovery(
+                session,
+                player_id=player_id,
+                room_id=room_id,
+                object_id=obj.id,
+                discovery=discovery,
+                world_minute=minute,
+            )
+            await session.commit()
+    except Exception:
+        logging.exception(
+            "failed to record object discovery %s for %s",
+            obj.id,
+            player_id,
+        )
+        return
+    if inserted:
+        async with state_lock:
+            current_runtime = runtime_for(player_id)
+        if current_runtime is not None and current_runtime.room_id == room_id:
+            await _send_world_sync_safely(
+                current_runtime,
+                player_id,
+                room_id,
+            )
+
+
+def _adjacent_situation(room, player, object_id):
+    if not player or not player.is_alive:
+        return None, None, "The dead cannot answer this place."
+    obj = room.get_object(object_id) if isinstance(object_id, str) else None
+    if obj is None or obj.interaction != "situation":
+        return None, None, "There is no consequential mechanism there."
+    if obj.distance_from(player.position.x, player.position.y) > 1:
+        return None, None, "You are too far away to make out its answer."
+    definition = get_situation_for_object(obj.id)
+    if definition is None:
+        return None, None, "The mechanism has no authored answer."
+    return obj, definition, None
+
+
+def _reconcile_situation_actor(
+    runtime: RoomRuntime,
+    actor_id: str,
+    actor_disposition: str | None,
+) -> tuple[list[GameEvent], bool]:
+    """Apply durable situation truth to the live actor using domain types."""
+    if actor_disposition is None:
+        return [], False
+    actor = next((
+        npc
+        for npc in runtime.engine.room.npcs.values()
+        if npc.persona.get("id") == actor_id
+    ), None)
+    if actor is None or not actor.is_alive:
+        return [], False
+
+    canonical = Disposition(actor_disposition)
+    changed = actor.disposition is not canonical
+    actor.disposition = canonical
+    mode_events = runtime.engine.refresh_mode()
+    if mode_events:
+        if runtime.engine.turn_based:
+            start_round_timeout(runtime)
+        else:
+            cancel_round_timeout(runtime)
+    return mode_events, changed
+
+
+async def handle_open_situation(
+    websocket: WebSocket,
+    player_id: str,
+    data: dict,
+) -> None:
+    async with state_lock:
+        runtime = runtime_for(player_id)
+        room = runtime.engine.room if runtime else None
+        player = room.get_player(player_id) if room else None
+        obj, definition, error = (
+            _adjacent_situation(room, player, data.get("object_id"))
+            if room else (None, None, "Not in a room")
+        )
+        if error:
+            await websocket.send_json({"type": "error", "message": error})
+            return
+        try:
+            async with SessionMaker() as session:
+                view = await situation_view(
+                    session,
+                    definition=definition,
+                    player_id=player_id,
+                )
+                # Reading a crash-recovered actor death may establish the
+                # canonical defeat outcome, so even an "open" owns a commit.
+                await session.commit()
+        except SituationError as exc:
+            await websocket.send_json({"type": "error", "message": str(exc)})
+            return
+        mode_events, actor_reconciled = _reconcile_situation_actor(
+            runtime,
+            definition.actor_id,
+            situation_actor_disposition(definition, view["outcome"]),
+        )
+        await websocket.send_json({
+            "type": "situation_opened",
+            "situation": view,
+        })
+        if actor_reconciled:
+            await broadcast_state_and_events(runtime, mode_events)
+
+
+async def handle_resolve_situation(
+    websocket: WebSocket,
+    player_id: str,
+    data: dict,
+) -> None:
+    async with state_lock:
+        runtime = runtime_for(player_id)
+        room = runtime.engine.room if runtime else None
+        player = room.get_player(player_id) if room else None
+        _obj, definition, error = (
+            _adjacent_situation(room, player, data.get("object_id"))
+            if room else (None, None, "Not in a room")
+        )
+        if error:
+            await websocket.send_json({"type": "error", "message": error})
+            return
+        witnesses = tuple(
+            witness.id for witness in room.living_players()
+        )
+        try:
+            async with SessionMaker() as session:
+                minute = await _current_world_minute(session)
+                resolution = await resolve_situation_choice(
+                    session,
+                    definition=definition,
+                    choice_id=data.get("choice_id"),
+                    player_id=player_id,
+                    room_id=runtime.room_id,
+                    world_minute=minute,
+                    witnesses=witnesses,
+                )
+                await session.commit()
+        except SituationError as exc:
+            await websocket.send_json({"type": "error", "message": str(exc)})
+            return
+
+        mode_events, _actor_reconciled = _reconcile_situation_actor(
+            runtime,
+            resolution.actor_id,
+            resolution.actor_disposition,
+        )
+
+        await broadcast(runtime, {
+            "type": "situation_resolved",
+            "situation_id": resolution.situation_id,
+            "outcome": resolution.outcome,
+            "result": resolution.result,
+        })
+        await broadcast_state_and_events(runtime, mode_events)
+        for witness_id in witnesses:
+            asyncio.create_task(_send_world_sync_safely(
+                runtime,
+                witness_id,
+                runtime.room_id,
+            ))
+
+
 # --- shared carriage network -------------------------------------------------
 
 
@@ -1494,23 +1873,46 @@ async def _current_world_minute(session) -> int:
     return world.world_minute
 
 
-async def _world_sync_for(player_id: str, room_id: int) -> dict:
-    async with SessionMaker() as session:
-        return await world_sync(
-            session,
-            player_id=player_id,
-            current_room_id=room_id,
-        )
-
-
 async def _send_world_sync_safely(
     runtime: RoomRuntime,
     player_id: str,
     room_id: int,
 ) -> None:
-    """Publish knowledge without holding the mutation lock during socket I/O."""
+    """Synchronize only a room occupied throughout the observation query.
+
+    The database work is prepared without the mutation lock. A monotonic room
+    generation is checked both before and after it; a traversal in between
+    rolls the observation back. This keeps slow knowledge queries from
+    blocking gameplay or nested test sockets while still preventing a delayed
+    task from learning about a room after the player left it.
+    """
     try:
-        payload = await _world_sync_for(player_id, room_id)
+        async with state_lock:
+            current = runtime_for(player_id)
+            if current is not runtime or current.room_id != room_id:
+                return
+            room_revision = player_room_revision.get(player_id, 0)
+        async with SessionMaker() as session:
+            payload = await world_sync(
+                session,
+                player_id=player_id,
+                current_room_id=room_id,
+                commit=False,
+            )
+            # Do not acquire ``state_lock`` while this transaction owns a
+            # SQLite write lock: disconnect persistence takes the locks in the
+            # opposite order. These individual dictionary reads are atomic in
+            # the process, and the generation catches any completed leave /
+            # return sequence between them.
+            still_current = (
+                player_room.get(player_id) == room_id
+                and active_rooms.get(room_id) is runtime
+                and player_room_revision.get(player_id, 0) == room_revision
+            )
+            if not still_current:
+                await session.rollback()
+                return
+            await session.commit()
         await send_to(runtime, player_id, payload)
     except Exception:
         logging.exception("failed to synchronize world knowledge for %s", player_id)
@@ -1642,10 +2044,12 @@ async def handle_carriage_travel(
             return
         try:
             async with SessionMaker() as session:
+                minute = await _current_world_minute(session)
                 destination = await resolve_carriage_travel(
                     session,
                     from_room_id=origin.room_id,
                     destination_stop_id=data.get("stop_id"),
+                    world_minute=minute,
                 )
         except CarriageError as exc:
             await websocket.send_json({"type": "error", "message": str(exc)})
@@ -1657,28 +2061,73 @@ async def handle_carriage_travel(
             })
             return
 
+        # A live destination can be full even though the route itself is
+        # available. Reject before advancing the irreversible shared clock.
+        # Inactive rooms have no live players and are validated when loaded.
+        loaded_destination = active_rooms.get(destination.room_id)
+        if (
+            loaded_destination is not None
+            and _transfer_plan(origin, loaded_destination, player_id) is None
+        ):
+            await websocket.send_json({
+                "type": "error",
+                "message": "There is no room for your party at that stop.",
+            })
+            return
+
+        await websocket.send_json({
+            "type": "travel_started",
+            "stop_id": destination.stop_id,
+            "destination_name": destination.name,
+        })
+
         # A carriage is fast travel for the player, not a teleport for the
         # world. Everyone's shared clock advances through the entire journey,
         # and dormant NPCs may deliberate, move, converse, or miss a window
         # during it. Active rooms remain protected by the in-memory engines.
-        async with SessionMaker() as session:
-            journey = await advance_living_world(
-                session,
-                wall_now=time.time(),
-                active_room_ids=tuple(active_rooms),
-                forced_minutes=destination.travel_minutes,
-            )
-            await advance_authored_triggers(
-                session,
-                from_minute=journey.from_minute,
-                to_minute=journey.to_minute,
-                active_room_ids=tuple(active_rooms),
+        try:
+            async with SessionMaker() as session:
+                journey = await advance_living_world(
+                    session,
+                    wall_now=time.time(),
+                    active_room_ids=tuple(active_rooms),
+                    forced_minutes=destination.journey_minutes,
+                )
+        except Exception:
+            logging.exception("failed to advance carriage journey")
+            await websocket.send_json({
+                "type": "error",
+                "message": "The driver cannot find a safe departure.",
+            })
+            return
+
+        # The clock commit is authoritative. Trigger consumption has its own
+        # durable watermark, so a transient failure must not strand the player
+        # at the origin and invite a retry that advances the same fare twice.
+        try:
+            async with SessionMaker() as session:
+                await advance_authored_triggers(
+                    session,
+                    from_minute=journey.from_minute,
+                    to_minute=journey.to_minute,
+                    active_room_ids=tuple(active_rooms),
+                )
+        except Exception:
+            logging.exception(
+                "authored triggers will retry after carriage journey %s..%s",
+                journey.from_minute,
+                journey.to_minute,
             )
 
-        await _transfer_player(origin, player_id, destination.room_id)
-        if player_room.get(player_id) != destination.room_id:
+        transferred = await _transfer_player(
+            origin,
+            player_id,
+            destination.room_id,
+        )
+        if not transferred:
             return
         player.coins -= destination.fare
+        await _save_player(player, destination.room_id)
         destination_runtime = runtime_for(player_id)
         async with SessionMaker() as session:
             view = await carriage_view(
@@ -1691,6 +2140,10 @@ async def handle_carriage_travel(
             "type": "carriage_arrived",
             "stop": view["stop"],
             "travel_minutes": destination.travel_minutes,
+            "journey_minutes": destination.journey_minutes,
+            "wait_minutes": destination.wait_minutes,
+            "route_status": destination.route_status,
+            "danger": destination.danger,
             "fare": destination.fare,
         })
         await broadcast_state_and_events(destination_runtime, [])
@@ -1732,7 +2185,8 @@ async def handle_dev_reset(websocket: WebSocket) -> None:
         for runtime in list(active_rooms.values()):
             cancel_round_timeout(runtime)
         active_rooms.clear()
-        player_room.clear()
+        for player_id in tuple(player_room):
+            _unbind_player_room(player_id)
 
         async with SessionMaker() as session:
             await reset_npcs(session)
@@ -1842,7 +2296,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
                     player_id = player.id
                     runtime.connections[player_id] = websocket
-                    player_room[player_id] = runtime.room_id
+                    _bind_player_room(player_id, runtime.room_id)
 
                     await send_to(runtime, player_id, {
                         "type": "join_ack",
@@ -1953,6 +2407,18 @@ async def websocket_endpoint(websocket: WebSocket):
                     continue
                 await handle_carriage_travel(websocket, player_id, data)
 
+            elif msg_type == "open_situation":
+                if not player_id:
+                    await websocket.send_json({"type": "error", "message": "Join first"})
+                    continue
+                await handle_open_situation(websocket, player_id, data)
+
+            elif msg_type == "resolve_situation":
+                if not player_id:
+                    await websocket.send_json({"type": "error", "message": "Join first"})
+                    continue
+                await handle_resolve_situation(websocket, player_id, data)
+
             elif msg_type in ("equip", "unequip"):
                 if not player_id:
                     await websocket.send_json({"type": "error", "message": "Join first"})
@@ -1969,22 +2435,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 if not player_id:
                     await websocket.send_json({"type": "error", "message": "Join first"})
                     continue
-
-                async with state_lock:
-                    runtime = runtime_for(player_id)
-                    obj = runtime.engine.room.get_object(data.get("object_id")) if runtime else None
-
-                if not obj:
-                    await websocket.send_json({
-                        "type": "error",
-                        "message": "Object not found",
-                    })
-                    continue
-
-                await websocket.send_json({
-                    "type": "object_inspection",
-                    "object": obj.to_dict(),
-                })
+                await handle_inspect_object(websocket, player_id, data)
 
     except WebSocketDisconnect:
         pass
@@ -1994,7 +2445,7 @@ async def websocket_endpoint(websocket: WebSocket):
         if player_id:
             async with state_lock:
                 runtime = runtime_for(player_id)
-                player_room.pop(player_id, None)
+                _unbind_player_room(player_id)
                 if runtime is not None:
                     runtime.connections.pop(player_id, None)
                     # Persistence at the disconnect edge (ACCOUNTS.md

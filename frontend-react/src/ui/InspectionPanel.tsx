@@ -3,7 +3,7 @@
  * docs/LOOT.md); "Look inside" is the same open_chest request, which the
  * server answers with chest_contents so the selection popup can rise. */
 import { useGame, useGameApi } from "../store/gameStore";
-import { itemIcon } from "./Hotbar";
+import { ItemArt } from "./ItemArt";
 
 export function InspectionPanel() {
   const { inspection } = useGame();
@@ -31,7 +31,10 @@ export function InspectionPanel() {
           <div className="contents-title">Waiting inside:</div>
           {contents.map((item, i) => (
             <div key={i} className={`contents-row rarity-${item.rarity}`} title={item.description}>
-              <span>{itemIcon(item)} {item.name}</span>
+              <span className="contents-item">
+                <ItemArt item={item} className="contents-item-icon" />
+                <span>{item.name}</span>
+              </span>
               <em>{item.rarity}</em>
             </div>
           ))}

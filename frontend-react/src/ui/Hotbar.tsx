@@ -6,12 +6,8 @@
  * highlight, per the design.
  */
 import { packOf, SLOT_COUNT, useGame, useGameApi } from "../store/gameStore";
-import type { InventorySlot, ItemView } from "../net/types";
-
-export function itemIcon(item: ItemView): string {
-  // Typed art reference: emoji renders as text; url arrives with image-gen.
-  return item.art.kind === "emoji" ? item.art.value : "❓";
-}
+import type { InventorySlot } from "../net/types";
+import { ItemArt } from "./ItemArt";
 
 function hintFor(slot: InventorySlot): string {
   switch (slot.item.type) {
@@ -66,7 +62,7 @@ export function Hotbar() {
               <span className="slot-key">{(i + 1) % 10}</span>
               {slot && (
                 <>
-                  <span className="slot-icon">{itemIcon(slot.item)}</span>
+                  <ItemArt item={slot.item} className="slot-icon" />
                   {slot.quantity > 1 && <span className="slot-count">{slot.quantity}</span>}
                   {slot.equipped && <span className="slot-worn" title="Equipped">✦</span>}
                 </>

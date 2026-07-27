@@ -24,10 +24,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import CHEST_ITEM_COUNT_WEIGHTS, LOOT_LLM_CHANCE, LOOT_WEIGHTS
 from backend.item_gen import generate_item
-from backend.item_store import draw_random
+from backend.item_store import draw_with_preference
 from backend.llm import tier_available
+from backend.regional_items import region_for_room_content_id, regional_art_values
 
 logger = logging.getLogger(__name__)
+
+# A strong local accent without turning authored chests into fixed rewards.
+# The remaining 28% continues to expose the global and LLM-grown item pool.
+REGIONAL_LOOT_PREFERENCE = 0.72
 
 
 def roll_rarity(weights: dict[str, int] | None = None,
@@ -51,10 +56,18 @@ def roll_item_count(weights: dict[int, int] | None = None,
 
 async def spawn_loot(session: AsyncSession, *,
                      weights: dict[str, int] | None = None,
-                     rng: random.Random | None = None) -> tuple[dict | None, bool]:
+                     rng: random.Random | None = None,
+                     room_content_id: str | None = None) -> tuple[dict | None, bool]:
     """Roll one item. Returns (item_view, freshly_minted) — freshly_minted is
     True only when the LLM invented it just now (the client gives that
-    fanfare). (None, False) only if the pool is truly empty."""
+    fanfare). (None, False) only if the eligible pool is truly empty.
+
+    ``room_content_id`` is the content-aware seam for authored chest flavor.
+    A Drazna room prefers Drazna items but still draws from the global and
+    LLM-grown pool. Outside a matching authored region, bundled regional rows
+    stay scoped out, so startup backfill does not dilute ordinary loot.
+    Generated rooms have no regional prefix and keep the ordinary pool.
+    """
     chooser = rng if rng is not None else random
     rarity = roll_rarity(weights, rng)
 
@@ -67,4 +80,14 @@ async def spawn_loot(session: AsyncSession, *,
             # gate), the remedy is identical — draw the pool instead.
             logger.warning("LLM item generation fell back to pool draw: %s", e)
 
-    return await draw_random(session, rarity, rng if rng is not None else None), False
+    region_id = region_for_room_content_id(room_content_id)
+    preferred = regional_art_values(region_id) if region_id is not None else frozenset()
+    excluded = regional_art_values() - preferred
+    return await draw_with_preference(
+        session,
+        rarity,
+        preferred_art_values=preferred,
+        excluded_art_values=excluded,
+        preference=REGIONAL_LOOT_PREFERENCE if preferred else 0.0,
+        rng=rng if rng is not None else None,
+    ), False

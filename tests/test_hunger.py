@@ -94,6 +94,7 @@ def test_hitting_zero_announces_once_then_chips_hp(make_template):
     assert EventType.PLAYER_STARVING in event_types(events)
     damage = next(e for e in events if e.event_type is EventType.ENTITY_DAMAGED)
     assert damage.data["damage"] == 1            # min-1 clamp beats armor
+    assert damage.data["cause"] == "starvation"
     assert hero.hunger == 0.0
 
     events, _ = tick_room_hunger(engine.room, dt=2.0)

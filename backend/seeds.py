@@ -13,7 +13,10 @@ Terrain is an ASCII grid (one char per tile, see TileType):
 from sqlalchemy import delete, select
 
 from backend.content import load_catalog, load_json, load_region
-from backend.carriage_store import ensure_carriage_stop
+from backend.carriage_store import (
+    DRAZNA_CARRIAGE_ACTIVATION_GROUP,
+    ensure_carriage_stop,
+)
 from backend.living_world_content import load_living_world_content
 from backend.persona import validate_persona
 from backend.room_validation import (
@@ -23,8 +26,11 @@ from backend.room_validation import (
     validate_room,
 )
 from backend.models import (
+    CarriageRoute,
+    CarriageStop,
     EnemyDef,
     FrontierExit,
+    FrontierNode,
     NPCRow,
     PlayerRow,
     Room,
@@ -215,26 +221,29 @@ NPC_SEEDS = [
 ]
 
 OAKRUN_NPC_SEEDS = []
+SECONDARY_AUTHORED_NPC_SEEDS = []
 for _entry in _AUTHORED_NPCS.values():
     _spawn = _entry["spawn"]
-    if _spawn["region"] != "oakrun":
-        continue
     _stats = _entry["stats"]
-    OAKRUN_NPC_SEEDS.append((
+    _seed = (
         _spawn["room"], _persona_from_content(_entry), _spawn["x"], _spawn["y"],
         _stats["hp"], _stats["defense"], _stats["attack_damage"],
-    ))
+    )
+    if _spawn["region"] == "oakrun":
+        OAKRUN_NPC_SEEDS.append(_seed)
+    else:
+        SECONDARY_AUTHORED_NPC_SEEDS.append(_seed)
 
 
 _LIVING_NPC_PLACEMENTS = {
-    "mara-vey": ("drazna_high_crown", (8, 5)),
-    "ilya-sorn": ("drazna_first_scar", (5, 5)),
-    "nera-bell": ("drazna_high_crown", (10, 6)),
-    "olek-var": ("drazna_lantern_quays", (13, 8)),
-    "pava-mirek": ("drazna_reed_market", (5, 5)),
-    "vasko-mirek": ("drazna_first_scar", (11, 10)),
-    "vesna-korr": ("drazna_lantern_quays", (13, 4)),
-    "alin-vey": ("drazna_high_crown", (6, 6)),
+    "mara-vey": ("drazna_palace_still_water", (8, 4)),
+    "ilya-sorn": ("drazna_crown_sluice", (6, 9)),
+    "nera-bell": ("drazna_house_of_names", (8, 7)),
+    "olek-var": ("drazna_mud_crown", (11, 7)),
+    "pava-mirek": ("drazna_walking_ward", (8, 7)),
+    "vasko-mirek": ("drazna_undertide", (11, 9)),
+    "vesna-korr": ("drazna_dry_dock", (6, 8)),
+    "alin-vey": ("drazna_palace_still_water", (6, 8)),
     "jory-rusk": ("oakrun_fieldsite_verge", (5, 10)),
     "sabine-vauclair": ("bellifont", (5, 5)),
     "matthieu-orne": ("orison_fields", (10, 5)),
@@ -247,56 +256,56 @@ _LIVING_NPC_VOICES = {
         "She speaks in exact decisions and treats every euphemism as a leak in a wall.",
         ["A crown is only useful if it keeps rain off someone.", "Drazna recorded the wound. We did not confess to making it."],
         "The remaining wards and their people are her party; she will not abandon them.",
-        "town_watch",
+        "queen_mara_vey",
     ),
     "ilya-sorn": (
         "A young floodwarden whose hands never stop measuring pressure, distance, and blame. "
         "He is direct until guilt makes him suddenly formal.",
         ["Water keeps no secret. People build gates and call that secrecy.", "If the lower gauge rises again, run uphill before you ask why."],
         "He will not leave while the sluices can still be repaired.",
-        "stablehand",
+        "ilya_sorn",
     ),
     "nera-bell": (
         "A patient archivist who believes an omitted name is a second death. "
         "She corrects comforting falsehoods softly and dates every certainty.",
         ["First recorded is not first begun. Write that down exactly.", "The dead do not need praise. They need their names restored."],
         "The House of Names is her vigil and she will not desert it.",
-        "innkeeper",
+        "nera_bell",
     ),
     "olek-var": (
         "A salvage captain with a dockworker's humor and a priest's respect for drowned rooms. "
         "He prices danger honestly and dislikes heroes who make crews carry their bodies home.",
         ["Everything below the tide belongs to someone. Mostly the dead.", "Coin first, rope second, courage a distant third."],
         "He travels only with a contracted salvage crew.",
-        "travelling_peddler",
+        "olek_var",
     ),
     "pava-mirek": (
         "A master roofwright who reads buildings as other people read faces. "
         "Blunt, maternal, and furious at officials who call preventable collapse weather.",
         ["That beam did not fail. Someone stopped listening to it.", "Find my brother before you bring me another theory."],
         "Her crews and the Walking Ward keep her in Drazna.",
-        "orchard_keeper",
+        "pava_mirek",
     ),
     "vasko-mirek": (
         "A missing diver returned wrong-footed from the Undertide, laconic and alert to sounds beneath floors. "
         "He jokes when frightened and refuses to explain where he learned certain drowned names.",
         ["There are doors underwater that open toward dry rooms.", "Pava will hit me before she hugs me. Fair order."],
         "He may join someone willing to descend carefully and keep faith with the drowned.",
-        "road_weary_traveller",
+        "vasko_mirek",
     ),
     "vesna-korr": (
         "A night-route keeper whose calm comes from having already imagined the axle breaking. "
         "She gives warnings as practical gifts and never calls a road safe, only passable.",
         ["Low Lantern leaves when the third wick gutters.", "A road can be open and still mean you harm."],
         "She travels with her carriage service, not as an ordinary follower.",
-        "carriage_driver",
+        "vesna_korr",
     ),
     "alin-vey": (
         "A reformist heir who speaks too quickly when angry and too carefully near the Crown. "
         "He wants truth made public but has not yet learned what panic costs.",
         ["Silence did not save the drowned ward. It only saved reputations.", "My mother calls delay prudence. The water calls it time."],
         "He will not leave while the Crown can still be changed from within.",
-        "road_courier",
+        "alin_vey",
     ),
     "jory-rusk": (
         "Driver of the Grey Heron, broad-shouldered and superstitious about bells. "
@@ -385,6 +394,17 @@ def _validate_living_npc_seeds() -> None:
         validate_npc_placement(_ALL_AUTHORED_ROOMS[room_key], x, y)
 
 
+def _validate_secondary_authored_npc_seeds() -> None:
+    for room_key, persona, x, y, *_stats in SECONDARY_AUTHORED_NPC_SEEDS:
+        validate_persona(persona)
+        if room_key not in _ALL_AUTHORED_ROOMS:
+            raise ValueError(
+                f"Core NPC {persona['id']!r} references unknown authored "
+                f"room {room_key!r}"
+            )
+        validate_npc_placement(_ALL_AUTHORED_ROOMS[room_key], x, y)
+
+
 # Edges of the world graph: (from_room_key, to_room_key, from_x, from_y).
 # Resolved to real room ids at seed time once the rows have been flushed.
 _CONNECTIONS = [
@@ -397,6 +417,16 @@ _OAKRUN_CONNECTIONS = [
     (connection["from"], connection["to"], connection["x"], connection["y"])
     for connection in _OAKRUN_CONTENT["connections"]
 ]
+
+# Temporary development-only access while Drazna is playtested as an authored
+# chapter. This is deliberately an ordinary pair of RoomConnection rows, not
+# a FrontierExit or FrontierNode: it must not count as discovering Drazna,
+# consume its procedural gateway, or unlock its carriage stop.
+TEMPORARY_OAKRUN_DRAZNA_BRIDGE_ENABLED = True
+TEMPORARY_OAKRUN_DRAZNA_BRIDGE = (
+    ("oakrun_fieldsite_verge", "drazna_lantern_quays", 16, 1),
+    ("drazna_lantern_quays", "oakrun_fieldsite_verge", 0, 9),
+)
 
 
 def _validate_oakrun_content() -> None:
@@ -537,6 +567,7 @@ async def seed_oakrun_world(session) -> Room:
 
     await _sync_authored_frontier_exits(session, models)
     await _sync_secondary_regions(session)
+    await _sync_temporary_oakrun_drazna_bridge(session)
     await ensure_carriage_stop(
         session,
         stop_key="stop:oakrun-exchange",
@@ -546,15 +577,27 @@ async def seed_oakrun_world(session) -> Room:
         public_name="Oakrun Exchange",
         metadata={"authored": True},
     )
+    await _sync_drazna_carriage_topology(session)
 
     for room_key, persona, x, y, hp, defense, atk in OAKRUN_NPC_SEEDS:
         session.add(_npc_row(persona, models[room_key].id, x, y, hp, defense, atk))
+    _validate_secondary_authored_npc_seeds()
     _validate_living_npc_seeds()
+    core_ids = {persona["id"] for _, persona, *_ in OAKRUN_NPC_SEEDS}
+    await _insert_npc_seeds(
+        session,
+        SECONDARY_AUTHORED_NPC_SEEDS,
+        _ALL_AUTHORED_ROOM_NAMES,
+        existing_ids=core_ids,
+    )
+    core_ids.update(
+        persona["id"] for _, persona, *_ in SECONDARY_AUTHORED_NPC_SEEDS
+    )
     await _insert_npc_seeds(
         session,
         LIVING_NPC_SEEDS,
         _ALL_AUTHORED_ROOM_NAMES,
-        existing_ids={persona["id"] for _, persona, *_ in OAKRUN_NPC_SEEDS},
+        existing_ids=core_ids,
     )
 
     if legacy_ids:
@@ -620,10 +663,12 @@ async def seed_npcs_if_missing(session) -> None:
     existing_rows = (await session.execute(select(NPCRow))).scalars().all()
     rows_by_persona_id = {_persona_id(row): row for row in existing_rows}
     existing_ids = set(rows_by_persona_id)
+    _validate_secondary_authored_npc_seeds()
     _validate_living_npc_seeds()
     for _room_key, persona, *_rest in [
         *NPC_SEEDS,
         *OAKRUN_NPC_SEEDS,
+        *SECONDARY_AUTHORED_NPC_SEEDS,
         *LIVING_NPC_SEEDS,
     ]:
         validate_persona(persona)
@@ -652,6 +697,15 @@ async def seed_npcs_if_missing(session) -> None:
     existing_ids.update(persona["id"] for _, persona, *_ in OAKRUN_NPC_SEEDS)
     inserted += await _insert_npc_seeds(
         session,
+        SECONDARY_AUTHORED_NPC_SEEDS,
+        _ALL_AUTHORED_ROOM_NAMES,
+        existing_ids=existing_ids,
+    )
+    existing_ids.update(
+        persona["id"] for _, persona, *_ in SECONDARY_AUTHORED_NPC_SEEDS
+    )
+    inserted += await _insert_npc_seeds(
+        session,
         LIVING_NPC_SEEDS,
         _ALL_AUTHORED_ROOM_NAMES,
         existing_ids=existing_ids,
@@ -671,6 +725,11 @@ async def reset_npcs(session) -> None:
         session,
         OAKRUN_NPC_SEEDS,
         _OAKRUN_ROOM_NAMES,
+    )
+    await _insert_npc_seeds(
+        session,
+        SECONDARY_AUTHORED_NPC_SEEDS,
+        _ALL_AUTHORED_ROOM_NAMES,
     )
     await _insert_npc_seeds(
         session,
@@ -787,17 +846,23 @@ STARTER_ITEMS = [
 
 
 async def seed_items_if_missing(session) -> None:
-    """Backfill the global item pool when the items table has NEVER held a row
-    (the seed_npcs_if_missing rhythm). A pool the players have grown with LLM
-    inventions has rows — reseeding must never dilute or duplicate it. When
-    the STARTER_ITEMS list itself changes, delete the db and restart: the
-    data is proof-of-concept and disposable by policy (no migration code for
-    content that hasn't earned it)."""
-    from backend.item_store import insert_item, pool_is_empty
-    if not await pool_is_empty(session):
-        return
-    for data in STARTER_ITEMS:
-        await insert_item(session, data, origin="seed")
+    """Seed a virgin pool, then idempotently backfill scoped authored loot.
+
+    The generic starter pool is still inserted only when the table has never
+    held a row, preserving player/LLM-grown pools. Regional definitions are a
+    bounded content migration: their bundled art values are stable markers,
+    so existing rows are neither replayed nor edited."""
+    from backend.item_store import (
+        insert_item,
+        insert_missing_authored_items,
+        pool_is_empty,
+    )
+    from backend.regional_items import DRAZNA_ITEMS
+
+    if await pool_is_empty(session):
+        for data in STARTER_ITEMS:
+            await insert_item(session, data, origin="seed")
+    await insert_missing_authored_items(session, DRAZNA_ITEMS, origin="seed")
     await session.commit()
 
 
@@ -857,6 +922,7 @@ async def get_or_seed_default_room(session) -> Room:
     # already discovered.
     await _sync_authored_frontier_exits(session, rows_by_key)
     await _sync_secondary_regions(session)
+    await _sync_temporary_oakrun_drazna_bridge(session)
     await ensure_carriage_stop(
         session,
         stop_key="stop:oakrun-exchange",
@@ -866,6 +932,7 @@ async def get_or_seed_default_room(session) -> Room:
         public_name="Oakrun Exchange",
         metadata={"authored": True},
     )
+    await _sync_drazna_carriage_topology(session)
 
     await _ensure_enemy_defs(session)
     await seed_npcs_if_missing(session)
@@ -882,11 +949,6 @@ async def _sync_secondary_regions(session) -> dict[str, dict[str, Room]]:
     """
     synced: dict[str, dict[str, Room]] = {}
     carriage_stops = {
-        "drazna": (
-            "stop:drazna-lantern-quays",
-            "Drazna Lantern Quays",
-            "drazna_marches",
-        ),
         "rouvray": (
             "stop:rouvray-hollow-bells",
             "Hollow Bells Post",
@@ -913,41 +975,472 @@ async def _sync_secondary_regions(session) -> dict[str, dict[str, Room]]:
             rows[room_key] = row
         await session.flush()
 
-        # Only touch coordinates owned by the authored manifest. The unused
-        # gateway door is runtime-owned once a generated frontier reaches it.
+        # Rebuild only edges wholly owned by this authored region. External
+        # edges are play-owned (frontier discoveries) or deliberately supplied
+        # by another integration seam (the temporary Oakrun bridge), so they
+        # must survive synchronization even when an internal door moves.
+        region_room_ids = [row.id for row in rows.values()]
+        await session.execute(delete(RoomConnection).where(
+            RoomConnection.from_room_id.in_(region_room_ids),
+            RoomConnection.to_room_id.in_(region_room_ids),
+        ))
         for connection in content["connections"]:
             source = rows[connection["from"]]
             target = rows[connection["to"]]
-            edge = (await session.execute(
+            external_edge = (await session.execute(
                 select(RoomConnection).where(
                     RoomConnection.from_room_id == source.id,
                     RoomConnection.from_x == connection["x"],
                     RoomConnection.from_y == connection["y"],
                 )
             )).scalars().first()
-            if edge is None:
-                session.add(RoomConnection(
-                    from_room_id=source.id,
-                    to_room_id=target.id,
-                    from_x=connection["x"],
-                    from_y=connection["y"],
-                ))
-            else:
-                edge.to_room_id = target.id
+            if external_edge is not None:
+                raise ValueError(
+                    f"Authored region {content['id']!r} cannot claim "
+                    f"{connection['from']} ({connection['x']}, "
+                    f"{connection['y']}): an external connection already "
+                    "owns that door"
+                )
+            session.add(RoomConnection(
+                from_room_id=source.id,
+                to_room_id=target.id,
+                from_x=connection["x"],
+                from_y=connection["y"],
+            ))
 
-        stop_key, public_name, biome = carriage_stops[content["id"]]
-        await ensure_carriage_stop(
-            session,
-            stop_key=stop_key,
-            room_id=rows[content["start_room"]].id,
-            biome=biome,
-            world_minute=0,
-            public_name=public_name,
-            metadata={"authored": True, "region_id": content["id"]},
-            status="closed",
-        )
+        if content["id"] in carriage_stops:
+            stop_key, public_name, biome = carriage_stops[content["id"]]
+            await ensure_carriage_stop(
+                session,
+                stop_key=stop_key,
+                room_id=rows[content["start_room"]].id,
+                biome=biome,
+                world_minute=0,
+                public_name=public_name,
+                metadata={"authored": True, "region_id": content["id"]},
+                status="closed",
+            )
         synced[content["id"]] = rows
     return synced
+
+
+async def _sync_drazna_carriage_topology(session) -> None:
+    """Synchronize the Mudwheel and Grey Heron without revealing Drazna.
+
+    The three physical Draznan stops and all routes touching them exist while
+    closed so room interactions have a durable stop to inspect. Only an
+    authored ``FrontierNode`` marks actual procedural discovery; the temporary
+    Oakrun playtest bridge intentionally does not.
+    """
+    room_content_ids = (
+        "oakrun_crossroads",
+        "drazna_lantern_quays",
+        "drazna_high_crown",
+        "drazna_birch_heights",
+    )
+    rooms = {
+        row.content_id: row
+        for row in (await session.execute(
+            select(Room).where(Room.content_id.in_(room_content_ids))
+        )).scalars()
+    }
+    missing = set(room_content_ids) - set(rooms)
+    if missing:
+        raise ValueError(
+            "Drazna carriage rooms are missing: " + ", ".join(sorted(missing))
+        )
+
+    discovered = (await session.execute(
+        select(FrontierNode.id).where(
+            FrontierNode.authored_region_id == "drazna"
+        )
+    )).scalars().first() is not None
+    desired_stop_status = "operating" if discovered else "closed"
+
+    stop_specs = (
+        {
+            "stop_key": "stop:drazna-lantern-quays",
+            "room_content_id": "drazna_lantern_quays",
+            "public_name": "Drazna Lantern Quays",
+            "object_id": "drazna_quay_carriage",
+            "accepts_generated_routes": True,
+        },
+        {
+            "stop_key": "stop:drazna-high-crown",
+            "room_content_id": "drazna_high_crown",
+            "public_name": "Drazna High Crown",
+            "object_id": "drazna_crown_mudwheel",
+            "accepts_generated_routes": False,
+        },
+        {
+            "stop_key": "stop:drazna-birch-heights",
+            "room_content_id": "drazna_birch_heights",
+            "public_name": "Drazna Birch Heights",
+            "object_id": "drazna_heights_mudwheel",
+            "accepts_generated_routes": False,
+        },
+    )
+    stops: dict[str, CarriageStop] = {}
+    for spec in stop_specs:
+        room = rooms[spec["room_content_id"]]
+        by_room = (await session.execute(
+            select(CarriageStop).where(CarriageStop.room_id == room.id)
+        )).scalars().first()
+        by_key = (await session.execute(
+            select(CarriageStop).where(
+                CarriageStop.stop_key == spec["stop_key"]
+            )
+        )).scalars().first()
+        if by_room is not None and by_key is not None and by_room.id != by_key.id:
+            raise ValueError(
+                f"Drazna carriage stop {spec['stop_key']!r} conflicts with "
+                f"room {spec['room_content_id']!r}"
+            )
+        stop = by_room or by_key
+        if stop is None:
+            stop = CarriageStop(
+                stop_key=spec["stop_key"],
+                room_id=room.id,
+                public_name=spec["public_name"],
+                biome="drazna_marches",
+                status=desired_stop_status,
+                created_at_minute=0,
+                details={},
+            )
+            session.add(stop)
+        stop.stop_key = spec["stop_key"]
+        stop.room_id = room.id
+        stop.public_name = spec["public_name"]
+        stop.biome = "drazna_marches"
+        # A future damage system may own ``damaged`` after discovery. Content
+        # sync still closes every stop when no procedural discovery exists.
+        if not discovered or stop.status != "damaged":
+            stop.status = desired_stop_status
+        stop.details = {
+            "authored": True,
+            "region_id": "drazna",
+            "service_id": "mudwheel",
+            "activation_group": DRAZNA_CARRIAGE_ACTIVATION_GROUP,
+            "physical_object_id": spec["object_id"],
+            "accepts_generated_routes": spec["accepts_generated_routes"],
+        }
+        stops[spec["room_content_id"]] = stop
+    await session.flush()
+
+    oakrun_stop = (await session.execute(
+        select(CarriageStop).where(
+            CarriageStop.room_id == rooms["oakrun_crossroads"].id
+        )
+    )).scalars().first()
+    if oakrun_stop is None:
+        raise ValueError("Oakrun Exchange must exist before Drazna routes sync")
+
+    mudwheel = _LIVING_WORLD_CONTENT.carriages["mudwheel"]
+    climb = _LIVING_WORLD_CONTENT.routes["drazna-quay-high-crown"]
+    birch = _LIVING_WORLD_CONTENT.routes["drazna-high-birch"]
+    mudwheel_departures = [
+        departure
+        for departure in mudwheel["departures"]
+        if departure["from_location_id"] == "drazna_lantern_quays"
+    ]
+    outbound_days = sorted({
+        departure["day"] for departure in mudwheel_departures
+    })
+    outbound_minutes = sorted({
+        int(departure["minute"]) for departure in mudwheel_departures
+    })
+    if not outbound_days or len(outbound_minutes) != 1:
+        raise ValueError("Mudwheel requires one authored outbound clock time")
+    outbound_minute = outbound_minutes[0]
+    layover = int(mudwheel["layover_minutes"])
+    crown_up_minute = outbound_minute + int(climb["travel_minutes"]) + layover
+    birch_down_minute = crown_up_minute + int(birch["travel_minutes"]) + layover
+    crown_down_minute = birch_down_minute + int(birch["travel_minutes"]) + layover
+
+    grey_heron = _LIVING_WORLD_CONTENT.carriages["grey-heron"]
+    grey_routes = [
+        _LIVING_WORLD_CONTENT.routes[route_id]
+        for route_id in grey_heron["route_ids"]
+    ]
+    grey_travel_minutes = sum(
+        int(route["travel_minutes"]) for route in grey_routes
+    ) + (
+        max(0, len(grey_routes) - 1)
+        * int(grey_heron["layover_minutes"])
+    )
+    grey_danger = sum(
+        {"safe": 0, "guarded": 1, "dangerous": 2, "dire": 3}[route["risk"]]
+        for route in grey_routes
+    )
+
+    route_specs = (
+        {
+            "route_key": "service:mudwheel:quays-to-crown",
+            "from": stops["drazna_lantern_quays"],
+            "to": stops["drazna_high_crown"],
+            "travel_minutes": int(climb["travel_minutes"]),
+            "fare": 2,
+            "danger": 1,
+            "activation_status": "operating",
+            "departures": [outbound_minute],
+            "details": {
+                "service_id": "mudwheel",
+                "passage_id": climb["id"],
+                "risk": climb["risk"],
+                "service_days": outbound_days,
+                "boarding_grace_minutes": int(
+                    mudwheel["service_rules"]["waits_minutes"]
+                ),
+                "capacity": int(mudwheel["capacity"]),
+                "direction": "uphill",
+            },
+        },
+        {
+            "route_key": "service:mudwheel:crown-to-birch",
+            "from": stops["drazna_high_crown"],
+            "to": stops["drazna_birch_heights"],
+            "travel_minutes": int(birch["travel_minutes"]),
+            "fare": 1,
+            "danger": 0,
+            "activation_status": "operating",
+            "departures": [crown_up_minute],
+            "details": {
+                "service_id": "mudwheel",
+                "passage_id": birch["id"],
+                "risk": birch["risk"],
+                "service_days": outbound_days,
+                "boarding_grace_minutes": int(
+                    mudwheel["service_rules"]["waits_minutes"]
+                ),
+                "capacity": int(mudwheel["capacity"]),
+                "direction": "uphill",
+                "layover_before_minutes": layover,
+            },
+        },
+        {
+            "route_key": "service:mudwheel:birch-to-crown",
+            "from": stops["drazna_birch_heights"],
+            "to": stops["drazna_high_crown"],
+            "travel_minutes": int(birch["travel_minutes"]),
+            "fare": 1,
+            "danger": 0,
+            "activation_status": "operating",
+            "departures": [birch_down_minute],
+            "details": {
+                "service_id": "mudwheel",
+                "passage_id": birch["id"],
+                "risk": birch["risk"],
+                "service_days": outbound_days,
+                "boarding_grace_minutes": int(
+                    mudwheel["service_rules"]["waits_minutes"]
+                ),
+                "capacity": int(mudwheel["capacity"]),
+                "direction": "downhill",
+                "derived_return": True,
+            },
+        },
+        {
+            "route_key": "service:mudwheel:crown-to-quays",
+            "from": stops["drazna_high_crown"],
+            "to": stops["drazna_lantern_quays"],
+            "travel_minutes": int(climb["travel_minutes"]),
+            "fare": 2,
+            "danger": 1,
+            "activation_status": "operating",
+            "departures": [crown_down_minute],
+            "details": {
+                "service_id": "mudwheel",
+                "passage_id": climb["id"],
+                "risk": climb["risk"],
+                "service_days": outbound_days,
+                "boarding_grace_minutes": int(
+                    mudwheel["service_rules"]["waits_minutes"]
+                ),
+                "capacity": int(mudwheel["capacity"]),
+                "direction": "downhill",
+                "layover_before_minutes": layover,
+                "derived_return": True,
+            },
+        },
+    )
+
+    grey_departures = {
+        departure["from_location_id"]: departure
+        for departure in grey_heron["departures"]
+    }
+    route_specs += (
+        {
+            "route_key": "service:grey-heron:oakrun-to-drazna",
+            "from": oakrun_stop,
+            "to": stops["drazna_lantern_quays"],
+            "travel_minutes": grey_travel_minutes,
+            "fare": int(grey_heron["fare_coin"]),
+            "danger": grey_danger,
+            "activation_status": "dangerous",
+            "departures": [
+                int(grey_departures["oakrun_pilgrims_hollow"]["minute"])
+            ],
+            "details": {
+                "service_id": "grey-heron",
+                "route_ids": list(grey_heron["route_ids"]),
+                "risk": "dire",
+                "service_days": [
+                    grey_departures["oakrun_pilgrims_hollow"]["day"]
+                ],
+                "boarding_grace_minutes": int(
+                    grey_heron["service_rules"]["waits_minutes"]
+                ),
+                "capacity": int(grey_heron["capacity"]),
+                "layover_minutes": int(grey_heron["layover_minutes"]),
+                "runtime_terminal_alias": "oakrun_pilgrims_hollow",
+            },
+        },
+        {
+            "route_key": "service:grey-heron:drazna-to-oakrun",
+            "from": stops["drazna_lantern_quays"],
+            "to": oakrun_stop,
+            "travel_minutes": grey_travel_minutes,
+            "fare": int(grey_heron["fare_coin"]),
+            "danger": grey_danger,
+            "activation_status": "dangerous",
+            "departures": [
+                int(grey_departures["drazna_lantern_quays"]["minute"])
+            ],
+            "details": {
+                "service_id": "grey-heron",
+                "route_ids": list(reversed(grey_heron["route_ids"])),
+                "risk": "dire",
+                "service_days": [
+                    grey_departures["drazna_lantern_quays"]["day"]
+                ],
+                "boarding_grace_minutes": int(
+                    grey_heron["service_rules"]["waits_minutes"]
+                ),
+                "capacity": int(grey_heron["capacity"]),
+                "layover_minutes": int(grey_heron["layover_minutes"]),
+                "runtime_terminal_alias": "oakrun_pilgrims_hollow",
+            },
+        },
+    )
+
+    for spec in route_specs:
+        await _sync_authored_carriage_route(
+            session,
+            spec,
+            activated=discovered,
+        )
+
+
+async def _sync_authored_carriage_route(
+    session,
+    spec: dict,
+    *,
+    activated: bool,
+) -> CarriageRoute:
+    """Upsert one definition-owned direction without duplicating old edges."""
+    by_endpoints = (await session.execute(
+        select(CarriageRoute).where(
+            CarriageRoute.from_stop_id == spec["from"].id,
+            CarriageRoute.to_stop_id == spec["to"].id,
+        )
+    )).scalars().first()
+    by_key = (await session.execute(
+        select(CarriageRoute).where(
+            CarriageRoute.route_key == spec["route_key"]
+        )
+    )).scalars().first()
+    if (
+        by_endpoints is not None
+        and by_key is not None
+        and by_endpoints.id != by_key.id
+    ):
+        raise ValueError(
+            f"Authored carriage route {spec['route_key']!r} conflicts with "
+            "an existing directed edge"
+        )
+    route = by_endpoints or by_key
+    if route is None:
+        route = CarriageRoute(
+            route_key=spec["route_key"],
+            from_stop_id=spec["from"].id,
+            to_stop_id=spec["to"].id,
+            travel_minutes=spec["travel_minutes"],
+        )
+        session.add(route)
+    route.route_key = spec["route_key"]
+    route.from_stop_id = spec["from"].id
+    route.to_stop_id = spec["to"].id
+    route.travel_minutes = spec["travel_minutes"]
+    route.fare = spec["fare"]
+    route.danger = spec["danger"]
+    route.status = spec["activation_status"] if activated else "closed"
+    route.departures = list(spec["departures"])
+    route.details = {
+        "authored": True,
+        "region_id": "drazna",
+        "activation_group": DRAZNA_CARRIAGE_ACTIVATION_GROUP,
+        "activation_status": spec["activation_status"],
+        **spec["details"],
+    }
+    await session.flush()
+    return route
+
+
+async def _sync_temporary_oakrun_drazna_bridge(session) -> None:
+    """Ensure the isolated test bridge without altering frontier discovery."""
+    content_ids = {
+        content_id
+        for edge in TEMPORARY_OAKRUN_DRAZNA_BRIDGE
+        for content_id in edge[:2]
+    }
+    rooms = {
+        row.content_id: row
+        for row in (await session.execute(
+            select(Room).where(Room.content_id.in_(tuple(content_ids)))
+        )).scalars()
+    }
+    missing = content_ids - set(rooms)
+    if missing:
+        if not TEMPORARY_OAKRUN_DRAZNA_BRIDGE_ENABLED:
+            return
+        raise ValueError(
+            "Temporary Oakrun-Drazna bridge rooms are missing: "
+            + ", ".join(sorted(missing))
+        )
+    for source_id, target_id, x, y in TEMPORARY_OAKRUN_DRAZNA_BRIDGE:
+        source = rooms[source_id]
+        target = rooms[target_id]
+        if not TEMPORARY_OAKRUN_DRAZNA_BRIDGE_ENABLED:
+            await session.execute(delete(RoomConnection).where(
+                RoomConnection.from_room_id == source.id,
+                RoomConnection.to_room_id == target.id,
+                RoomConnection.from_x == x,
+                RoomConnection.from_y == y,
+            ))
+            continue
+        validate_connection(
+            _ALL_AUTHORED_ROOMS[source_id],
+            {"from_x": x, "from_y": y},
+        )
+        edge = (await session.execute(
+            select(RoomConnection).where(
+                RoomConnection.from_room_id == source.id,
+                RoomConnection.from_x == x,
+                RoomConnection.from_y == y,
+            )
+        )).scalars().first()
+        if edge is None:
+            session.add(RoomConnection(
+                from_room_id=source.id,
+                to_room_id=target.id,
+                from_x=x,
+                from_y=y,
+            ))
+        elif edge.to_room_id != target.id:
+            raise ValueError(
+                f"Temporary bridge door {source_id} ({x}, {y}) is already "
+                "owned by another connection"
+            )
 
 
 async def _sync_authored_frontier_exits(session, rooms_by_key) -> None:

@@ -4,11 +4,19 @@ from dataclasses import dataclass, field
 
 from sqlalchemy import func, select
 
+from backend.living_world.memory import Memory, synthesize_reflection
 from backend.living_world.service import (
     LivingWorldConfig,
     LivingWorldService,
 )
-from backend.living_world.store import epoch_datetime, retrieve_memory_rows
+from backend.living_world.store import (
+    epoch_datetime,
+    memory_from_row,
+    memory_rows,
+    reflection_source_rows,
+    remember_once,
+    retrieve_memory_rows,
+)
 from backend.models import (
     NPCGoal,
     NPCMemory,
@@ -451,6 +459,56 @@ async def test_goals_remain_private_world_state_not_player_quests(session):
     assert "quest_states" not in NPCGoal.metadata.tables
 
 
+async def test_reflection_evidence_query_is_bounded_and_semantically_exact(
+    session,
+):
+    _hall, _ante, gorrik, _mara = await _prototype_world(session)
+    for index in range(24):
+        await remember_once(
+            session,
+            Memory(
+                id=f"observation:{index:02}",
+                owner_id=gorrik.content_id,
+                kind="observation",
+                summary=f"Observation {index}",
+                tags=frozenset({"rot", f"thread-{index % 3}"}),
+                importance=float(index % 10 + 1),
+                confidence=0.75,
+                occurred_at=index,
+            ),
+        )
+    await remember_once(
+        session,
+        Memory(
+            id="reflection:old",
+            owner_id=gorrik.content_id,
+            kind="reflection",
+            summary="An older conclusion.",
+            tags=frozenset({"reflection", "rot"}),
+            importance=10.0,
+            confidence=0.9,
+            occurred_at=100,
+        ),
+    )
+
+    all_rows = await memory_rows(session, gorrik.content_id)
+    bounded_rows = await reflection_source_rows(session, gorrik.content_id)
+    full_result = synthesize_reflection(
+        (memory_from_row(row) for row in all_rows),
+        owner_id=gorrik.content_id,
+        world_minute=2_000,
+    )
+    bounded_result = synthesize_reflection(
+        (memory_from_row(row) for row in bounded_rows),
+        owner_id=gorrik.content_id,
+        world_minute=2_000,
+    )
+
+    assert len(bounded_rows) == 4
+    assert all(row.kind != "reflection" for row in bounded_rows)
+    assert bounded_result == full_result
+
+
 async def test_kingdom_goal_resolves_to_its_capital_room(session):
     hall, _ante, gorrik, _mara = await _prototype_world(session)
     await _clock_at_zero(session)
@@ -487,9 +545,10 @@ async def test_kingdom_goal_resolves_to_its_capital_room(session):
 async def test_complete_authored_catalogue_survives_a_dormant_day(session):
     await get_or_seed_default_room(session)
     await _clock_at_zero(session)
+    config = _config(catchup_cap_minutes=MINUTES_IN_DAY)
 
     result = await LivingWorldService(
-        config=_config(catchup_cap_minutes=MINUTES_IN_DAY),
+        config=config,
     ).advance(
         session,
         wall_now=MINUTES_IN_DAY * 60,
@@ -506,3 +565,11 @@ async def test_complete_authored_catalogue_survives_a_dormant_day(session):
     assert result.deliberations >= living_count * 3
     assert len(goal_owners) == living_count
     assert result.processed_events < _config().max_events_per_advance
+    overflow_conversations = (await session.execute(
+        select(func.count()).select_from(ScheduledWorldEvent).where(
+            ScheduledWorldEvent.kind == "npc_conversation",
+            ScheduledWorldEvent.status == "cancelled",
+            ScheduledWorldEvent.last_error == "conversation budget exhausted",
+        )
+    )).scalar_one()
+    assert overflow_conversations <= config.max_conversation_turns

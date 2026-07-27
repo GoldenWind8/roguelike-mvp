@@ -3,59 +3,66 @@
   "assets": [
     {
       "id": "drazna_ferry_skiff",
-      "image": "/art/world/objects/drazna/drazna-ferry-skiff-v1.png",
+      "image": "/art/world/objects/drazna/drazna-ferry-skiff-v1.webp",
       "suggested_logical_size": [3, 1],
       "suggested_visual_size": [4, 2],
       "role_tags": ["transport", "rescue", "lantern_quays"]
     },
     {
       "id": "amber_quay_stall",
-      "image": "/art/world/objects/drazna/amber-quay-stall-v1.png",
+      "image": "/art/world/objects/drazna/amber-quay-stall-v1.webp",
       "suggested_logical_size": [2, 2],
       "suggested_visual_size": [3, 3],
       "role_tags": ["vendor", "market", "lantern_quays"]
     },
     {
       "id": "sluice_control_wheel",
-      "image": "/art/world/objects/drazna/sluice-control-wheel-v1.png",
+      "image": "/art/world/objects/drazna/sluice-control-wheel-v1.webp",
       "suggested_logical_size": [2, 1],
       "suggested_visual_size": [2, 3],
       "role_tags": ["mechanism", "water_level", "high_crown"]
     },
     {
       "id": "house_of_names_rack",
-      "image": "/art/world/objects/drazna/house-of-names-rack-v1.png",
+      "image": "/art/world/objects/drazna/house-of-names-rack-v1.webp",
       "suggested_logical_size": [2, 1],
       "suggested_visual_size": [2, 3],
       "role_tags": ["memorial", "clue", "birch_heights"]
     },
     {
       "id": "roofwright_scaffold",
-      "image": "/art/world/objects/drazna/roofwright-scaffold-v1.png",
+      "image": "/art/world/objects/drazna/roofwright-scaffold-v1.webp",
       "suggested_logical_size": [3, 1],
       "suggested_visual_size": [4, 3],
       "role_tags": ["repair", "traversal", "walking_ward"]
     },
     {
       "id": "salvage_crane",
-      "image": "/art/world/objects/drazna/salvage-crane-v1.png",
+      "image": "/art/world/objects/drazna/salvage-crane-v1.webp",
       "suggested_logical_size": [2, 2],
       "suggested_visual_size": [3, 4],
       "role_tags": ["salvage", "access", "mud_crown"]
     },
     {
       "id": "low_lantern_cache",
-      "image": "/art/world/objects/drazna/low-lantern-cache-v1.png",
+      "image": "/art/world/objects/drazna/low-lantern-cache-v1.webp",
       "suggested_logical_size": [1, 1],
       "suggested_visual_size": [2, 2],
       "role_tags": ["loot", "crime", "undertide"]
     },
     {
       "id": "floodline_memorial",
-      "image": "/art/world/objects/drazna/floodline-memorial-v1.png",
+      "image": "/art/world/objects/drazna/floodline-memorial-v1.webp",
       "suggested_logical_size": [2, 1],
       "suggested_visual_size": [2, 3],
       "role_tags": ["memorial", "clue", "birch_heights"]
+    },
+    {
+      "id": "drazna_gate_chain_drum",
+      "image": "/art/world/objects/drazna/gate-seven-chain-drum-v1.webp",
+      "suggested_logical_size": [3, 2],
+      "suggested_visual_size": [3, 3],
+      "role_tags": ["mechanism", "climax", "gate_seven", "evidence"]
     }
   ]
 }

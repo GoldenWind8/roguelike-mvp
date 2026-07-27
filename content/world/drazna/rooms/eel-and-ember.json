@@ -1,0 +1,30 @@
+{
+  "id": "drazna_eel_and_ember",
+  "name": "The Eel and Ember",
+  "width": 17,
+  "height": 13,
+  "terrain": [
+    "#################",
+    "#...............#",
+    "#..#####.#####..#",
+    "#..#.........#..#",
+    "#..#.........#..#",
+    "#..#.........#..#",
+    "#..#............+",
+    "#..#.........#..#",
+    "#..#####.#####..#",
+    "#...............#",
+    "#...............#",
+    "#...............#",
+    "########+########"
+  ],
+  "spawn_points": [[7, 11], [8, 11], [9, 11], [8, 10]],
+  "enemy_spawns": [],
+  "objects": [
+    {"id": "drazna_inn_hearth", "type": "black_reed_brazier", "x": 8, "y": 5},
+    {"id": "drazna_inn_letters", "type": "drazna_refugee_bundles", "x": 5, "y": 4},
+    {"id": "drazna_inn_cache", "type": "low_lantern_cache", "x": 11, "y": 4},
+    {"id": "drazna_inn_manifest", "type": "drazna_false_manifest", "x": 14, "y": 9},
+    {"id": "drazna_inn_chest", "type": "chest", "x": 2, "y": 10}
+  ]
+}

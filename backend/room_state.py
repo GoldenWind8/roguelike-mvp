@@ -158,6 +158,52 @@ class RoomState:
                 return (x, y)
         return None
 
+    def free_arrival(self, from_room_id: int) -> tuple[int, int] | None:
+        """Choose a deterministic landing tile beside the return connection.
+
+        Spawn points express capacity, not a particular entrance. Multi-door
+        authored maps should place travelers near the way they used and never
+        directly on another exit tile. One-way legacy links retain the normal
+        spawn fallback.
+        """
+        reverse_tiles = sorted(
+            (
+                position
+                for position, target_room_id
+                in self.template.connections.items()
+                if target_room_id == from_room_id
+            ),
+            key=lambda point: (point[1], point[0]),
+        )
+        if not reverse_tiles:
+            return self.free_spawn()
+
+        exit_tiles = {
+            *self.template.connections.keys(),
+            *self.template.frontier_exits.keys(),
+        }
+        candidates = [
+            (x, y)
+            for y in range(self.template.height)
+            for x in range(self.template.width)
+            if (x, y) not in exit_tiles
+            and self.is_valid_position(x, y)
+            and not self.is_occupied(x, y)
+        ]
+        if not candidates:
+            return self.free_spawn()
+        return min(
+            candidates,
+            key=lambda point: (
+                min(
+                    abs(point[0] - anchor[0]) + abs(point[1] - anchor[1])
+                    for anchor in reverse_tiles
+                ),
+                point[1],
+                point[0],
+            ),
+        )
+
     def get_player(self, player_id: str) -> Player | None:
         return self.players.get(player_id)
 

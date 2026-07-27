@@ -33,10 +33,12 @@ import type {
   RumorView,
   ServerMessage,
   ShopView,
+  SituationView,
   WorldChronicleEntry,
   WorldTimeView,
 } from "../net/types";
 import { ambient } from "../audio/ambient";
+import { itemLogLabel } from "../ui/ItemArt";
 
 const TOKEN_KEY = "emberhollow.token";
 const NAME_KEY = "emberhollow.username";
@@ -108,8 +110,15 @@ function formatEvents(events: GameEvent[], state: RoomStatePayload): (LogLine | 
       case "npc_attacked":
         return line("attack", `${d.attacker_name} strikes ${nameOf(d.target_id)} for ${d.damage}.`);
       case "entity_damaged":
-        // Un-narrated damage (bomb blasts today) still gets a line.
+        // Attacks narrate their own damage. Other causes still need one
+        // truthful line: starvation is not an explosion.
         if (narratedTargets.has(d.target_id)) return null;
+        if (d.cause === "starvation") {
+          return line(
+            "danger",
+            `${nameOf(d.target_id)} loses ${d.damage} vigor to starvation.`,
+          );
+        }
         return line("attack", `The blast catches ${nameOf(d.target_id)} for ${d.damage}.`);
       case "player_died":
       case "enemy_died":
@@ -130,15 +139,15 @@ function formatEvents(events: GameEvent[], state: RoomStatePayload): (LogLine | 
       // --- loot system (docs/LOOT.md) ---
       case "chest_opened": {
         const finds = (e.data.items as ChestFind[]) ?? [];
-        const names = finds.map((f) => `${f.item.art.value} ${f.item.name}`).join(", ");
+        const names = finds.map((f) => itemLogLabel(f.item)).join(", ");
         return line("item", `${nameOf(d.player_id)} pries the chest open — ${names}!`);
       }
       case "chest_looted":
-        return line("item", `${nameOf(d.player_id)} takes the ${itemOf(e).art.value} ${itemOf(e).name} from the chest.`);
+        return line("item", `${nameOf(d.player_id)} takes the ${itemLogLabel(itemOf(e))} from the chest.`);
       case "shop_purchased":
-        return line("item", `${nameOf(d.player_id)} buys ${itemOf(e).art.value} ${itemOf(e).name} for ${d.price} coins.`);
+        return line("item", `${nameOf(d.player_id)} buys ${itemLogLabel(itemOf(e))} for ${d.price} coins.`);
       case "item_generated":
-        return line("danger", `✨ Something never seen before takes shape: ${itemOf(e).art.value} ${itemOf(e).name} (${itemOf(e).rarity})!`);
+        return line("danger", `✨ Something never seen before takes shape: ${itemLogLabel(itemOf(e))} (${itemOf(e).rarity})!`);
       case "item_consumed":
         return line("item", `${nameOf(d.player_id)} uses the ${itemOf(e).name}.`);
       case "item_thrown":
@@ -234,6 +243,8 @@ export interface GameState {
   noticeboard: NoticeboardView | null;
   carriage: CarriageView | null;
   carriagePending: "name" | "travel" | null;
+  situation: SituationView | null;
+  situationPending: boolean;
   discoveryToast: DiscoveryToastState | null;
   /** Player-private knowledge supplied by world_sync and its deltas. */
   worldTime: WorldTimeView | null;
@@ -267,6 +278,8 @@ const initialState: GameState = {
   noticeboard: null,
   carriage: null,
   carriagePending: null,
+  situation: null,
+  situationPending: false,
   discoveryToast: null,
   worldTime: null,
   rumors: [],
@@ -283,6 +296,7 @@ const initialState: GameState = {
 
 type Action =
   | { type: "logged_in"; username: string }
+  | { type: "logged_out" }
   | { type: "auth_failed"; message: string }
   | { type: "status"; status: ConnectionStatus }
   | { type: "server"; msg: ServerMessage }
@@ -295,6 +309,8 @@ type Action =
   | { type: "close_noticeboard" }
   | { type: "close_carriage" }
   | { type: "carriage_pending"; pending: "name" | "travel" }
+  | { type: "close_situation" }
+  | { type: "situation_pending" }
   | { type: "dismiss_discovery"; id: number }
   | { type: "open_world_drawer"; tab?: WorldDrawerTab }
   | { type: "close_world_drawer" }
@@ -304,6 +320,7 @@ type Action =
   | { type: "log"; kind: LogKind; text: string };
 
 const MAX_LOG = 80;
+const MAX_WORLD_CHRONICLE = 120;
 
 function appendLog(log: LogLine[], lines: (LogLine | null)[]): LogLine[] {
   const add = lines.filter((l): l is LogLine => l !== null);
@@ -333,6 +350,25 @@ function preserveUnread<T extends { unread: boolean }>(
     unreadKeys.has(item[key]) && !item.unread
       ? { ...item, unread: true }
       : item);
+}
+
+function mergeChronicle(
+  current: WorldChronicleEntry[],
+  incoming: WorldChronicleEntry[],
+): WorldChronicleEntry[] {
+  const byId = new Map(current.map((entry) => [entry.id, entry]));
+  for (const entry of incoming) {
+    const existing = byId.get(entry.id);
+    byId.set(entry.id, existing?.unread && !entry.unread
+      ? { ...entry, unread: true }
+      : entry);
+  }
+  return [...byId.values()]
+    .sort((a, b) =>
+      (a.world_minute ?? a.world_tick ?? 0)
+      - (b.world_minute ?? b.world_tick ?? 0)
+      || a.id.localeCompare(b.id))
+    .slice(-MAX_WORLD_CHRONICLE);
 }
 
 function countWorldUnread(state: Pick<GameState, "rumors" | "worldChronicle" | "knownPeople">): number {
@@ -365,7 +401,18 @@ function markWorldTabRead(state: GameState, tab: WorldDrawerTab): GameState {
 function reduce(state: GameState, action: Action): GameState {
   switch (action.type) {
     case "logged_in":
-      return { ...state, username: action.username, screen: "game", loginError: null };
+      // Authentication is an identity boundary. Never let room state, nearby
+      // names, dialogue, or transient event text from the previous account
+      // survive a same-page login (including test harnesses and expired-token
+      // recovery). Only the local audio preference belongs to the device.
+      return {
+        ...initialState,
+        username: action.username,
+        screen: "game",
+        musicOn: state.musicOn,
+      };
+    case "logged_out":
+      return { ...initialState, musicOn: state.musicOn };
     case "auth_failed":
       // Back to the front door, but keep local preferences (music).
       return { ...initialState, musicOn: state.musicOn, loginError: action.message };
@@ -400,6 +447,12 @@ function reduce(state: GameState, action: Action): GameState {
       return { ...state, carriage: null, carriagePending: null };
     case "carriage_pending":
       return { ...state, carriagePending: action.pending };
+    case "close_situation":
+      return state.situationPending
+        ? state
+        : { ...state, situation: null, situationPending: false };
+    case "situation_pending":
+      return { ...state, situationPending: true };
     case "dismiss_discovery":
       return state.discoveryToast?.id === action.id
         ? { ...state, discoveryToast: null }
@@ -447,6 +500,10 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
         noticeboard: msg.type === "room_changed" ? null : state.noticeboard,
         carriage: msg.type === "room_changed" ? null : state.carriage,
         carriagePending: msg.type === "room_changed" ? null : state.carriagePending,
+        situation: msg.type === "room_changed" ? null : state.situation,
+        situationPending: msg.type === "room_changed"
+          ? false
+          : state.situationPending,
       };
       // Chest popup lifecycle rides in the broadcasts everyone gets: YOUR
       // open raises it; ANYONE's take marks a card taken (players at one
@@ -523,6 +580,8 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
         noticeboard: null,
         carriage: null,
         carriagePending: null,
+        situation: null,
+        situationPending: false,
       };
     case "shop_stock":
       if (!state.shop || state.shop.id !== msg.shop_id) return state;
@@ -537,6 +596,8 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
         shop: null,
         carriage: null,
         carriagePending: null,
+        situation: null,
+        situationPending: false,
       };
     case "carriage_opened":
       return {
@@ -552,6 +613,7 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
           destinations: msg.destinations,
           can_name: msg.can_name,
           name_limit: msg.name_limit,
+          service: msg.service,
         },
         carriagePending: null,
         inspection: null,
@@ -559,6 +621,8 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
         lootReveal: null,
         shop: null,
         noticeboard: null,
+        situation: null,
+        situationPending: false,
       };
     case "carriage_stop_named": {
       if (!state.carriage) return state;
@@ -586,6 +650,39 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
         carriagePending: null,
       };
     }
+    case "situation_opened":
+      return {
+        ...state,
+        situation: msg.situation,
+        situationPending: false,
+        inspection: null,
+        dialogue: null,
+        lootReveal: null,
+        shop: null,
+        noticeboard: null,
+        carriage: null,
+        carriagePending: null,
+      };
+    case "situation_resolved":
+      if (!state.situation || state.situation.id !== msg.situation_id) {
+        return state;
+      }
+      return {
+        ...state,
+        situation: {
+          ...state.situation,
+          resolved: true,
+          outcome: msg.outcome,
+          result: msg.result,
+          choices: [],
+        },
+        situationPending: false,
+        log: appendLog(state.log, [{
+          id: ++logSeq,
+          kind: "discovery",
+          text: msg.result,
+        }]),
+      };
     case "travel_started":
       return {
         ...state,
@@ -598,6 +695,14 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
         }]),
       };
     case "carriage_arrived":
+      {
+        const total = msg.journey_minutes || msg.travel_minutes;
+        const waited = msg.wait_minutes > 0
+          ? `, including ${msg.wait_minutes} minutes waiting`
+          : "";
+        const danger = msg.danger > 0
+          ? ` The road carried danger ${msg.danger}.`
+          : "";
       return {
         ...state,
         carriage: null,
@@ -605,9 +710,10 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
         log: appendLog(state.log, [{
           id: ++logSeq,
           kind: "ambient",
-          text: `The carriage reaches ${msg.stop.name} after ${msg.travel_minutes} minutes (${msg.fare} coins).`,
+          text: `The carriage reaches ${msg.stop.name} after ${total} minutes${waited} (${msg.fare} coins).${danger}`,
         }]),
       };
+      }
     case "frontier_discovered":
       return {
         ...state,
@@ -627,11 +733,7 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
     case "world_sync":
       {
         const rumors = preserveUnread(state.rumors, msg.rumors, "id");
-        const worldChronicle = preserveUnread(
-          state.worldChronicle,
-          msg.chronicle,
-          "id",
-        );
+        const worldChronicle = mergeChronicle(state.worldChronicle, msg.chronicle);
         const knownPeople = preserveUnread(
           state.knownPeople,
           msg.known_people,
@@ -666,7 +768,7 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
         : msg.entry;
       const next = {
         ...state,
-        worldChronicle: upsertById(state.worldChronicle, entry),
+        worldChronicle: mergeChronicle(state.worldChronicle, [entry]),
       };
       return { ...next, worldUnread: countWorldUnread(next) };
     }
@@ -686,6 +788,7 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
         log: appendLog(state.log, [{ id: ++logSeq, kind: "error", text: msg.message }]),
         dialogue: state.dialogue ? { ...state.dialogue, pending: false } : null,
         carriagePending: null,
+        situationPending: false,
       };
     case "action_locked":
       return { ...state, actionLocked: true };
@@ -731,6 +834,9 @@ interface GameApi {
   closeCarriage(): void;
   nameCarriageStop(name: string): void;
   travelByCarriage(destinationId: number): void;
+  openSituation(objectId: string): void;
+  resolveSituation(choiceId: string): void;
+  closeSituation(): void;
   dismissDiscovery(id: number): void;
   /** Take one chosen item from an opened chest (the popup's Take button).
    * `index` is the item's current position among the chest's leftovers. */
@@ -835,6 +941,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       logout() {
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem(NAME_KEY);
+        socketRef.current?.close();
+        socketRef.current = null;
+        dispatch({ type: "logged_out" });
         location.reload();
       },
       rejoin() {
@@ -922,13 +1031,31 @@ export function GameProvider({ children }: { children: ReactNode }) {
         const carriage = stateRef.current.carriage;
         if (!carriage || stateRef.current.carriagePending) return;
         const destination = carriage.destinations.find((stop) => stop.stop_id === destinationId);
-        if (!destination) return;
+        if (!destination || !destination.available_now) return;
         dispatch({ type: "carriage_pending", pending: "travel" });
         socket().send({
           type: "travel_by_carriage",
           object_id: carriage.object_id,
           stop_id: destinationId,
         });
+      },
+      openSituation(objectId) {
+        socket().send({ type: "open_situation", object_id: objectId });
+      },
+      resolveSituation(choiceId) {
+        const situation = stateRef.current.situation;
+        if (!situation || situation.resolved || stateRef.current.situationPending) return;
+        const choice = situation.choices.find((candidate) => candidate.id === choiceId);
+        if (!choice) return;
+        dispatch({ type: "situation_pending" });
+        socket().send({
+          type: "resolve_situation",
+          object_id: situation.object_id,
+          choice_id: choiceId,
+        });
+      },
+      closeSituation() {
+        dispatch({ type: "close_situation" });
       },
       dismissDiscovery(id) {
         dispatch({ type: "dismiss_discovery", id });

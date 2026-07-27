@@ -1,7 +1,7 @@
 /** Shared daily shop stock. Every Buy is a server transaction; this view only
  * mirrors the remaining globally available slots. */
 import { useGame, useGameApi } from "../store/gameStore";
-import { itemIcon } from "./Hotbar";
+import { ItemArt } from "./ItemArt";
 
 
 export function ShopModal() {
@@ -41,7 +41,7 @@ export function ShopModal() {
               return (
                 <article key={entry.slot} className={`shop-item rarity-${entry.item.rarity}`}>
                   {entry.minted && <span className="shop-new">new today</span>}
-                  <div className="shop-item-icon">{itemIcon(entry.item)}</div>
+                  <ItemArt item={entry.item} className="shop-item-icon" />
                   <div className="shop-item-copy">
                     <strong>{entry.item.name}</strong>
                     <em>{entry.item.rarity} {entry.item.type}</em>

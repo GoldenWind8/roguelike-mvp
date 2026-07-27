@@ -5,7 +5,7 @@
  * what combat will use. Below them: what you're wearing and what's ticking.
  */
 import { packOf, useGame } from "../store/gameStore";
-import { itemIcon } from "./Hotbar";
+import { ItemArt } from "./ItemArt";
 
 export function PlayerPanel() {
   const { room, playerId, username } = useGame();
@@ -83,7 +83,8 @@ export function PlayerPanel() {
         <div className="you-worn">
           {worn.map((s, i) => (
             <span key={i} title={s.item.description}>
-              {itemIcon(s.item)} {s.item.name}
+              <ItemArt item={s.item} className="worn-item-icon" />
+              <span>{s.item.name}</span>
             </span>
           ))}
         </div>

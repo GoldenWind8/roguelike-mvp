@@ -15,7 +15,25 @@ def test_authored_catalogues_are_runtime_sources():
     assert enemy_art("Road Bandit").image == "/art/world/enemies/road-bandit-v1.png"
     assert get_object_definition("stone_well").visual_size == (2, 3)
     assert get_object_definition("wayfarers_rest_exterior").footprint[-1] == (4, 1)
-    assert {enemy["id"] for enemy in ENEMY_DEFS} == set(range(1, 13))
+    assert {enemy["id"] for enemy in ENEMY_DEFS} == set(range(1, 17))
+
+
+def test_drazna_people_have_dedicated_runtime_portraits():
+    expected = {
+        "queen_mara_vey": "mara-vey",
+        "ilya_sorn": "ilya-sorn",
+        "nera_bell": "nera-bell",
+        "olek_var": "olek-var",
+        "pava_mirek": "pava-mirek",
+        "vasko_mirek": "vasko-mirek",
+        "vesna_korr": "vesna-korr",
+        "alin_vey": "alin-vey",
+    }
+    for art_id, filename in expected.items():
+        art = get_actor_art(art_id)
+        assert art is not None
+        assert art.image == f"/art/world/npcs/drazna/{filename}-world-v1.webp"
+        assert art.visual_size == (1, 2)
 
 
 def test_oakrun_world_and_persistent_npcs_load_from_json():
@@ -25,7 +43,8 @@ def test_oakrun_world_and_persistent_npcs_load_from_json():
     assert OAKRUN_ROOM == world["rooms"]["oakrun_crossroads"]
     assert OAKRUN_ROOM["id"] == "oakrun_crossroads"
     assert len(world["rooms"]) == 8
-    assert len(OAKRUN_NPC_SEEDS) == len(npcs) == 10
+    assert len(OAKRUN_NPC_SEEDS) == 10
+    assert len(npcs) == 16
 
 
 def test_oakrun_relationships_reference_real_people():

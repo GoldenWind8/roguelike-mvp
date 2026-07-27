@@ -62,7 +62,9 @@ async def test_every_authored_oakrun_room_and_connection_loads(session):
     templates = [await load_room(session, row.id) for row in rows]
 
     assert {row.content_id for row in rows} == set(OAKRUN_ROOMS)
-    assert sum(len(template.connections) for template in templates) == 18
+    # Eighteen authored Oakrun edges plus the isolated, temporary Drazna
+    # playtest bridge from the Fieldsite.
+    assert sum(len(template.connections) for template in templates) == 19
     assert all(template.exits for template in templates)
 
 

@@ -6,8 +6,8 @@
  * store); closing the popup never talks to the server.
  */
 import { useGame, useGameApi, type LootFind } from "../store/gameStore";
-import { itemIcon } from "./Hotbar";
 import type { ItemView } from "../net/types";
+import { ItemArt } from "./ItemArt";
 
 const STAT_WORDS: Record<string, string> = {
   attack_damage: "strength",
@@ -46,7 +46,7 @@ function FindCard({ find, onTake, mine }: { find: LootFind; onTake: () => void; 
   return (
     <div className={`loot-card loot-${it.rarity} ${find.takenBy ? "loot-card-taken" : ""}`}>
       {find.minted && <div className="loot-minted">✨ never seen before</div>}
-      <div className="loot-card-icon">{itemIcon(it)}</div>
+      <ItemArt item={it} className="loot-card-icon" />
       <div className="loot-card-name">{it.name}</div>
       <div className="loot-card-rarity">{it.rarity}</div>
       <div className="loot-card-desc">{it.description}</div>

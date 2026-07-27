@@ -31,6 +31,7 @@ from backend.models import (
     WorldEvent,
     WorldState,
 )
+from backend.object_defs import ObjectDiscovery
 
 
 @lru_cache(maxsize=1)
@@ -65,6 +66,10 @@ def _when(world_minute: int) -> str:
     return _time_view(world_minute)["label"]
 
 
+_CHRONICLE_SCAN_LIMIT = 400
+_CHRONICLE_HISTORY_LIMIT = 120
+
+
 async def observe_room(
     session: AsyncSession,
     *,
@@ -72,18 +77,31 @@ async def observe_room(
     room_id: int,
     world_minute: int,
 ) -> int:
-    """Remember every living person visibly present in the player's room."""
+    """Remember people and visible changes in the player's current room.
+
+    The snapshot is deliberately evidence-shaped: a wound or body can remain
+    known after the player leaves, while an off-screen simulation change never
+    overwrites what the player last observed.
+    """
     room = await session.get(Room, room_id)
     people = (await session.execute(
         select(NPCRow).where(
             NPCRow.room_id == room_id,
-            NPCRow.is_alive.is_(True),
             NPCRow.content_id.is_not(None),
         )
     )).scalars().all()
+    known_rows = (await session.execute(
+        select(PlayerKnowledge).where(
+            PlayerKnowledge.player_id == player_id,
+            PlayerKnowledge.kind == "person",
+        )
+    )).scalars().all()
+    known_by_key = {row.knowledge_key: row for row in known_rows}
+    visible_keys: set[str] = set()
     created = 0
     for npc in people:
         key = str(npc.content_id)
+        visible_keys.add(key)
         relation = (await session.execute(
             select(NPCRelationship).where(
                 NPCRelationship.source_npc_content_id == key,
@@ -91,14 +109,21 @@ async def observe_room(
                 NPCRelationship.target_id == player_id,
             )
         )).scalars().first()
-        existing = (await session.execute(
-            select(PlayerKnowledge).where(
-                PlayerKnowledge.player_id == player_id,
-                PlayerKnowledge.kind == "person",
-                PlayerKnowledge.knowledge_key == key,
-            )
-        )).scalars().first()
+        existing = known_by_key.get(key)
+        condition = _condition_snapshot(npc)
+        availability = "dead" if not npc.is_alive else "present"
+        last_seen_note = _condition_note(condition["kind"])
+        previous = dict(existing.payload or {}) if existing else {}
+        changed = existing is None or any((
+            previous.get("last_seen_room_id") != room_id,
+            previous.get("availability") != availability,
+            previous.get("condition") != condition,
+            previous.get("relationship") != _relationship_tone(relation),
+            previous.get("relationship_note") != _relationship_note(relation),
+        ))
+        revision = int(previous.get("revision", 0)) + (1 if changed else 0)
         payload = {
+            **previous,
             "npc_content_id": key,
             "last_seen_room_id": room_id,
             "last_seen_room_name": room.name if room else "Unknown place",
@@ -108,9 +133,17 @@ async def observe_room(
             # simulation when constructing a player payload.
             "relationship": _relationship_tone(relation),
             "relationship_note": _relationship_note(relation),
+            "availability": availability,
+            "condition": condition,
+            "last_seen_note": last_seen_note,
+            "revision": max(1, revision),
+            "updated_at_minute": (
+                world_minute if changed
+                else int(previous.get("updated_at_minute", world_minute))
+            ),
         }
         if existing is None:
-            session.add(PlayerKnowledge(
+            existing = PlayerKnowledge(
                 player_id=player_id,
                 kind="person",
                 knowledge_key=key,
@@ -120,13 +153,32 @@ async def observe_room(
                 learned_at_minute=world_minute,
                 place=room.name if room else None,
                 payload=payload,
-            ))
+            )
+            session.add(existing)
+            known_by_key[key] = existing
             created += 1
         else:
             existing.title = npc.name
             existing.body = npc.persona.get("role", existing.body)
             existing.place = room.name if room else existing.place
             existing.payload = payload
+
+    # Returning to someone's last-known place and finding it empty is evidence
+    # of an absence, but not evidence of where they went or whether they live.
+    for known in known_rows:
+        previous = dict(known.payload or {})
+        if (
+            known.knowledge_key in visible_keys
+            or previous.get("last_seen_room_id") != room_id
+            or previous.get("availability") in {"away", "travelling", "dead"}
+        ):
+            continue
+        previous["availability"] = "away"
+        previous["last_seen_note"] = "They were gone when you returned."
+        previous["revision"] = int(previous.get("revision", 0)) + 1
+        previous["updated_at_minute"] = world_minute
+        known.payload = previous
+
     evidence = (await session.execute(
         select(WorldEvent).where(
             WorldEvent.room_id == room_id,
@@ -135,6 +187,13 @@ async def observe_room(
         ).order_by(WorldEvent.world_minute, WorldEvent.id)
     )).scalars().all()
     for event in evidence:
+        expires_at = (event.payload or {}).get("expires_at_minute")
+        if (
+            isinstance(expires_at, int)
+            and not isinstance(expires_at, bool)
+            and world_minute >= expires_at
+        ):
+            continue
         key = f"evidence:{event.id}"
         existing = (await session.execute(
             select(PlayerKnowledge).where(
@@ -160,6 +219,51 @@ async def observe_room(
             ))
             created += 1
     return created
+
+
+async def record_object_discovery(
+    session: AsyncSession,
+    *,
+    player_id: str,
+    room_id: int,
+    object_id: str,
+    discovery: ObjectDiscovery,
+    world_minute: int,
+) -> tuple[PlayerKnowledge, bool]:
+    """Remember one authored environmental clue on deliberate inspection.
+
+    Object descriptions remain ordinary scenery.  Only definitions carrying
+    explicit discovery metadata cross into the durable Chronicle, which keeps
+    exploration meaningful without turning every prop into a tracked task.
+    """
+    existing = (await session.execute(
+        select(PlayerKnowledge).where(
+            PlayerKnowledge.player_id == player_id,
+            PlayerKnowledge.kind == "clue",
+            PlayerKnowledge.knowledge_key == discovery.key,
+        )
+    )).scalar_one_or_none()
+    if existing is not None:
+        return existing, False
+    room = await session.get(Room, room_id)
+    row = PlayerKnowledge(
+        player_id=player_id,
+        kind="clue",
+        knowledge_key=discovery.key,
+        title=discovery.title,
+        body=discovery.summary,
+        provenance="found",
+        learned_at_minute=world_minute,
+        source=object_id,
+        place=room.name if room else None,
+        payload={
+            "object_id": object_id,
+            "tags": list(discovery.tags),
+        },
+    )
+    session.add(row)
+    await session.flush()
+    return row, True
 
 
 async def dialogue_memory_context(
@@ -352,6 +456,7 @@ async def world_sync(
     *,
     player_id: str,
     current_room_id: int,
+    commit: bool = True,
 ) -> dict:
     world = await session.get(WorldState, 1)
     minute = world.world_minute if world else 0
@@ -362,6 +467,7 @@ async def world_sync(
         world_minute=minute,
     )
     player_state = await session.get(PlayerWorldState, player_id)
+    initial_sync = player_state is None
     if player_state is None:
         player_state = PlayerWorldState(
             player_id=player_id,
@@ -371,6 +477,18 @@ async def world_sync(
         session.add(player_state)
         await session.flush()
     away_after = player_state.last_seen_world_minute
+    preferences = dict(player_state.preferences or {})
+    knowledge_cursor = int(preferences.get("last_seen_knowledge_id", 0))
+    seen_person_revisions = {
+        str(key): int(value)
+        for key, value in dict(
+            preferences.get("known_person_revisions", {})
+        ).items()
+    }
+    retained_event_ids = [
+        int(event_id)
+        for event_id in preferences.get("chronicle_event_ids", [])
+    ][-_CHRONICLE_HISTORY_LIMIT:]
 
     knowledge = (await session.execute(
         select(PlayerKnowledge).where(
@@ -387,7 +505,7 @@ async def world_sync(
             "source": row.source,
             "place": row.place,
             "related_npc_ids": row.payload.get("related_npc_ids", []),
-            "unread": row.learned_at_minute > away_after,
+            "unread": not initial_sync and row.id > knowledge_cursor,
         }
         for row in knowledge
         if row.kind == "rumor"
@@ -400,20 +518,68 @@ async def world_sync(
             row.knowledge_key for row in knowledge if row.kind == "rumor"
         },
         current_room_id=current_room_id,
-        away_after=away_after,
+        seen_revisions=seen_person_revisions,
+        suppress_unread=initial_sync,
     )
-    events = (await session.execute(
+    # Chronicle history is returned as a bounded durable view, rather than
+    # only as a one-shot delta. Reloading the client therefore cannot erase a
+    # public event the player had already learned.
+    if initial_sync:
+        scanned_events = (await session.execute(
+            select(WorldEvent).order_by(WorldEvent.id.desc()).limit(
+                _CHRONICLE_SCAN_LIMIT
+            )
+        )).scalars().all()
+        scanned_events.reverse()
+    else:
+        # Consume unseen events from the durable cursor in ascending chunks.
+        # Taking the latest global rows here would let a burst of private
+        # simulation noise permanently bury an earlier public or witnessed
+        # event before the player had any chance to learn it.
+        scanned_events = (await session.execute(
+            select(WorldEvent).where(
+                WorldEvent.id > player_state.last_seen_event_id
+            ).order_by(WorldEvent.id).limit(_CHRONICLE_SCAN_LIMIT)
+        )).scalars().all()
+    # Local aftermath becomes eligible when a player later visits its room,
+    # even if the event predates their global scan cursor.
+    local_aftermath = (await session.execute(
         select(WorldEvent).where(
-            WorldEvent.id > player_state.last_seen_event_id
-        ).order_by(WorldEvent.world_minute, WorldEvent.id).limit(80)
+            WorldEvent.room_id == current_room_id,
+            WorldEvent.visibility == "public_aftermath",
+            WorldEvent.kind != "authored_conversation",
+        ).order_by(WorldEvent.id.desc()).limit(_CHRONICLE_HISTORY_LIMIT)
     )).scalars().all()
-    visible = [
+    retained_events = (
+        (await session.execute(
+            select(WorldEvent).where(WorldEvent.id.in_(retained_event_ids))
+        )).scalars().all()
+        if retained_event_ids
+        else []
+    )
+    known_person_ids = {
+        row.knowledge_key for row in knowledge if row.kind == "person"
+    }
+    candidate_events = {
+        event.id: event
+        for event in (*scanned_events, *local_aftermath)
+    }
+    newly_eligible = [
         event
-        for event in events
-        if event.visibility == "public"
-        or player_id in (event.witnesses or [])
-        or event.actor_id == player_id
-    ][-30:]
+        for event in candidate_events.values()
+        if _event_visible_to_player(
+            event,
+            player_id=player_id,
+            current_room_id=current_room_id,
+        )
+    ]
+    learned_by_id = {event.id: event for event in retained_events}
+    learned_by_id.update({event.id: event for event in newly_eligible})
+    visible = sorted(
+        learned_by_id.values(),
+        key=lambda event: (event.world_minute, event.id),
+    )[-_CHRONICLE_HISTORY_LIMIT:]
+    previously_retained = set(retained_event_ids)
     chronicle = [
         {
             "id": f"event:{event.id}",
@@ -421,15 +587,20 @@ async def world_sync(
             "happened_at": _when(event.world_minute),
             "title": _event_title(event),
             "body": event.summary,
-            "provenance": (
-                "witnessed" if player_id in (event.witnesses or []) else "heard"
+            "provenance": _event_provenance(
+                event,
+                player_id=player_id,
+                current_room_id=current_room_id,
+                previously_learned=event.id in previously_retained,
             ),
             "place": await _room_name(session, event.room_id),
             "actor_world_ids": [
-                actor for actor in (event.actor_id, event.target_id) if actor
+                actor
+                for actor in (event.actor_id, event.target_id)
+                if actor == player_id or actor in known_person_ids
             ],
             "while_away": event.world_minute > away_after,
-            "unread": event.world_minute > away_after,
+            "unread": not initial_sync and event.id not in previously_retained,
         }
         for event in visible
     ]
@@ -439,17 +610,29 @@ async def world_sync(
         "happened_at": _when(row.learned_at_minute),
         "title": row.title,
         "body": row.body,
-        "provenance": "found",
+        "provenance": row.provenance,
         "place": row.place,
         "actor_world_ids": [],
         "while_away": row.learned_at_minute > away_after,
-        "unread": row.learned_at_minute > away_after,
+        "unread": not initial_sync and row.id > knowledge_cursor,
     } for row in knowledge if row.kind == "clue")
     chronicle.sort(key=lambda entry: (entry["world_minute"], entry["id"]))
     player_state.last_seen_world_minute = minute
-    if events:
-        player_state.last_seen_event_id = max(event.id for event in events)
-    await session.commit()
+    if scanned_events:
+        player_state.last_seen_event_id = max(event.id for event in scanned_events)
+    if knowledge:
+        preferences["last_seen_knowledge_id"] = max(row.id for row in knowledge)
+    preferences["known_person_revisions"] = {
+        row.knowledge_key: int((row.payload or {}).get("revision", 1))
+        for row in knowledge
+        if row.kind == "person"
+    }
+    preferences["chronicle_event_ids"] = [event.id for event in visible]
+    player_state.preferences = preferences
+    if commit:
+        await session.commit()
+    else:
+        await session.flush()
     return {
         "type": "world_sync",
         "time": _time_view(minute),
@@ -466,7 +649,8 @@ async def _known_people_view(
     rows: list[PlayerKnowledge],
     known_rumor_ids: set[str],
     current_room_id: int,
-    away_after: int,
+    seen_revisions: dict[str, int],
+    suppress_unread: bool,
 ) -> list[dict]:
     result: list[dict] = []
     content = _content()
@@ -504,10 +688,21 @@ async def _known_people_view(
             if len(topics) == 3:
                 break
         present = npc.room_id == current_room_id
+        observed_availability = known.payload.get("availability", "unknown")
         availability = (
             "dead" if present and not npc.is_alive
             else "present" if present
-            else "away"
+            else observed_availability
+            if observed_availability in {"away", "travelling", "dead"}
+            else "unknown"
+        )
+        condition = (
+            _condition_snapshot(npc)
+            if present
+            else known.payload.get("condition", {
+                "kind": "unknown",
+                "label": "Condition unknown",
+            })
         )
         relationship = (
             _relationship_tone(relation)
@@ -535,11 +730,37 @@ async def _known_people_view(
                 "at": _when(int(known.payload.get(
                     "last_seen_minute", known.learned_at_minute
                 ))),
+                "note": known.payload.get("last_seen_note"),
             },
+            "condition": condition,
             "dialogue_topics": topics,
-            "unread": known.learned_at_minute > away_after,
+            "unread": (
+                not suppress_unread
+                and int(known.payload.get("revision", 1))
+                > seen_revisions.get(known.knowledge_key, 0)
+            ),
         })
-    return sorted(result, key=lambda item: (item["availability"] != "present", item["name"]))
+    order = {"present": 0, "travelling": 1, "away": 2, "unknown": 3, "dead": 4}
+    return sorted(result, key=lambda item: (order[item["availability"]], item["name"]))
+
+
+def _condition_snapshot(npc: NPCRow) -> dict[str, str]:
+    if not npc.is_alive or npc.hp <= 0:
+        return {"kind": "dead", "label": "Known dead"}
+    ratio = npc.hp / max(1, npc.max_hp)
+    if ratio <= 0.3:
+        return {"kind": "critical", "label": "Gravely wounded"}
+    if ratio < 1:
+        return {"kind": "wounded", "label": "Wounded"}
+    return {"kind": "well", "label": "Appeared unhurt"}
+
+
+def _condition_note(kind: str) -> str | None:
+    return {
+        "dead": "You saw them dead here.",
+        "critical": "They were gravely wounded when last seen.",
+        "wounded": "They were wounded when last seen.",
+    }.get(kind)
 
 
 def _relationship_tone(row: NPCRelationship | None) -> str:
@@ -581,11 +802,52 @@ def _activity_view(goal: NPCGoal | None, availability: str) -> dict:
     return {
         "kind": kind,
         "label": (
-            "Travelling somewhere beyond your sight"
+            "Preparing to travel"
             if kind == "travelling"
             else "Occupied with private concerns"
         ),
     }
+
+
+def _event_visible_to_player(
+    event: WorldEvent,
+    *,
+    player_id: str,
+    current_room_id: int,
+) -> bool:
+    """Apply the evidence boundary to one durable world event."""
+    if player_id in (event.witnesses or []) or event.actor_id == player_id:
+        return True
+    # Legacy worlds may still hold old authored-conversation rows marked as
+    # local aftermath. Spoken words leave no physical trace, so never reveal
+    # them merely because a player later enters the same room.
+    if event.kind == "authored_conversation":
+        return False
+    if event.visibility == "public":
+        return True
+    if event.visibility != "public_aftermath":
+        return False
+    # Public aftermath means the trace is locally discoverable, not that news
+    # travels telepathically. Knowing a person must never reveal their distant
+    # injury, disappearance, or death by itself; a witnessed/public event,
+    # authored rumor, discoverable clue, or later visit must carry that truth.
+    return event.room_id == current_room_id
+
+
+def _event_provenance(
+    event: WorldEvent,
+    *,
+    player_id: str,
+    current_room_id: int,
+    previously_learned: bool = False,
+) -> str:
+    if player_id in (event.witnesses or []) or event.actor_id == player_id:
+        return "witnessed"
+    if event.visibility == "public_aftermath" and (
+        event.room_id == current_room_id or previously_learned
+    ):
+        return "found"
+    return "heard"
 
 
 def _event_title(event: WorldEvent) -> str:

@@ -1,0 +1,33 @@
+{
+  "id": "drazna_pressure_gallery",
+  "name": "The Lower Pressure Gallery",
+  "width": 17,
+  "height": 13,
+  "terrain": [
+    "########+########",
+    "#...............#",
+    "#..###.....###..#",
+    "#...............#",
+    "#..#..#####..#..#",
+    "#...............#",
+    "+...............#",
+    "#...............#",
+    "#..#..#####..#..#",
+    "#...............#",
+    "#..###.....###..#",
+    "#...............#",
+    "########+########"
+  ],
+  "spawn_points": [[7, 1], [8, 1], [9, 1], [8, 2]],
+  "enemy_spawns": [
+    {"enemy_id": 14, "x": 14, "y": 4},
+    {"enemy_id": 15, "x": 12, "y": 9}
+  ],
+  "objects": [
+    {"id": "drazna_pressure_main_gauge", "type": "drazna_pressure_gauge", "x": 4, "y": 3},
+    {"id": "drazna_pressure_pipe", "type": "drazna_listening_pipe", "x": 11, "y": 4},
+    {"id": "drazna_pressure_tools", "type": "drazna_sluice_tools", "x": 4, "y": 8},
+    {"id": "drazna_pressure_dryline", "type": "drazna_dryline_chalk", "x": 9, "y": 7},
+    {"id": "drazna_pressure_chest", "type": "chest", "x": 14, "y": 10}
+  ]
+}

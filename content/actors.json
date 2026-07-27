@@ -8,5 +8,14 @@
   {"id": "town_watch", "image": "/art/world/npcs/town-watch-v1.png", "visual_size": [1, 2]},
   {"id": "travelling_peddler", "image": "/art/world/npcs/travelling-peddler-v1.png", "visual_size": [1, 2]},
   {"id": "road_weary_traveller", "image": "/art/world/npcs/road-weary-traveller-v1.png", "visual_size": [1, 2]},
+  {"id": "queen_mara_vey", "image": "/art/world/npcs/drazna/mara-vey-world-v1.webp", "visual_size": [1, 2]},
+  {"id": "ilya_sorn", "image": "/art/world/npcs/drazna/ilya-sorn-world-v1.webp", "visual_size": [1, 2]},
+  {"id": "nera_bell", "image": "/art/world/npcs/drazna/nera-bell-world-v1.webp", "visual_size": [1, 2]},
+  {"id": "olek_var", "image": "/art/world/npcs/drazna/olek-var-world-v1.webp", "visual_size": [1, 2]},
+  {"id": "pava_mirek", "image": "/art/world/npcs/drazna/pava-mirek-world-v1.webp", "visual_size": [1, 2]},
+  {"id": "vasko_mirek", "image": "/art/world/npcs/drazna/vasko-mirek-world-v1.webp", "visual_size": [1, 2]},
+  {"id": "vesna_korr", "image": "/art/world/npcs/drazna/vesna-korr-world-v1.webp", "visual_size": [1, 2]},
+  {"id": "alin_vey", "image": "/art/world/npcs/drazna/alin-vey-world-v1.webp", "visual_size": [1, 2]},
+  {"id": "sluicebound_gate_seven", "image": "/art/world/enemies/drazna/sluicebound-gate-seven-v1.webp", "visual_size": [2, 3]},
   {"id": "homunculus_fieldsite", "image": "/art/world/actors/homunculus-fieldsite-v1.png", "visual_size": [1, 2]}
 ]

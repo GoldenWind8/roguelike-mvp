@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import type {
   KnownNpcAvailability,
+  KnownNpcCondition,
   KnownNpcView,
   KnowledgeProvenance,
   RelationshipTone,
@@ -13,7 +14,7 @@ import { useGame, useGameApi, type WorldDrawerTab } from "../store/gameStore";
 const TABS: { id: WorldDrawerTab; label: string; icon: string }[] = [
   { id: "rumors", label: "Rumors", icon: "⌁" },
   { id: "people", label: "People", icon: "◇" },
-  { id: "chronicle", label: "While Away", icon: "◷" },
+  { id: "chronicle", label: "Chronicle", icon: "◷" },
 ];
 
 const PROVENANCE: Record<KnowledgeProvenance, string> = {
@@ -45,6 +46,14 @@ const AVAILABILITY_ORDER: Record<KnownNpcAvailability, number> = {
   away: 2,
   unknown: 3,
   dead: 4,
+};
+
+const CONDITION: Record<KnownNpcCondition, { label: string; icon: string }> = {
+  well: { label: "Appeared unhurt", icon: "·" },
+  wounded: { label: "Wounded when last seen", icon: "✚" },
+  critical: { label: "Gravely wounded when last seen", icon: "!" },
+  dead: { label: "Known dead", icon: "†" },
+  unknown: { label: "Condition unknown", icon: "?" },
 };
 
 function timeIcon(phase: WorldPhase | undefined): string {
@@ -115,12 +124,16 @@ function PersonPortrait({ npc }: { npc: KnownNpcView }) {
 }
 
 function PersonCard({ npc }: { npc: KnownNpcView }) {
-  // Until fresh evidence says otherwise, an absent person's current state is
-  // unknown. Never turn a simulator-owned travel goal or death into player
-  // knowledge merely because it exists in a sync payload.
-  const visibleAvailability: KnownNpcAvailability =
-    npc.availability === "present" ? "present" : "unknown";
+  // Every non-present state in this payload is an observation snapshot, not
+  // simulator truth: e.g. "away" means the player returned and found them
+  // gone, while "dead" means the player witnessed the body.
+  const visibleAvailability = npc.availability;
   const availability = AVAILABILITY[visibleAvailability];
+  const condition = npc.condition ? CONDITION[npc.condition.kind] : null;
+  const showCondition = condition
+    && npc.condition?.kind !== "well"
+    && npc.condition?.kind !== "unknown"
+    && !(visibleAvailability === "dead" && npc.condition?.kind === "dead");
   return (
     <article
       className={[
@@ -153,6 +166,12 @@ function PersonCard({ npc }: { npc: KnownNpcView }) {
           <div className={`person-cue activity-${npc.activity.kind}`}>
             <span className="activity-pulse" aria-hidden />
             <span>{npc.activity.label}</span>
+          </div>
+        )}
+        {showCondition && condition && npc.condition && (
+          <div className={`person-cue condition-${npc.condition.kind}`}>
+            <span aria-hidden>{condition.icon}</span>
+            <span>{condition.label}</span>
           </div>
         )}
       </div>
@@ -235,8 +254,8 @@ function PeoplePage({ people }: { people: KnownNpcView[] }) {
     );
   }
   const sorted = [...people].sort((a, b) =>
-    AVAILABILITY_ORDER[a.availability === "present" ? "present" : "unknown"]
-    - AVAILABILITY_ORDER[b.availability === "present" ? "present" : "unknown"]
+    AVAILABILITY_ORDER[a.availability]
+    - AVAILABILITY_ORDER[b.availability]
     || a.name.localeCompare(b.name));
   return (
     <>

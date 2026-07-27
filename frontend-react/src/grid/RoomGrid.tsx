@@ -73,9 +73,21 @@ function objectIcon(obj: ObjectSummary): string {
 }
 
 function objectActionLabel(obj: ObjectSummary): string {
-  return obj.interaction === "carriage"
-    ? `Open carriage routes at ${obj.label}`
-    : `Inspect ${obj.label}`;
+  if (obj.type === "chest") {
+    return obj.opened ? `Look inside ${obj.label}` : `Open ${obj.label}`;
+  }
+  switch (obj.interaction) {
+    case "shop":
+      return `Browse wares at ${obj.label}`;
+    case "noticeboard":
+      return `Read ${obj.label}`;
+    case "carriage":
+      return `Open carriage routes at ${obj.label}`;
+    case "situation":
+      return `Attend to ${obj.label}`;
+    default:
+      return `Inspect ${obj.label}`;
+  }
 }
 
 // The server's targeting rule for attack AND talk: orthogonally adjacent
@@ -277,7 +289,7 @@ export function RoomGrid() {
 
   useEffect(() => {
     recenterCamera(true);
-  }, [recenterCamera]);
+  }, [recenterCamera, room?.room.id, room?.room.width, room?.room.height]);
 
   useEffect(() => {
     const recenter = () => recenterCamera(true);
@@ -349,6 +361,10 @@ export function RoomGrid() {
     }
     if (obj.interaction === "carriage" && me && distanceToObject(me.position, obj) <= 1) {
       api.openCarriage(obj.id);
+      return;
+    }
+    if (obj.interaction === "situation" && me && distanceToObject(me.position, obj) <= 1) {
+      api.openSituation(obj.id);
       return;
     }
     api.inspect(obj.id);

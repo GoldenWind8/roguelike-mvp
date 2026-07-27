@@ -592,6 +592,234 @@
         "distortion": "volatile",
         "contexts": ["carriage", "inn", "market", "work"]
       }
+    },
+    {
+      "id": "first-scar-salt-barge",
+      "topic": "A salt barge brought the black water that made Drazna's First Scar.",
+      "truth": {
+        "classification": "unresolved",
+        "account": "An arrival book dates a salt barge immediately before the public First Scar report, but its cargo column was cut away and black residue appears in a sealed pre-proclamation roll. The sequence identifies a lead, not a birthplace.",
+        "evidence": [
+          "Drina's uncensored arrival book names the barge and gives an exact bell time.",
+          "The corresponding crown manifest has a neatly removed cargo line.",
+          "A sealed tablet predating the public proclamation carries the same residue without naming its source."
+        ]
+      },
+      "beliefs": [
+        {
+          "id": "drina-first-scar-barge",
+          "holder_npc_id": "drina-sable",
+          "claim": "The salt barge arrived before the public alarm, but the cut cargo line makes certainty a fool's performance.",
+          "confidence": 91,
+          "truth_alignment": "accurate",
+          "source": {"kind": "document", "ref": "eel-and-ember-arrival-book", "chain": []}
+        },
+        {
+          "id": "teo-first-scar-barge",
+          "holder_npc_id": "teo-latch",
+          "claim": "A manifest without a cargo line is worth more than a whole one; somebody paid to make the barge look like an answer.",
+          "confidence": 72,
+          "truth_alignment": "partial",
+          "source": {"kind": "npc", "ref": "drina-sable", "chain": ["drina-sable"]}
+        }
+      ],
+      "transmission": {
+        "share_threshold": 48,
+        "distortion": "volatile",
+        "contexts": ["inn", "market", "work"]
+      }
+    },
+    {
+      "id": "first-scar-palace-drain",
+      "topic": "The First Scar flowed out from beneath the Palace of Still Water.",
+      "truth": {
+        "classification": "partial",
+        "account": "Reverse-water scoring and matching residue establish that contaminated water passed through a palace drain before the public breach. They do not establish where the contamination formed or whether the flow direction stayed constant.",
+        "evidence": [
+          "Pressure-gallery stone is scored uphill toward the palace drain.",
+          "A pre-proclamation maintenance roll records an unexplained sealed-drain repair.",
+          "Later flood releases reversed several lower channels, so route does not prove source."
+        ]
+      },
+      "beliefs": [
+        {
+          "id": "rada-first-scar-drain",
+          "holder_npc_id": "rada-velic",
+          "claim": "The scoring proves contaminated water crossed the palace system. It does not tell me which way it first travelled.",
+          "confidence": 96,
+          "truth_alignment": "accurate",
+          "source": {"kind": "firsthand", "ref": "drazna_pressure_gallery", "chain": []}
+        },
+        {
+          "id": "sima-first-scar-drain",
+          "holder_npc_id": "sima-dren",
+          "claim": "The palace drain pushed hard enough to move a roof brace uphill; crowns call that coincidence when it is expensive.",
+          "confidence": 74,
+          "truth_alignment": "partial",
+          "source": {"kind": "npc", "ref": "rada-velic", "chain": ["rada-velic"]}
+        },
+        {
+          "id": "luka-first-scar-drain",
+          "holder_npc_id": "luka-nen",
+          "claim": "I saw the dark water under the palace side before the public bells, but no one below could see beyond the drain.",
+          "confidence": 100,
+          "truth_alignment": "accurate",
+          "source": {"kind": "firsthand", "ref": "drazna_gate_seven", "chain": []}
+        },
+        {
+          "id": "odran-first-scar-drain",
+          "holder_npc_id": "odran-third-bell",
+          "claim": "Black material reached Third Bell before the public scar. The gate showed passage, never beginning.",
+          "confidence": 100,
+          "truth_alignment": "accurate",
+          "source": {"kind": "firsthand", "ref": "drazna_gate_seven", "chain": []}
+        }
+      ],
+      "transmission": {
+        "share_threshold": 62,
+        "distortion": "volatile",
+        "contexts": ["work", "market", "inn"]
+      }
+    },
+    {
+      "id": "low-lantern-sold-list",
+      "topic": "Someone in the Low Lantern sold a Mudwheel passenger list to the crown.",
+      "truth": {
+        "classification": "confirmed",
+        "account": "Teo sold selected passenger names to Rada, claiming the exchange would avert a full market raid. The copied list was then taken from floodwarden custody and used for arrests neither Teo nor Rada authorized.",
+        "evidence": [
+          "Teo's false manifest and the crown copy share the same deliberate spelling error.",
+          "Rada's receipt records payment for a limited inspection list.",
+          "Arrest marks appear beside three additional names in another hand."
+        ]
+      },
+      "beliefs": [
+        {
+          "id": "teo-sold-list",
+          "holder_npc_id": "teo-latch",
+          "claim": "I sold Rada four names to stop a hundred stalls being searched. Someone added three names after she locked it away.",
+          "confidence": 100,
+          "truth_alignment": "accurate",
+          "source": {"kind": "firsthand", "ref": "drazna_low_lantern_den", "chain": []}
+        },
+        {
+          "id": "drina-sold-list",
+          "holder_npc_id": "drina-sable",
+          "claim": "Teo sold the list, Rada paid, and a third hand turned a bargain into arrests.",
+          "confidence": 88,
+          "truth_alignment": "accurate",
+          "source": {"kind": "npc", "ref": "teo-latch", "chain": ["teo-latch"]}
+        },
+        {
+          "id": "luka-sold-list",
+          "holder_npc_id": "luka-nen",
+          "claim": "The sold list carried the refuge names of people the closure tablets refused to count.",
+          "confidence": 83,
+          "truth_alignment": "partial",
+          "source": {"kind": "document", "ref": "copied-passenger-list", "chain": []}
+        },
+        {
+          "id": "rada-sold-list",
+          "holder_npc_id": "rada-velic",
+          "claim": "I bought a narrow safety list. The arrest copy has additions made after it left my sealed box.",
+          "confidence": 100,
+          "truth_alignment": "accurate",
+          "source": {"kind": "firsthand", "ref": "drazna_crown_sluice", "chain": []}
+        }
+      ],
+      "transmission": {
+        "share_threshold": 72,
+        "distortion": "soft",
+        "contexts": ["inn", "market", "work"]
+      }
+    },
+    {
+      "id": "mudwheel-uncounted-names",
+      "topic": "The Mudwheel carries names that the House of Names omitted.",
+      "truth": {
+        "classification": "confirmed",
+        "account": "Lina carries refugee letters and uncounted worker names uphill. Drina checks them against arrivals and Nera quietly enters corroborated names into a supplemental archive, making each trip both rescue work and political evidence.",
+        "evidence": [
+          "Bundles on the Mudwheel are indexed by household rather than fare.",
+          "Drina's arrival book preserves dates absent from the crown rolls.",
+          "Nera's supplemental tablets use the same return addresses as Lina's letters."
+        ]
+      },
+      "beliefs": [
+        {
+          "id": "drina-mudwheel-names",
+          "holder_npc_id": "drina-sable",
+          "claim": "Lina brings absences uphill; I add dates so Nera can turn them back into people.",
+          "confidence": 100,
+          "truth_alignment": "accurate",
+          "source": {"kind": "firsthand", "ref": "drazna_eel_and_ember", "chain": []}
+        },
+        {
+          "id": "teo-mudwheel-names",
+          "holder_npc_id": "teo-latch",
+          "claim": "The Mudwheel's cheapest cargo can unseat expensive officials, which is why everyone wants its route.",
+          "confidence": 85,
+          "truth_alignment": "accurate",
+          "source": {"kind": "npc", "ref": "drina-sable", "chain": ["drina-sable"]}
+        }
+      ],
+      "transmission": {
+        "share_threshold": 50,
+        "distortion": "soft",
+        "contexts": ["carriage", "inn", "market", "work"]
+      }
+    },
+    {
+      "id": "gate-seven-fourteen",
+      "topic": "Gate Seven had fourteen closure workers, though the crown memorial names nine.",
+      "truth": {
+        "classification": "confirmed",
+        "account": "Fourteen people were ordered into the final closure. Nine were publicly memorialized, four were omitted as hired hands, and Odran was erased after refusing evacuation. His survival and transformation do not explain the rot's origin.",
+        "evidence": [
+          "The gate drum repeats fourteen distinct closure beats.",
+          "Luka remembers all fourteen work calls and can name the omitted four.",
+          "A scraped duty tablet preserves Odran's Third Bell mark beneath the crown list."
+        ]
+      },
+      "beliefs": [
+        {
+          "id": "rada-gate-fourteen",
+          "holder_npc_id": "rada-velic",
+          "claim": "There were fourteen. The crown made nine into heroes because four were hired and one disobeyed an evacuation order.",
+          "confidence": 100,
+          "truth_alignment": "accurate",
+          "source": {"kind": "document", "ref": "scraped-gate-seven-tablet", "chain": []}
+        },
+        {
+          "id": "sima-gate-fourteen",
+          "holder_npc_id": "sima-dren",
+          "claim": "Every roofwright learns the fourteen-beat brace cadence, even while the memorial below insists on nine.",
+          "confidence": 96,
+          "truth_alignment": "accurate",
+          "source": {"kind": "firsthand", "ref": "drazna_roofwright_loft", "chain": []}
+        },
+        {
+          "id": "luka-gate-fourteen",
+          "holder_npc_id": "luka-nen",
+          "claim": "I carried calls between fourteen workers. The archive cannot make five voices disappear from my memory.",
+          "confidence": 100,
+          "truth_alignment": "accurate",
+          "source": {"kind": "firsthand", "ref": "drazna_gate_seven", "chain": []}
+        },
+        {
+          "id": "odran-gate-fourteen",
+          "holder_npc_id": "odran-third-bell",
+          "claim": "Fourteen hands closed the gate. Nine names bought the crown a cleaner story.",
+          "confidence": 100,
+          "truth_alignment": "accurate",
+          "source": {"kind": "firsthand", "ref": "drazna_gate_seven", "chain": []}
+        }
+      ],
+      "transmission": {
+        "share_threshold": 58,
+        "distortion": "stable",
+        "contexts": ["inn", "market", "work"]
+      }
     }
   ]
 }

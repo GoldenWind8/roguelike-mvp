@@ -1,0 +1,30 @@
+{
+  "id": "drazna_house_of_names",
+  "name": "The House of Names",
+  "width": 17,
+  "height": 13,
+  "terrain": [
+    "#################",
+    "#...............#",
+    "#..#####.#####..#",
+    "#...............#",
+    "#..#.........#..#",
+    "#..#.........#..#",
+    "+..#............+",
+    "#..#.........#..#",
+    "#..#.........#..#",
+    "#...............#",
+    "#..#####.#####..#",
+    "#...............#",
+    "########+########"
+  ],
+  "spawn_points": [[1, 5], [1, 6], [1, 7], [2, 6]],
+  "enemy_spawns": [],
+  "objects": [
+    {"id": "drazna_names_public_rack", "type": "house_of_names_rack", "x": 4, "y": 3},
+    {"id": "drazna_names_omitted", "type": "drazna_omitted_tablets", "x": 10, "y": 3},
+    {"id": "drazna_names_early_roll", "type": "drazna_preproclamation_roll", "x": 8, "y": 6},
+    {"id": "drazna_names_letters", "type": "drazna_refugee_bundles", "x": 6, "y": 8},
+    {"id": "drazna_names_chest", "type": "chest", "x": 13, "y": 9}
+  ]
+}

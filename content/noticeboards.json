@@ -22,5 +22,39 @@
         "body": "Hot supper at dusk. Muddy boots by the door, blades peace-bound inside."
       }
     ]
+  },
+  {
+    "id": "drazna_lantern_quays_board",
+    "object_id": "drazna_quay_notice",
+    "label": "Lantern Quays Noticeboard",
+    "max_player_posts": 30,
+    "post_ttl_days": 10,
+    "notices": [
+      {
+        "id": "falling-water-caution",
+        "author": "Floodwarden Office",
+        "body": "Falling water reveals roads and hazards together. White chalk marks expire at the next bell. The Crown does not certify red or yellow routes."
+      },
+      {
+        "id": "names-for-mudwheel",
+        "author": "Lina Pell",
+        "body": "Names, return addresses, and household letters ride uphill free on Mudwheel. Tie bundles in red cord. Absence is not death."
+      },
+      {
+        "id": "undertide-crew-roll",
+        "author": "Pava Mirek",
+        "body": "Roof hands who can brace wet timber: meet at the salvage crane before second light. Bring your own rule. Do not bring theories about my brother."
+      },
+      {
+        "id": "three-wicks",
+        "author": "Unsigned",
+        "body": "When the third low wick gutters, the road is passable once. Anyone promising safer terms is selling somebody else's rope."
+      },
+      {
+        "id": "first-record-wording",
+        "author": "House of Names",
+        "body": "The memorial records Drazna's first verified public account. It does not certify a birthplace. Corrections with dated sources are heard on Birch Heights."
+      }
+    ]
   }
 ]

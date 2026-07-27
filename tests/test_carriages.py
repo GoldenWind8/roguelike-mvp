@@ -93,7 +93,12 @@ async def test_first_arriving_player_can_name_a_generated_stop(session):
     assert named.status == "operating"
     assert named.named_by_player_id == player.id
 
-    routes = (await session.execute(select(CarriageRoute))).scalars().all()
+    routes = (await session.execute(
+        select(CarriageRoute).where(
+            (CarriageRoute.from_stop_id == stop.id)
+            | (CarriageRoute.to_stop_id == stop.id)
+        )
+    )).scalars().all()
     assert len(routes) == 2  # both directions to Oakrun
 
 
