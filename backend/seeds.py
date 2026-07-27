@@ -346,6 +346,7 @@ async def seed_oakrun_world(session) -> Room:
 
 def _npc_row(persona: dict, room_id: int, x: int, y: int, hp: int, defense: int, attack_damage: int) -> NPCRow:
     return NPCRow(
+        content_id=persona["id"],
         room_id=room_id,
         name=persona["name"],
         x=x, y=y,
@@ -379,6 +380,8 @@ async def _insert_npc_seeds(session, seeds, key_to_name, *, existing_ids=()) -> 
 
 
 def _persona_id(row: NPCRow) -> str | None:
+    if isinstance(row.content_id, str) and row.content_id:
+        return row.content_id
     return row.persona.get("id") if isinstance(row.persona, dict) else None
 
 
@@ -395,6 +398,9 @@ async def seed_npcs_if_missing(session) -> None:
         validate_persona(persona)
         row = rows_by_persona_id.get(persona["id"])
         if row is not None:
+            # Legacy rows held this identity only inside persona JSON. Keep the
+            # dedicated column authoritative from the first synchronized boot.
+            row.content_id = persona["id"]
             row.name = persona["name"]
             # Whole JSON assignment is required for SQLAlchemy change tracking.
             row.persona = dict(persona)

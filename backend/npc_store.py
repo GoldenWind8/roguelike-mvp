@@ -24,17 +24,42 @@ def _entity_id(db_id: int) -> str:
     return f"npc_{db_id}"
 
 
+def _validate_row_identity(row: NPCRow) -> None:
+    """Validate both the persona payload and its stable authored identity."""
+    validate_persona(row.persona)
+    persona_id = row.persona["id"]
+    if row.content_id is not None and row.content_id != persona_id:
+        raise ValueError(
+            f"NPC row {row.id} identity mismatch: "
+            f"content_id={row.content_id!r}, persona.id={persona_id!r}"
+        )
+
+
+async def get_npc_row_by_content_id(
+    session: AsyncSession, content_id: str,
+) -> NPCRow | None:
+    """Resolve story identity without depending on a replaceable numeric id."""
+    row = (await session.execute(
+        select(NPCRow).where(NPCRow.content_id == content_id)
+    )).scalar_one_or_none()
+    if row is not None:
+        _validate_row_identity(row)
+    return row
+
+
 async def load_npcs(session: AsyncSession, room_id: int) -> list[NPC]:
     """All individuals currently in a room, personas re-validated on the way
     in (the gate runs on load as well as insert, so a row edited by hand or a
     future generator can't smuggle a malformed persona into the world)."""
     rows = (await session.execute(
-        select(NPCRow).where(NPCRow.room_id == room_id)
+        select(NPCRow)
+        .where(NPCRow.room_id == room_id)
+        .order_by(NPCRow.content_id, NPCRow.id)
     )).scalars().all()
 
     npcs = []
     for row in rows:
-        validate_persona(row.persona)
+        _validate_row_identity(row)
         art = get_actor_art(row.persona.get("art_id"))
         npcs.append(NPC(
             id=_entity_id(row.id),

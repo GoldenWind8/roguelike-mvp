@@ -5,6 +5,7 @@ Nothing else in the app creates engines or sessions. Models inherit from
 SQLite (tests) for Postgres (prod) happens through DATABASE_URL alone — no
 code here changes.
 """
+import json
 from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import (
@@ -75,6 +76,9 @@ _COLUMN_BACKFILLS = [
     ("players", "hunger", "REAL", "100"),      # hunger meter (LOOT.md Decision 5)
     ("players", "coins", "INTEGER", "30"),     # exploration shops
     ("rooms", "content_id", "VARCHAR", "NULL"),  # authored content identity
+    # Living-world story identity. It is populated from the already-validated
+    # persona JSON immediately after the column is added.
+    ("npcs", "content_id", "VARCHAR", "NULL"),
 ]
 
 
@@ -89,3 +93,75 @@ def _backfill_columns(conn) -> None:
             conn.execute(text(
                 f"ALTER TABLE {table} ADD COLUMN {column} {ddl_type} DEFAULT {default}"
             ))
+    _backfill_npc_content_ids(conn)
+
+
+def _backfill_npc_content_ids(conn) -> None:
+    """Give legacy NPC rows their authored identity and enforce uniqueness.
+
+    Numeric row ids are database accidents, so no living-world record may use
+    them as story identity. Old saves already carry the stable id inside their
+    validated persona JSON; this migration only copies it into an indexed
+    column and never rewrites an identity that has already been assigned.
+    """
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(conn)
+    if not inspector.has_table("npcs"):
+        return
+    columns = {column["name"] for column in inspector.get_columns("npcs")}
+    if "content_id" not in columns:
+        return
+
+    rows = conn.execute(text(
+        "SELECT id, content_id, persona FROM npcs ORDER BY id"
+    )).mappings().all()
+    claimed: dict[str, int] = {}
+    assignments: list[tuple[int, str]] = []
+    for row in rows:
+        content_id = row["content_id"]
+        if not isinstance(content_id, str) or not content_id.strip():
+            persona = row["persona"]
+            if isinstance(persona, (bytes, bytearray)):
+                persona = persona.decode("utf-8")
+            if isinstance(persona, str):
+                try:
+                    persona = json.loads(persona)
+                except (TypeError, ValueError):
+                    persona = None
+            content_id = persona.get("id") if isinstance(persona, dict) else None
+            if isinstance(content_id, str) and content_id.strip():
+                content_id = content_id.strip()
+                assignments.append((row["id"], content_id))
+            else:
+                content_id = None
+
+        if content_id is not None:
+            previous = claimed.get(content_id)
+            if previous is not None:
+                raise RuntimeError(
+                    "cannot establish stable NPC identities: "
+                    f"rows {previous} and {row['id']} both use {content_id!r}"
+                )
+            claimed[content_id] = row["id"]
+
+    for row_id, content_id in assignments:
+        conn.execute(
+            text("UPDATE npcs SET content_id = :content_id WHERE id = :row_id"),
+            {"content_id": content_id, "row_id": row_id},
+        )
+
+    # create_all creates this unique index for fresh databases. Existing tables
+    # are invisible to create_all's DDL pass, so add the equivalent after data
+    # has been checked and backfilled.
+    inspector = inspect(conn)
+    has_unique_content_id = any(
+        index.get("unique")
+        and index.get("column_names") == ["content_id"]
+        for index in inspector.get_indexes("npcs")
+    )
+    if not has_unique_content_id:
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS "
+            "ix_npcs_content_id ON npcs (content_id)"
+        ))
