@@ -212,8 +212,8 @@ export interface RumorView {
   body: string;
   provenance: KnowledgeProvenance;
   learned_at: string;
-  source?: string;
-  place?: string;
+  source?: string | null;
+  place?: string | null;
   related_npc_ids?: string[];
   unread: boolean;
 }
@@ -227,7 +227,7 @@ export interface WorldChronicleEntry {
   title: string;
   body: string;
   provenance: KnowledgeProvenance;
-  place?: string;
+  place?: string | null;
   actor_world_ids?: string[];
   /** True when included in the bounded catch-up since this player's last visit. */
   while_away: boolean;
@@ -257,7 +257,7 @@ export interface KnownNpcView {
   role: string;
   image: string | null;
   relationship: RelationshipTone;
-  relationship_note?: string;
+  relationship_note?: string | null;
   availability: KnownNpcAvailability;
   activity?: NpcActivityView;
   last_seen?: {

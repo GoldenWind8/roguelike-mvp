@@ -38,7 +38,7 @@ export function DiscoveryToast() {
           <span aria-hidden> · </span>
           {depthLabel(discoveryToast.depth)}
         </p>
-        <em>{discoveryToast.majorRegion}</em>
+        <em>{titleCase(discoveryToast.majorRegion)}</em>
       </div>
       <button
         onClick={() => api.dismissDiscovery(discoveryToast.id)}

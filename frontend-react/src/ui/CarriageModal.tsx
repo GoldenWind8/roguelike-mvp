@@ -61,6 +61,7 @@ export function CarriageModal() {
 
   const stopName = carriage.stop.name;
   const trimmed = name.trim();
+  const validName = trimmed.length >= 2;
   const coins = playerId && room ? room.players[playerId]?.coins ?? 0 : 0;
 
   return (
@@ -101,7 +102,7 @@ export function CarriageModal() {
             className="carriage-naming"
             onSubmit={(event) => {
               event.preventDefault();
-              api.nameCarriageStop(trimmed);
+              if (validName) api.nameCarriageStop(trimmed);
             }}
           >
             <div>
@@ -112,6 +113,7 @@ export function CarriageModal() {
               <input
                 id="carriage-stop-name"
                 value={name}
+                minLength={2}
                 maxLength={carriage.name_limit}
                 disabled={carriagePending !== null}
                 placeholder="Carve a name into the post…"
@@ -122,7 +124,7 @@ export function CarriageModal() {
               />
               <button
                 type="submit"
-                disabled={!trimmed || carriagePending !== null}
+                disabled={!validName || carriagePending !== null}
               >
                 {carriagePending === "name" ? "Carving…" : "Name it"}
               </button>

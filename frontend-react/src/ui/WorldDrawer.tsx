@@ -74,10 +74,6 @@ function displayWhen(value: string): string {
   }).format(date);
 }
 
-function rumorSort(a: RumorView, b: RumorView): number {
-  return b.learned_at.localeCompare(a.learned_at);
-}
-
 function chronicleMinute(entry: WorldChronicleEntry): number {
   return entry.world_minute ?? entry.world_tick ?? 0;
 }
@@ -119,13 +115,18 @@ function PersonPortrait({ npc }: { npc: KnownNpcView }) {
 }
 
 function PersonCard({ npc }: { npc: KnownNpcView }) {
-  const availability = AVAILABILITY[npc.availability];
+  // Until fresh evidence says otherwise, an absent person's current state is
+  // unknown. Never turn a simulator-owned travel goal or death into player
+  // knowledge merely because it exists in a sync payload.
+  const visibleAvailability: KnownNpcAvailability =
+    npc.availability === "present" ? "present" : "unknown";
+  const availability = AVAILABILITY[visibleAvailability];
   return (
     <article
       className={[
         "world-card",
         "person-card",
-        `person-${npc.availability}`,
+        `person-${visibleAvailability}`,
         npc.unread ? "world-card-unread" : "",
       ].join(" ")}
     >
@@ -144,11 +145,11 @@ function PersonCard({ npc }: { npc: KnownNpcView }) {
       </div>
 
       <div className="person-cues">
-        <div className={`person-cue availability-${npc.availability}`}>
+        <div className={`person-cue availability-${visibleAvailability}`}>
           <span aria-hidden>{availability.icon}</span>
           <span>{availability.label}</span>
         </div>
-        {npc.activity?.label && (
+        {visibleAvailability === "present" && npc.activity?.label && (
           <div className={`person-cue activity-${npc.activity.kind}`}>
             <span className="activity-pulse" aria-hidden />
             <span>{npc.activity.label}</span>
@@ -158,7 +159,7 @@ function PersonCard({ npc }: { npc: KnownNpcView }) {
 
       {npc.relationship_note && <p className="relationship-note">{npc.relationship_note}</p>}
 
-      {npc.last_seen && npc.availability !== "present" && (
+      {npc.last_seen && visibleAvailability !== "present" && (
         <footer className="last-seen">
           <span>Last seen: {npc.last_seen.room_name}</span>
           <span>{displayWhen(npc.last_seen.at)}</span>
@@ -217,7 +218,9 @@ function RumorsPage({ rumors }: { rumors: RumorView[] }) {
         Stories as they reached you. They may be mistaken, incomplete, or told for a reason.
       </p>
       <div className="world-card-list">
-        {[...rumors].sort(rumorSort).map((rumor) => <RumorCard key={rumor.id} rumor={rumor} />)}
+        {/* world_sync is chronological and deltas append; reversing avoids
+            lexicographic "Day 9" > "Day 10" timestamp mistakes. */}
+        {[...rumors].reverse().map((rumor) => <RumorCard key={rumor.id} rumor={rumor} />)}
       </div>
     </>
   );
@@ -232,7 +235,8 @@ function PeoplePage({ people }: { people: KnownNpcView[] }) {
     );
   }
   const sorted = [...people].sort((a, b) =>
-    AVAILABILITY_ORDER[a.availability] - AVAILABILITY_ORDER[b.availability]
+    AVAILABILITY_ORDER[a.availability === "present" ? "present" : "unknown"]
+    - AVAILABILITY_ORDER[b.availability === "present" ? "present" : "unknown"]
     || a.name.localeCompare(b.name));
   return (
     <>
