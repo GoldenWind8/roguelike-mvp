@@ -1,0 +1,1329 @@
+{
+  "schema_version": 1,
+  "profiles": [
+    {
+      "id": "basil-oakrun",
+      "name": "Basil",
+      "role": "apothecary of Oakrun",
+      "kind": "resident",
+      "home_location_id": "oakrun_crossroads",
+      "deliberation_windows": [
+        {"minute": 330, "purpose": "care"},
+        {"minute": 690, "purpose": "work"},
+        {"minute": 990, "purpose": "replan"},
+        {"minute": 1260, "purpose": "safety"}
+      ],
+      "schedule": [
+        {"start_minute": 0, "location_id": "oakrun_crossroads", "activity": "sleep", "commitment": 95},
+        {"start_minute": 360, "location_id": "oakrun_crossroads", "activity": "work", "commitment": 95},
+        {"start_minute": 780, "location_id": "oakrun_orchard_lane", "activity": "care", "commitment": 55},
+        {"start_minute": 960, "location_id": "oakrun_crossroads", "activity": "work", "commitment": 85},
+        {"start_minute": 1200, "location_id": "oakrun_crossroads", "activity": "care", "commitment": 90}
+      ],
+      "needs": [
+        {"kind": "duty", "weight": 90, "satisfiers": ["care", "work"]},
+        {"kind": "belonging", "weight": 82, "satisfiers": ["protect", "socialize"]},
+        {"kind": "safety", "weight": 76, "satisfiers": ["hide", "protect"]}
+      ],
+      "private_goals": [
+        {
+          "id": "keep-family-ordinary",
+          "desire": "Keep his family safe inside the ordinary life they built in Oakrun.",
+          "priority": 5,
+          "approach": "protective",
+          "target": {"kind": "self", "id": "basil-oakrun"},
+          "risk_tolerance": "measured"
+        },
+        {
+          "id": "understand-silt-remedies",
+          "desire": "Keep refining remedies that slow the black silt without inviting questions about how he recognizes it.",
+          "priority": 4,
+          "approach": "secretive",
+          "target": {"kind": "rumor", "id": "medicine-stops-rot"},
+          "risk_tolerance": "avoidant"
+        }
+      ],
+      "movement": {
+        "travel_modes": ["walk", "carriage"],
+        "maximum_route_risk": "guarded",
+        "avoid_threats": ["barrow_dead", "drowned_dead", "rot_growth"],
+        "fallback_location_id": "oakrun_crossroads"
+      },
+      "belief_refs": [
+        {"rumor_id": "black-silt-erases-names", "belief_id": "basil-silt-names"},
+        {"rumor_id": "medicine-stops-rot", "belief_id": "basil-remedy"}
+      ],
+      "trigger_ids": ["basil-sabine-remedy-dispute"],
+      "offscreen_policy": {
+        "can_relocate": true,
+        "can_die": true,
+        "missed_windows_are_final": true,
+        "minimum_warning_memories": 2
+      }
+    },
+    {
+      "id": "elowen-wayfarers-rest",
+      "name": "Elowen Pike",
+      "role": "innkeeper of the Wayfarer's Rest",
+      "kind": "resident",
+      "home_location_id": "oakrun_crossroads",
+      "deliberation_windows": [
+        {"minute": 300, "purpose": "work"},
+        {"minute": 660, "purpose": "social"},
+        {"minute": 960, "purpose": "replan"},
+        {"minute": 1290, "purpose": "social"}
+      ],
+      "schedule": [
+        {"start_minute": 0, "location_id": "oakrun_crossroads", "activity": "sleep", "commitment": 90},
+        {"start_minute": 300, "location_id": "oakrun_crossroads", "activity": "work", "commitment": 100},
+        {"start_minute": 690, "location_id": "oakrun_crossroads", "activity": "socialize", "commitment": 80},
+        {"start_minute": 900, "location_id": "oakrun_crossroads", "activity": "work", "commitment": 100},
+        {"start_minute": 1260, "location_id": "oakrun_crossroads", "activity": "socialize", "commitment": 85}
+      ],
+      "needs": [
+        {"kind": "duty", "weight": 94, "satisfiers": ["work", "protect"]},
+        {"kind": "answers", "weight": 68, "satisfiers": ["investigate", "socialize"]},
+        {"kind": "belonging", "weight": 74, "satisfiers": ["socialize", "care"]}
+      ],
+      "private_goals": [
+        {
+          "id": "compare-eastward-stories",
+          "desire": "Compare dated eastward accounts until contradictions become useful rather than frightening.",
+          "priority": 4,
+          "approach": "social",
+          "target": {"kind": "rumor", "id": "drazna-first-record"},
+          "risk_tolerance": "avoidant"
+        },
+        {
+          "id": "shelter-returning-people",
+          "desire": "Keep one warm room available for travellers returning from Drazna with no money.",
+          "priority": 4,
+          "approach": "protective",
+          "target": {"kind": "location", "id": "oakrun_crossroads"},
+          "risk_tolerance": "measured"
+        }
+      ],
+      "movement": {
+        "travel_modes": ["walk"],
+        "maximum_route_risk": "safe",
+        "avoid_threats": ["barrow_dead", "black_silt", "road_bandits"],
+        "fallback_location_id": "oakrun_crossroads"
+      },
+      "belief_refs": [
+        {"rumor_id": "drazna-first-record", "belief_id": "elowen-drazna-first"},
+        {"rumor_id": "rouvray-burns-refugees", "belief_id": "elowen-rouvray-gates"}
+      ],
+      "trigger_ids": ["elowen-lina-refugee-night", "elowen-rowan-dated-rumor"],
+      "offscreen_policy": {
+        "can_relocate": true,
+        "can_die": true,
+        "missed_windows_are_final": true,
+        "minimum_warning_memories": 2
+      }
+    },
+    {
+      "id": "tom-oakrun-stable",
+      "name": "Tom Weller",
+      "role": "Oakrun stablehand",
+      "kind": "worker",
+      "home_location_id": "oakrun_crossroads",
+      "deliberation_windows": [
+        {"minute": 270, "purpose": "work"},
+        {"minute": 630, "purpose": "care"},
+        {"minute": 960, "purpose": "travel"},
+        {"minute": 1230, "purpose": "safety"}
+      ],
+      "schedule": [
+        {"start_minute": 0, "location_id": "oakrun_crossroads", "activity": "sleep", "commitment": 85},
+        {"start_minute": 270, "location_id": "oakrun_crossroads", "activity": "care", "commitment": 100},
+        {"start_minute": 720, "location_id": "oakrun_north_road", "activity": "investigate", "commitment": 45},
+        {"start_minute": 900, "location_id": "oakrun_crossroads", "activity": "work", "commitment": 95},
+        {"start_minute": 1170, "location_id": "oakrun_crossroads", "activity": "socialize", "commitment": 55}
+      ],
+      "needs": [
+        {"kind": "duty", "weight": 86, "satisfiers": ["care", "work"]},
+        {"kind": "answers", "weight": 52, "satisfiers": ["investigate", "travel"]},
+        {"kind": "belonging", "weight": 58, "satisfiers": ["socialize", "work"]}
+      ],
+      "private_goals": [
+        {
+          "id": "earn-drivers-seat",
+          "desire": "Prove he can read danger early enough to earn Hester's spare driver's seat.",
+          "priority": 4,
+          "approach": "dutiful",
+          "target": {"kind": "npc", "id": "hester-oakrun-carriage"},
+          "risk_tolerance": "measured"
+        },
+        {
+          "id": "name-black-mud",
+          "desire": "Learn why east-road mud frightens horses before it stains a wheel.",
+          "priority": 3,
+          "approach": "patient",
+          "target": {"kind": "rumor", "id": "rot-rides-carriages"},
+          "risk_tolerance": "measured"
+        }
+      ],
+      "movement": {
+        "travel_modes": ["walk", "carriage"],
+        "maximum_route_risk": "guarded",
+        "avoid_threats": ["barrow_dead", "drowned_dead"],
+        "fallback_location_id": "oakrun_crossroads"
+      },
+      "belief_refs": [
+        {"rumor_id": "east-road-is-closed", "belief_id": "tom-east-road"},
+        {"rumor_id": "rot-rides-carriages", "belief_id": "tom-carriage-rot"}
+      ],
+      "trigger_ids": ["tom-wren-black-mud"],
+      "offscreen_policy": {
+        "can_relocate": true,
+        "can_die": true,
+        "missed_windows_are_final": true,
+        "minimum_warning_memories": 1
+      }
+    },
+    {
+      "id": "hester-oakrun-carriage",
+      "name": "Hester Vale",
+      "role": "carriage driver on the Amberfall road",
+      "kind": "worker",
+      "home_location_id": "oakrun_crossroads",
+      "deliberation_windows": [
+        {"minute": 240, "purpose": "safety"},
+        {"minute": 420, "purpose": "travel"},
+        {"minute": 780, "purpose": "replan"},
+        {"minute": 1140, "purpose": "safety"}
+      ],
+      "schedule": [
+        {"start_minute": 0, "location_id": "oakrun_crossroads", "activity": "sleep", "commitment": 80},
+        {"start_minute": 240, "location_id": "oakrun_crossroads", "activity": "care", "commitment": 95},
+        {"start_minute": 390, "location_id": "oakrun_crossroads", "activity": "travel", "commitment": 85},
+        {"start_minute": 840, "location_id": "oakrun_crossroads", "activity": "repair", "commitment": 90},
+        {"start_minute": 1110, "location_id": "oakrun_crossroads", "activity": "socialize", "commitment": 55}
+      ],
+      "needs": [
+        {"kind": "duty", "weight": 96, "satisfiers": ["protect", "travel", "work"]},
+        {"kind": "safety", "weight": 88, "satisfiers": ["repair", "seek_safety"]},
+        {"kind": "rest", "weight": 46, "satisfiers": ["sleep"]}
+      ],
+      "private_goals": [
+        {
+          "id": "keep-oak-and-crown-running",
+          "desire": "Keep the Oak and Crown running without pretending any road is safer than it is.",
+          "priority": 5,
+          "approach": "dutiful",
+          "target": {"kind": "location", "id": "alderwick"},
+          "risk_tolerance": "measured"
+        },
+        {
+          "id": "test-erased-road",
+          "desire": "Decide whether Edda's eastern road can carry a real coach rather than a desperate cart.",
+          "priority": 3,
+          "approach": "patient",
+          "target": {"kind": "rumor", "id": "east-road-is-closed"},
+          "risk_tolerance": "measured"
+        }
+      ],
+      "movement": {
+        "travel_modes": ["walk", "carriage"],
+        "maximum_route_risk": "dangerous",
+        "avoid_threats": ["black_silt", "drowned_dead", "rot_growth"],
+        "fallback_location_id": "oakrun_crossroads"
+      },
+      "belief_refs": [
+        {"rumor_id": "east-road-is-closed", "belief_id": "hester-east-road"},
+        {"rumor_id": "rot-rides-carriages", "belief_id": "hester-carriage-rot"}
+      ],
+      "trigger_ids": ["alys-hester-carriage-warning", "edda-hester-east-road"],
+      "offscreen_policy": {
+        "can_relocate": true,
+        "can_die": true,
+        "missed_windows_are_final": true,
+        "minimum_warning_memories": 1
+      }
+    },
+    {
+      "id": "rowan-oakrun-courier",
+      "name": "Rowan Hale",
+      "role": "crown courier resting in Oakrun",
+      "kind": "traveller",
+      "home_location_id": "oakrun_crossroads",
+      "deliberation_windows": [
+        {"minute": 300, "purpose": "travel"},
+        {"minute": 630, "purpose": "work"},
+        {"minute": 900, "purpose": "replan"},
+        {"minute": 1170, "purpose": "social"},
+        {"minute": 1350, "purpose": "safety"}
+      ],
+      "schedule": [
+        {"start_minute": 0, "location_id": "oakrun_crossroads", "activity": "sleep", "commitment": 75},
+        {"start_minute": 300, "location_id": "oakrun_crossroads", "activity": "work", "commitment": 90},
+        {"start_minute": 660, "location_id": "oakrun_old_tollhouse", "activity": "investigate", "commitment": 55},
+        {"start_minute": 960, "location_id": "oakrun_crossroads", "activity": "work", "commitment": 88},
+        {"start_minute": 1170, "location_id": "oakrun_crossroads", "activity": "socialize", "commitment": 65}
+      ],
+      "needs": [
+        {"kind": "answers", "weight": 92, "satisfiers": ["investigate", "socialize", "travel"]},
+        {"kind": "duty", "weight": 90, "satisfiers": ["travel", "work"]},
+        {"kind": "rest", "weight": 58, "satisfiers": ["sleep"]}
+      ],
+      "private_goals": [
+        {
+          "id": "date-first-record",
+          "desire": "Separate Drazna's first verified account from later claims that it was the rot's birthplace.",
+          "priority": 5,
+          "approach": "patient",
+          "target": {"kind": "rumor", "id": "drazna-first-record"},
+          "risk_tolerance": "measured"
+        },
+        {
+          "id": "carry-eastern-dispatch",
+          "desire": "Reach Alderwick with an account that names witnesses and travel dates.",
+          "priority": 4,
+          "approach": "dutiful",
+          "target": {"kind": "location", "id": "alderwick"},
+          "risk_tolerance": "measured"
+        }
+      ],
+      "movement": {
+        "travel_modes": ["walk", "carriage"],
+        "maximum_route_risk": "dangerous",
+        "avoid_threats": ["drowned_dead", "sinkholes"],
+        "fallback_location_id": "oakrun_crossroads"
+      },
+      "belief_refs": [
+        {"rumor_id": "drazna-first-record", "belief_id": "rowan-drazna-first"}
+      ],
+      "trigger_ids": ["elowen-rowan-dated-rumor"],
+      "offscreen_policy": {
+        "can_relocate": true,
+        "can_die": true,
+        "missed_windows_are_final": true,
+        "minimum_warning_memories": 1
+      }
+    },
+    {
+      "id": "maud-oakrun-orchard",
+      "name": "Maud Bell",
+      "role": "keeper of Oakrun's roadside orchard",
+      "kind": "worker",
+      "home_location_id": "oakrun_orchard_lane",
+      "deliberation_windows": [
+        {"minute": 270, "purpose": "work"},
+        {"minute": 600, "purpose": "care"},
+        {"minute": 900, "purpose": "replan"},
+        {"minute": 1200, "purpose": "safety"}
+      ],
+      "schedule": [
+        {"start_minute": 0, "location_id": "oakrun_orchard_lane", "activity": "sleep", "commitment": 90},
+        {"start_minute": 270, "location_id": "oakrun_orchard_lane", "activity": "work", "commitment": 100},
+        {"start_minute": 720, "location_id": "oakrun_old_mill_yard", "activity": "investigate", "commitment": 50},
+        {"start_minute": 870, "location_id": "oakrun_orchard_lane", "activity": "work", "commitment": 95},
+        {"start_minute": 1110, "location_id": "oakrun_crossroads", "activity": "socialize", "commitment": 45}
+      ],
+      "needs": [
+        {"kind": "duty", "weight": 94, "satisfiers": ["work", "protect"]},
+        {"kind": "answers", "weight": 64, "satisfiers": ["investigate"]},
+        {"kind": "belonging", "weight": 70, "satisfiers": ["care", "socialize"]}
+      ],
+      "private_goals": [
+        {
+          "id": "keep-orchard-alive",
+          "desire": "Keep enough healthy trees alive to feed Oakrun through winter.",
+          "priority": 5,
+          "approach": "direct",
+          "target": {"kind": "location", "id": "oakrun_orchard_lane"},
+          "risk_tolerance": "measured"
+        },
+        {
+          "id": "protect-wren",
+          "desire": "Give Wren ordinary work and room to decide whether Drazna is home or warning.",
+          "priority": 4,
+          "approach": "protective",
+          "target": {"kind": "npc", "id": "wren-no-house"},
+          "risk_tolerance": "bold"
+        }
+      ],
+      "movement": {
+        "travel_modes": ["walk"],
+        "maximum_route_risk": "dangerous",
+        "avoid_threats": ["barrow_dead", "drowned_dead"],
+        "fallback_location_id": "oakrun_orchard_lane"
+      },
+      "belief_refs": [
+        {"rumor_id": "rot-speaks-in-dreams", "belief_id": "maud-rot-dreams"},
+        {"rumor_id": "medicine-stops-rot", "belief_id": "maud-remedy"}
+      ],
+      "trigger_ids": ["maud-wren-root-memory"],
+      "offscreen_policy": {
+        "can_relocate": true,
+        "can_die": true,
+        "missed_windows_are_final": true,
+        "minimum_warning_memories": 2
+      }
+    },
+    {
+      "id": "alys-oakrun-watch",
+      "name": "Alys Ward",
+      "role": "constable of Oakrun",
+      "kind": "official",
+      "home_location_id": "oakrun_crossroads",
+      "deliberation_windows": [
+        {"minute": 330, "purpose": "safety"},
+        {"minute": 690, "purpose": "work"},
+        {"minute": 990, "purpose": "replan"},
+        {"minute": 1230, "purpose": "safety"}
+      ],
+      "schedule": [
+        {"start_minute": 0, "location_id": "oakrun_crossroads", "activity": "sleep", "commitment": 80},
+        {"start_minute": 330, "location_id": "oakrun_crossroads", "activity": "patrol", "commitment": 90},
+        {"start_minute": 630, "location_id": "oakrun_north_road", "activity": "patrol", "commitment": 70},
+        {"start_minute": 870, "location_id": "oakrun_old_tollhouse", "activity": "investigate", "commitment": 65},
+        {"start_minute": 1080, "location_id": "oakrun_crossroads", "activity": "patrol", "commitment": 95}
+      ],
+      "needs": [
+        {"kind": "duty", "weight": 100, "satisfiers": ["protect", "work"]},
+        {"kind": "answers", "weight": 78, "satisfiers": ["investigate", "socialize"]},
+        {"kind": "safety", "weight": 68, "satisfiers": ["seek_safety", "protect"]}
+      ],
+      "private_goals": [
+        {
+          "id": "prevent-road-panic",
+          "desire": "Keep carriage fear from becoming violence against strangers carrying eastern mud.",
+          "priority": 5,
+          "approach": "protective",
+          "target": {"kind": "rumor", "id": "rot-rides-carriages"},
+          "risk_tolerance": "bold"
+        },
+        {
+          "id": "account-for-missing",
+          "desire": "Learn which missing travellers left voluntarily and which never crossed a toll.",
+          "priority": 4,
+          "approach": "patient",
+          "target": {"kind": "location", "id": "oakrun_old_tollhouse"},
+          "risk_tolerance": "measured"
+        }
+      ],
+      "movement": {
+        "travel_modes": ["walk", "carriage"],
+        "maximum_route_risk": "dangerous",
+        "avoid_threats": [],
+        "fallback_location_id": "oakrun_crossroads"
+      },
+      "belief_refs": [
+        {"rumor_id": "east-road-is-closed", "belief_id": "alys-east-road"},
+        {"rumor_id": "rot-rides-carriages", "belief_id": "alys-carriage-rot"}
+      ],
+      "trigger_ids": ["alys-hester-carriage-warning"],
+      "offscreen_policy": {
+        "can_relocate": true,
+        "can_die": true,
+        "missed_windows_are_final": true,
+        "minimum_warning_memories": 1
+      }
+    },
+    {
+      "id": "fen-alder",
+      "name": "Fen Alder",
+      "role": "dispossessed keeper of the old north toll",
+      "kind": "resident",
+      "home_location_id": "oakrun_old_tollhouse",
+      "deliberation_windows": [
+        {"minute": 390, "purpose": "safety"},
+        {"minute": 750, "purpose": "work"},
+        {"minute": 1050, "purpose": "replan"}
+      ],
+      "schedule": [
+        {"start_minute": 0, "location_id": "oakrun_old_tollhouse", "activity": "sleep", "commitment": 88},
+        {"start_minute": 390, "location_id": "oakrun_old_tollhouse", "activity": "work", "commitment": 80},
+        {"start_minute": 750, "location_id": "oakrun_north_road", "activity": "investigate", "commitment": 35},
+        {"start_minute": 900, "location_id": "oakrun_old_tollhouse", "activity": "hide", "commitment": 90},
+        {"start_minute": 1170, "location_id": "oakrun_old_tollhouse", "activity": "work", "commitment": 65}
+      ],
+      "needs": [
+        {"kind": "safety", "weight": 98, "satisfiers": ["hide", "seek_safety"]},
+        {"kind": "duty", "weight": 76, "satisfiers": ["work", "investigate"]},
+        {"kind": "belonging", "weight": 48, "satisfiers": ["socialize"]}
+      ],
+      "private_goals": [
+        {
+          "id": "correct-the-count",
+          "desire": "Put his impossible carriage count into hands that will preserve the date and source.",
+          "priority": 5,
+          "approach": "secretive",
+          "target": {"kind": "npc", "id": "rowan-oakrun-courier"},
+          "risk_tolerance": "avoidant"
+        },
+        {
+          "id": "see-drazna-ledgers",
+          "desire": "Reach Drazna's surviving toll ledgers before fear makes him hide the duplicate again.",
+          "priority": 3,
+          "approach": "patient",
+          "target": {"kind": "kingdom", "id": "drazna"},
+          "risk_tolerance": "avoidant"
+        }
+      ],
+      "movement": {
+        "travel_modes": ["walk", "carriage"],
+        "maximum_route_risk": "guarded",
+        "avoid_threats": ["barrow_dead", "drowned_dead", "road_bandits"],
+        "fallback_location_id": "oakrun_old_tollhouse"
+      },
+      "belief_refs": [
+        {"rumor_id": "rot-rides-carriages", "belief_id": "fen-carriage-rot"}
+      ],
+      "trigger_ids": ["fen-takes-grey-heron"],
+      "offscreen_policy": {
+        "can_relocate": true,
+        "can_die": true,
+        "missed_windows_are_final": true,
+        "minimum_warning_memories": 2
+      }
+    },
+    {
+      "id": "edda-marr",
+      "name": "Edda Marr",
+      "role": "Draznan route-reader stranded in Pilgrim's Hollow",
+      "kind": "traveller",
+      "home_location_id": "oakrun_pilgrims_hollow",
+      "deliberation_windows": [
+        {"minute": 300, "purpose": "travel"},
+        {"minute": 600, "purpose": "work"},
+        {"minute": 900, "purpose": "replan"},
+        {"minute": 1200, "purpose": "social"}
+      ],
+      "schedule": [
+        {"start_minute": 0, "location_id": "oakrun_pilgrims_hollow", "activity": "sleep", "commitment": 70},
+        {"start_minute": 300, "location_id": "oakrun_pilgrims_hollow", "activity": "work", "commitment": 75},
+        {"start_minute": 630, "location_id": "oakrun_old_mill_yard", "activity": "investigate", "commitment": 55},
+        {"start_minute": 900, "location_id": "oakrun_pilgrims_hollow", "activity": "travel", "commitment": 50},
+        {"start_minute": 1110, "location_id": "oakrun_crossroads", "activity": "socialize", "commitment": 45}
+      ],
+      "needs": [
+        {"kind": "answers", "weight": 86, "satisfiers": ["investigate", "travel"]},
+        {"kind": "duty", "weight": 72, "satisfiers": ["travel", "protect"]},
+        {"kind": "belonging", "weight": 44, "satisfiers": ["socialize"]}
+      ],
+      "private_goals": [
+        {
+          "id": "return-to-drazna",
+          "desire": "Reach Drazna by a road whose sequence she can prove to people travelling after her.",
+          "priority": 5,
+          "approach": "direct",
+          "target": {"kind": "kingdom", "id": "drazna"},
+          "risk_tolerance": "bold"
+        },
+        {
+          "id": "keep-wren-free",
+          "desire": "Help Wren reach remembered places without letting anyone treat them as evidence to own.",
+          "priority": 4,
+          "approach": "protective",
+          "target": {"kind": "npc", "id": "wren-no-house"},
+          "risk_tolerance": "bold"
+        }
+      ],
+      "movement": {
+        "travel_modes": ["walk", "carriage", "ferry"],
+        "maximum_route_risk": "dire",
+        "avoid_threats": [],
+        "fallback_location_id": "oakrun_pilgrims_hollow"
+      },
+      "belief_refs": [
+        {"rumor_id": "drazna-first-record", "belief_id": "edda-drazna-first"},
+        {"rumor_id": "east-road-is-closed", "belief_id": "edda-east-road"},
+        {"rumor_id": "low-water-road-safe", "belief_id": "edda-low-water"}
+      ],
+      "trigger_ids": ["edda-hester-east-road", "wren-leaves-for-drazna"],
+      "offscreen_policy": {
+        "can_relocate": true,
+        "can_die": true,
+        "missed_windows_are_final": true,
+        "minimum_warning_memories": 1
+      }
+    },
+    {
+      "id": "wren-no-house",
+      "name": "Wren",
+      "role": "amnesiac survivor sheltered outside Oakrun",
+      "kind": "traveller",
+      "home_location_id": "oakrun_pilgrims_hollow",
+      "deliberation_windows": [
+        {"minute": 390, "purpose": "safety"},
+        {"minute": 720, "purpose": "care"},
+        {"minute": 1020, "purpose": "replan"},
+        {"minute": 1290, "purpose": "travel"}
+      ],
+      "schedule": [
+        {"start_minute": 0, "location_id": "oakrun_pilgrims_hollow", "activity": "sleep", "commitment": 70},
+        {"start_minute": 390, "location_id": "oakrun_orchard_lane", "activity": "work", "commitment": 75},
+        {"start_minute": 780, "location_id": "oakrun_old_mill_yard", "activity": "investigate", "commitment": 45},
+        {"start_minute": 960, "location_id": "oakrun_pilgrims_hollow", "activity": "care", "commitment": 60},
+        {"start_minute": 1170, "location_id": "oakrun_pilgrims_hollow", "activity": "hide", "commitment": 80}
+      ],
+      "needs": [
+        {"kind": "safety", "weight": 88, "satisfiers": ["hide", "seek_safety", "protect"]},
+        {"kind": "answers", "weight": 90, "satisfiers": ["investigate", "travel"]},
+        {"kind": "belonging", "weight": 72, "satisfiers": ["care", "socialize"]}
+      ],
+      "private_goals": [
+        {
+          "id": "follow-remembered-water",
+          "desire": "Reach Drazna and learn whether the place in their dreams is a home, a wound, or somebody else's memory.",
+          "priority": 5,
+          "approach": "direct",
+          "target": {"kind": "kingdom", "id": "drazna"},
+          "risk_tolerance": "bold"
+        },
+        {
+          "id": "remain-a-person",
+          "desire": "Stay close to people who ask what they choose rather than what they can prove.",
+          "priority": 5,
+          "approach": "protective",
+          "target": {"kind": "self", "id": "wren-no-house"},
+          "risk_tolerance": "measured"
+        }
+      ],
+      "movement": {
+        "travel_modes": ["walk", "carriage", "ferry"],
+        "maximum_route_risk": "dire",
+        "avoid_threats": ["zealots"],
+        "fallback_location_id": "oakrun_pilgrims_hollow"
+      },
+      "belief_refs": [
+        {"rumor_id": "black-silt-erases-names", "belief_id": "wren-silt-names"},
+        {"rumor_id": "rot-speaks-in-dreams", "belief_id": "wren-rot-dreams"},
+        {"rumor_id": "medicine-stops-rot", "belief_id": "wren-remedy"}
+      ],
+      "trigger_ids": ["maud-wren-root-memory", "tom-wren-black-mud", "wren-leaves-for-drazna"],
+      "offscreen_policy": {
+        "can_relocate": true,
+        "can_die": true,
+        "missed_windows_are_final": true,
+        "minimum_warning_memories": 1
+      }
+    },
+    {
+      "id": "mara-vey",
+      "name": "Mara Vey",
+      "role": "queen of the Draznan Crown",
+      "kind": "official",
+      "home_location_id": "drazna_high_crown",
+      "deliberation_windows": [
+        {"minute": 330, "purpose": "safety"},
+        {"minute": 600, "purpose": "work"},
+        {"minute": 900, "purpose": "replan"},
+        {"minute": 1140, "purpose": "social"}
+      ],
+      "schedule": [
+        {"start_minute": 0, "location_id": "drazna_high_crown", "activity": "sleep", "commitment": 85},
+        {"start_minute": 330, "location_id": "drazna_high_crown", "activity": "work", "commitment": 100},
+        {"start_minute": 690, "location_id": "drazna_crown_sluice", "activity": "investigate", "commitment": 70},
+        {"start_minute": 870, "location_id": "drazna_high_crown", "activity": "work", "commitment": 100},
+        {"start_minute": 1110, "location_id": "drazna_high_crown", "activity": "socialize", "commitment": 80}
+      ],
+      "needs": [
+        {"kind": "duty", "weight": 100, "satisfiers": ["protect", "work"]},
+        {"kind": "safety", "weight": 90, "satisfiers": ["protect", "seek_safety"]},
+        {"kind": "answers", "weight": 68, "satisfiers": ["investigate"]}
+      ],
+      "private_goals": [
+        {
+          "id": "keep-drazna-inhabited",
+          "desire": "Keep enough wards dry and supplied that Drazna remains a living capital rather than a memorial.",
+          "priority": 5,
+          "approach": "dutiful",
+          "target": {"kind": "kingdom", "id": "drazna"},
+          "risk_tolerance": "bold"
+        },
+        {
+          "id": "control-flood-account",
+          "desire": "Delay public accusations about the old flood until the Crown Sluice can survive a riot or sabotage.",
+          "priority": 4,
+          "approach": "secretive",
+          "target": {"kind": "rumor", "id": "drazna-crown-drowned-ward"},
+          "risk_tolerance": "measured"
+        }
+      ],
+      "movement": {
+        "travel_modes": ["walk", "carriage", "ferry"],
+        "maximum_route_risk": "dangerous",
+        "avoid_threats": ["drowned_dead", "zealots"],
+        "fallback_location_id": "drazna_high_crown"
+      },
+      "belief_refs": [
+        {"rumor_id": "drazna-first-record", "belief_id": "mara-drazna-first"},
+        {"rumor_id": "drazna-crown-drowned-ward", "belief_id": "mara-drowned-ward"}
+      ],
+      "trigger_ids": ["mara-alin-gate-hearing", "mara-ilya-sluice-choice"],
+      "offscreen_policy": {
+        "can_relocate": true,
+        "can_die": true,
+        "missed_windows_are_final": true,
+        "minimum_warning_memories": 3
+      }
+    },
+    {
+      "id": "ilya-sorn",
+      "name": "Ilya Sorn",
+      "role": "junior floodwarden of Drazna",
+      "kind": "worker",
+      "home_location_id": "drazna_crown_sluice",
+      "deliberation_windows": [
+        {"minute": 270, "purpose": "safety"},
+        {"minute": 570, "purpose": "work"},
+        {"minute": 870, "purpose": "replan"},
+        {"minute": 1170, "purpose": "care"}
+      ],
+      "schedule": [
+        {"start_minute": 0, "location_id": "drazna_walking_ward", "activity": "sleep", "commitment": 80},
+        {"start_minute": 270, "location_id": "drazna_crown_sluice", "activity": "work", "commitment": 100},
+        {"start_minute": 630, "location_id": "drazna_undertide", "activity": "investigate", "commitment": 65},
+        {"start_minute": 870, "location_id": "drazna_crown_sluice", "activity": "repair", "commitment": 100},
+        {"start_minute": 1140, "location_id": "drazna_birch_heights", "activity": "socialize", "commitment": 45}
+      ],
+      "needs": [
+        {"kind": "duty", "weight": 96, "satisfiers": ["repair", "work", "protect"]},
+        {"kind": "grief", "weight": 62, "satisfiers": ["grieve", "socialize"]},
+        {"kind": "answers", "weight": 78, "satisfiers": ["investigate"]}
+      ],
+      "private_goals": [
+        {
+          "id": "repair-lower-pressure",
+          "desire": "Repair the pressure station before another ward floods through the channel he helped open.",
+          "priority": 5,
+          "approach": "direct",
+          "target": {"kind": "location", "id": "drazna_crown_sluice"},
+          "risk_tolerance": "bold"
+        },
+        {
+          "id": "name-channel-dead",
+          "desire": "Give Nera the names of every maintenance worker omitted from the flood count.",
+          "priority": 4,
+          "approach": "dutiful",
+          "target": {"kind": "npc", "id": "nera-bell"},
+          "risk_tolerance": "measured"
+        }
+      ],
+      "movement": {
+        "travel_modes": ["walk", "ferry"],
+        "maximum_route_risk": "dire",
+        "avoid_threats": [],
+        "fallback_location_id": "drazna_crown_sluice"
+      },
+      "belief_refs": [
+        {"rumor_id": "drazna-crown-drowned-ward", "belief_id": "ilya-drowned-ward"},
+        {"rumor_id": "undertide-survivors", "belief_id": "ilya-undertide"}
+      ],
+      "trigger_ids": ["ilya-nera-channel-names", "mara-ilya-sluice-choice"],
+      "offscreen_policy": {
+        "can_relocate": true,
+        "can_die": true,
+        "missed_windows_are_final": true,
+        "minimum_warning_memories": 1
+      }
+    },
+    {
+      "id": "nera-bell",
+      "name": "Nera Bell",
+      "role": "keeper of Drazna's House of Names",
+      "kind": "official",
+      "home_location_id": "drazna_birch_heights",
+      "deliberation_windows": [
+        {"minute": 330, "purpose": "work"},
+        {"minute": 660, "purpose": "care"},
+        {"minute": 960, "purpose": "replan"},
+        {"minute": 1230, "purpose": "social"}
+      ],
+      "schedule": [
+        {"start_minute": 0, "location_id": "drazna_birch_heights", "activity": "sleep", "commitment": 90},
+        {"start_minute": 330, "location_id": "drazna_birch_heights", "activity": "work", "commitment": 100},
+        {"start_minute": 720, "location_id": "drazna_lantern_quays", "activity": "care", "commitment": 55},
+        {"start_minute": 900, "location_id": "drazna_birch_heights", "activity": "work", "commitment": 95},
+        {"start_minute": 1170, "location_id": "drazna_birch_heights", "activity": "socialize", "commitment": 60}
+      ],
+      "needs": [
+        {"kind": "duty", "weight": 95, "satisfiers": ["work", "grieve"]},
+        {"kind": "answers", "weight": 88, "satisfiers": ["investigate", "socialize"]},
+        {"kind": "belonging", "weight": 66, "satisfiers": ["care", "socialize"]}
+      ],
+      "private_goals": [
+        {
+          "id": "restore-uncounted-names",
+          "desire": "Restore omitted flood victims to Drazna's public tablets with sources strong enough to survive denial.",
+          "priority": 5,
+          "approach": "patient",
+          "target": {"kind": "rumor", "id": "drazna-crown-drowned-ward"},
+          "risk_tolerance": "measured"
+        },
+        {
+          "id": "separate-first-from-source",
+          "desire": "Preserve the distinction between Drazna's first public record and the unknown origin of the black rot.",
+          "priority": 4,
+          "approach": "dutiful",
+          "target": {"kind": "rumor", "id": "drazna-first-record"},
+          "risk_tolerance": "avoidant"
+        }
+      ],
+      "movement": {
+        "travel_modes": ["walk", "carriage", "ferry"],
+        "maximum_route_risk": "guarded",
+        "avoid_threats": ["black_silt", "drowned_dead"],
+        "fallback_location_id": "drazna_birch_heights"
+      },
+      "belief_refs": [
+        {"rumor_id": "drazna-first-record", "belief_id": "nera-drazna-first"},
+        {"rumor_id": "black-silt-erases-names", "belief_id": "nera-silt-names"}
+      ],
+      "trigger_ids": ["ilya-nera-channel-names", "lina-carries-names-uphill"],
+      "offscreen_policy": {
+        "can_relocate": true,
+        "can_die": true,
+        "missed_windows_are_final": true,
+        "minimum_warning_memories": 2
+      }
+    },
+    {
+      "id": "olek-var",
+      "name": "Olek Var",
+      "role": "Draznan salvage captain",
+      "kind": "worker",
+      "home_location_id": "drazna_lantern_quays",
+      "deliberation_windows": [
+        {"minute": 240, "purpose": "safety"},
+        {"minute": 510, "purpose": "work"},
+        {"minute": 810, "purpose": "replan"},
+        {"minute": 1110, "purpose": "social"},
+        {"minute": 1320, "purpose": "safety"}
+      ],
+      "schedule": [
+        {"start_minute": 0, "location_id": "drazna_lantern_quays", "activity": "sleep", "commitment": 70},
+        {"start_minute": 240, "location_id": "drazna_lantern_quays", "activity": "work", "commitment": 85},
+        {"start_minute": 570, "location_id": "drazna_undertide", "activity": "investigate", "commitment": 80},
+        {"start_minute": 900, "location_id": "drazna_lantern_quays", "activity": "work", "commitment": 75},
+        {"start_minute": 1110, "location_id": "drazna_lantern_quays", "activity": "socialize", "commitment": 80}
+      ],
+      "needs": [
+        {"kind": "coin", "weight": 88, "satisfiers": ["earn_coin", "work"]},
+        {"kind": "belonging", "weight": 54, "satisfiers": ["socialize"]},
+        {"kind": "safety", "weight": 50, "satisfiers": ["seek_safety", "protect"]}
+      ],
+      "private_goals": [
+        {
+          "id": "profit-without-losing-crew",
+          "desire": "Sell access and salvage without spending another diver's life for somebody else's certainty.",
+          "priority": 5,
+          "approach": "opportunistic",
+          "target": {"kind": "location", "id": "drazna_undertide"},
+          "risk_tolerance": "measured"
+        },
+        {
+          "id": "bring-vasko-back",
+          "desire": "Return Vasko alive if doing so does not surrender the only dry route to the Crown.",
+          "priority": 4,
+          "approach": "secretive",
+          "target": {"kind": "npc", "id": "vasko-mirek"},
+          "risk_tolerance": "bold"
+        }
+      ],
+      "movement": {
+        "travel_modes": ["walk", "ferry"],
+        "maximum_route_risk": "dire",
+        "avoid_threats": [],
+        "fallback_location_id": "drazna_lantern_quays"
+      },
+      "belief_refs": [
+        {"rumor_id": "drazna-crown-drowned-ward", "belief_id": "olek-drowned-ward"},
+        {"rumor_id": "undertide-survivors", "belief_id": "olek-undertide"},
+        {"rumor_id": "low-water-road-safe", "belief_id": "olek-low-water"}
+      ],
+      "trigger_ids": ["olek-vasko-ledger-return", "pava-olek-diver-bargain"],
+      "offscreen_policy": {
+        "can_relocate": true,
+        "can_die": true,
+        "missed_windows_are_final": true,
+        "minimum_warning_memories": 1
+      }
+    },
+    {
+      "id": "pava-mirek",
+      "name": "Pava Mirek",
+      "role": "master roofwright of Drazna's Walking Ward",
+      "kind": "worker",
+      "home_location_id": "drazna_walking_ward",
+      "deliberation_windows": [
+        {"minute": 270, "purpose": "work"},
+        {"minute": 600, "purpose": "safety"},
+        {"minute": 900, "purpose": "replan"},
+        {"minute": 1200, "purpose": "care"}
+      ],
+      "schedule": [
+        {"start_minute": 0, "location_id": "drazna_walking_ward", "activity": "sleep", "commitment": 80},
+        {"start_minute": 270, "location_id": "drazna_walking_ward", "activity": "repair", "commitment": 100},
+        {"start_minute": 690, "location_id": "drazna_lantern_quays", "activity": "work", "commitment": 65},
+        {"start_minute": 870, "location_id": "drazna_walking_ward", "activity": "repair", "commitment": 95},
+        {"start_minute": 1140, "location_id": "drazna_walking_ward", "activity": "care", "commitment": 80}
+      ],
+      "needs": [
+        {"kind": "duty", "weight": 92, "satisfiers": ["repair", "protect", "work"]},
+        {"kind": "grief", "weight": 88, "satisfiers": ["grieve", "investigate"]},
+        {"kind": "safety", "weight": 72, "satisfiers": ["repair", "seek_safety"]}
+      ],
+      "private_goals": [
+        {
+          "id": "find-vasko",
+          "desire": "Bring her brother Vasko out of Undertide before another low-water window closes.",
+          "priority": 5,
+          "approach": "direct",
+          "target": {"kind": "npc", "id": "vasko-mirek"},
+          "risk_tolerance": "bold"
+        },
+        {
+          "id": "keep-ward-standing",
+          "desire": "Repair the inhabited bridges before frightened residents abandon the ward.",
+          "priority": 5,
+          "approach": "dutiful",
+          "target": {"kind": "location", "id": "drazna_walking_ward"},
+          "risk_tolerance": "measured"
+        }
+      ],
+      "movement": {
+        "travel_modes": ["walk", "ferry"],
+        "maximum_route_risk": "dire",
+        "avoid_threats": [],
+        "fallback_location_id": "drazna_walking_ward"
+      },
+      "belief_refs": [
+        {"rumor_id": "black-silt-erases-names", "belief_id": "pava-silt-names"},
+        {"rumor_id": "undertide-survivors", "belief_id": "pava-undertide"}
+      ],
+      "trigger_ids": ["pava-olek-diver-bargain", "vasko-low-water-return"],
+      "offscreen_policy": {
+        "can_relocate": true,
+        "can_die": true,
+        "missed_windows_are_final": true,
+        "minimum_warning_memories": 1
+      }
+    },
+    {
+      "id": "vasko-mirek",
+      "name": "Vasko Mirek",
+      "role": "missing Undertide diver",
+      "kind": "worker",
+      "home_location_id": "drazna_undertide",
+      "deliberation_windows": [
+        {"minute": 300, "purpose": "safety"},
+        {"minute": 660, "purpose": "work"},
+        {"minute": 1020, "purpose": "replan"}
+      ],
+      "schedule": [
+        {"start_minute": 0, "location_id": "drazna_undertide", "activity": "hide", "commitment": 100},
+        {"start_minute": 300, "location_id": "drazna_undertide", "activity": "investigate", "commitment": 80},
+        {"start_minute": 720, "location_id": "drazna_undertide", "activity": "work", "commitment": 75},
+        {"start_minute": 1020, "location_id": "drazna_undertide", "activity": "hide", "commitment": 100}
+      ],
+      "needs": [
+        {"kind": "safety", "weight": 100, "satisfiers": ["hide", "seek_safety"]},
+        {"kind": "food", "weight": 94, "satisfiers": ["eat"]},
+        {"kind": "belonging", "weight": 80, "satisfiers": ["socialize", "protect"]}
+      ],
+      "private_goals": [
+        {
+          "id": "leave-undertide-alive",
+          "desire": "Reach Pava with the ledger scrap and his memory intact.",
+          "priority": 5,
+          "approach": "patient",
+          "target": {"kind": "npc", "id": "pava-mirek"},
+          "risk_tolerance": "measured"
+        },
+        {
+          "id": "mark-safe-dry-line",
+          "desire": "Mark a dry route that remains usable after the next sluice release.",
+          "priority": 4,
+          "approach": "direct",
+          "target": {"kind": "location", "id": "drazna_undertide"},
+          "risk_tolerance": "bold"
+        }
+      ],
+      "movement": {
+        "travel_modes": ["walk", "ferry"],
+        "maximum_route_risk": "dire",
+        "avoid_threats": [],
+        "fallback_location_id": "drazna_undertide"
+      },
+      "belief_refs": [
+        {"rumor_id": "undertide-survivors", "belief_id": "vasko-undertide"},
+        {"rumor_id": "low-water-road-safe", "belief_id": "vasko-low-water"}
+      ],
+      "trigger_ids": ["olek-vasko-ledger-return", "vasko-low-water-return"],
+      "offscreen_policy": {
+        "can_relocate": true,
+        "can_die": true,
+        "missed_windows_are_final": true,
+        "minimum_warning_memories": 2
+      }
+    },
+    {
+      "id": "vesna-korr",
+      "name": "Vesna Korr",
+      "role": "Low Lantern route keeper",
+      "kind": "resident",
+      "home_location_id": "drazna_lantern_quays",
+      "deliberation_windows": [
+        {"minute": 360, "purpose": "safety"},
+        {"minute": 690, "purpose": "work"},
+        {"minute": 990, "purpose": "replan"},
+        {"minute": 1260, "purpose": "social"}
+      ],
+      "schedule": [
+        {"start_minute": 0, "location_id": "drazna_lantern_quays", "activity": "hide", "commitment": 75},
+        {"start_minute": 360, "location_id": "drazna_lantern_quays", "activity": "work", "commitment": 85},
+        {"start_minute": 720, "location_id": "drazna_undertide", "activity": "investigate", "commitment": 70},
+        {"start_minute": 930, "location_id": "drazna_lantern_quays", "activity": "socialize", "commitment": 85},
+        {"start_minute": 1200, "location_id": "drazna_lantern_quays", "activity": "hide", "commitment": 80}
+      ],
+      "needs": [
+        {"kind": "safety", "weight": 84, "satisfiers": ["hide", "protect"]},
+        {"kind": "belonging", "weight": 88, "satisfiers": ["socialize", "protect"]},
+        {"kind": "coin", "weight": 60, "satisfiers": ["earn_coin", "work"]}
+      ],
+      "private_goals": [
+        {
+          "id": "keep-dry-routes-local",
+          "desire": "Keep Undertide's reliable dry routes in the hands of families who still live above them.",
+          "priority": 5,
+          "approach": "secretive",
+          "target": {"kind": "location", "id": "drazna_undertide"},
+          "risk_tolerance": "bold"
+        },
+        {
+          "id": "recover-vasko",
+          "desire": "Recover Vasko before the Crown seals the passage and calls everyone below it dead.",
+          "priority": 4,
+          "approach": "protective",
+          "target": {"kind": "npc", "id": "vasko-mirek"},
+          "risk_tolerance": "bold"
+        }
+      ],
+      "movement": {
+        "travel_modes": ["walk", "ferry"],
+        "maximum_route_risk": "dire",
+        "avoid_threats": ["zealots"],
+        "fallback_location_id": "drazna_lantern_quays"
+      },
+      "belief_refs": [
+        {"rumor_id": "drazna-crown-drowned-ward", "belief_id": "vesna-drowned-ward"},
+        {"rumor_id": "undertide-survivors", "belief_id": "vesna-undertide"}
+      ],
+      "trigger_ids": ["vasko-low-water-return"],
+      "offscreen_policy": {
+        "can_relocate": true,
+        "can_die": true,
+        "missed_windows_are_final": true,
+        "minimum_warning_memories": 1
+      }
+    },
+    {
+      "id": "alin-vey",
+      "name": "Alin Vey",
+      "role": "reformist heir of Drazna",
+      "kind": "official",
+      "home_location_id": "drazna_high_crown",
+      "deliberation_windows": [
+        {"minute": 360, "purpose": "work"},
+        {"minute": 660, "purpose": "social"},
+        {"minute": 960, "purpose": "replan"},
+        {"minute": 1230, "purpose": "safety"}
+      ],
+      "schedule": [
+        {"start_minute": 0, "location_id": "drazna_high_crown", "activity": "sleep", "commitment": 80},
+        {"start_minute": 360, "location_id": "drazna_high_crown", "activity": "work", "commitment": 85},
+        {"start_minute": 660, "location_id": "drazna_birch_heights", "activity": "investigate", "commitment": 70},
+        {"start_minute": 930, "location_id": "drazna_lantern_quays", "activity": "socialize", "commitment": 65},
+        {"start_minute": 1170, "location_id": "drazna_high_crown", "activity": "work", "commitment": 80}
+      ],
+      "needs": [
+        {"kind": "duty", "weight": 88, "satisfiers": ["work", "protect"]},
+        {"kind": "answers", "weight": 92, "satisfiers": ["investigate", "socialize"]},
+        {"kind": "belonging", "weight": 60, "satisfiers": ["socialize"]}
+      ],
+      "private_goals": [
+        {
+          "id": "publish-flood-record",
+          "desire": "Put the old flood order and complete dead list before Drazna while witnesses still live.",
+          "priority": 5,
+          "approach": "direct",
+          "target": {"kind": "rumor", "id": "drazna-crown-drowned-ward"},
+          "risk_tolerance": "bold"
+        },
+        {
+          "id": "keep-mara-listening",
+          "desire": "Force Mara to hear public testimony without making her retreat behind palace guards.",
+          "priority": 4,
+          "approach": "social",
+          "target": {"kind": "npc", "id": "mara-vey"},
+          "risk_tolerance": "measured"
+        }
+      ],
+      "movement": {
+        "travel_modes": ["walk", "carriage", "ferry"],
+        "maximum_route_risk": "dangerous",
+        "avoid_threats": ["drowned_dead"],
+        "fallback_location_id": "drazna_high_crown"
+      },
+      "belief_refs": [
+        {"rumor_id": "drazna-crown-drowned-ward", "belief_id": "alin-drowned-ward"}
+      ],
+      "trigger_ids": ["mara-alin-gate-hearing"],
+      "offscreen_policy": {
+        "can_relocate": true,
+        "can_die": true,
+        "missed_windows_are_final": true,
+        "minimum_warning_memories": 2
+      }
+    },
+    {
+      "id": "jory-rusk",
+      "name": "Jory Rusk",
+      "role": "driver of the Grey Heron",
+      "kind": "traveller",
+      "home_location_id": "hollowmere_post",
+      "deliberation_windows": [
+        {"minute": 240, "purpose": "safety"},
+        {"minute": 480, "purpose": "travel"},
+        {"minute": 780, "purpose": "replan"},
+        {"minute": 1080, "purpose": "social"}
+      ],
+      "schedule": [
+        {"start_minute": 0, "location_id": "hollowmere_post", "activity": "sleep", "commitment": 70},
+        {"start_minute": 240, "location_id": "hollowmere_post", "activity": "care", "commitment": 90},
+        {"start_minute": 330, "location_id": "hollowmere_post", "activity": "travel", "commitment": 75},
+        {"start_minute": 900, "location_id": "hollowmere_post", "activity": "repair", "commitment": 95},
+        {"start_minute": 1110, "location_id": "hollowmere_post", "activity": "socialize", "commitment": 60}
+      ],
+      "needs": [
+        {"kind": "coin", "weight": 76, "satisfiers": ["earn_coin", "travel", "work"]},
+        {"kind": "safety", "weight": 82, "satisfiers": ["repair", "seek_safety", "protect"]},
+        {"kind": "duty", "weight": 70, "satisfiers": ["protect", "travel"]}
+      ],
+      "private_goals": [
+        {
+          "id": "keep-grey-heron-running",
+          "desire": "Keep one honest carriage route open to Drazna without feeding passengers a promise of safety.",
+          "priority": 5,
+          "approach": "dutiful",
+          "target": {"kind": "kingdom", "id": "drazna"},
+          "risk_tolerance": "bold"
+        },
+        {
+          "id": "form-causeway-convoy",
+          "desire": "Leave Hollowmere with enough wheels and guards that the Black Mile cannot isolate one coach.",
+          "priority": 4,
+          "approach": "social",
+          "target": {"kind": "location", "id": "hollowmere_post"},
+          "risk_tolerance": "measured"
+        }
+      ],
+      "movement": {
+        "travel_modes": ["walk", "carriage", "ferry"],
+        "maximum_route_risk": "dire",
+        "avoid_threats": [],
+        "fallback_location_id": "hollowmere_post"
+      },
+      "belief_refs": [
+        {"rumor_id": "east-road-is-closed", "belief_id": "jory-east-road"},
+        {"rumor_id": "rot-rides-carriages", "belief_id": "jory-carriage-rot"},
+        {"rumor_id": "low-water-road-safe", "belief_id": "jory-low-water"}
+      ],
+      "trigger_ids": ["fen-takes-grey-heron", "sabine-jory-eastbound-seat", "wren-leaves-for-drazna"],
+      "offscreen_policy": {
+        "can_relocate": true,
+        "can_die": true,
+        "missed_windows_are_final": true,
+        "minimum_warning_memories": 1
+      }
+    },
+    {
+      "id": "sabine-vauclair",
+      "name": "Sabine Vauclair",
+      "role": "Rouvrain field physician travelling toward Drazna",
+      "kind": "traveller",
+      "home_location_id": "saint-oree-hospice",
+      "deliberation_windows": [
+        {"minute": 330, "purpose": "care"},
+        {"minute": 660, "purpose": "work"},
+        {"minute": 960, "purpose": "replan"},
+        {"minute": 1260, "purpose": "travel"}
+      ],
+      "schedule": [
+        {"start_minute": 0, "location_id": "saint-oree-hospice", "activity": "sleep", "commitment": 65},
+        {"start_minute": 330, "location_id": "saint-oree-hospice", "activity": "care", "commitment": 90},
+        {"start_minute": 720, "location_id": "bellifont", "activity": "work", "commitment": 65},
+        {"start_minute": 930, "location_id": "saint-oree-hospice", "activity": "investigate", "commitment": 85},
+        {"start_minute": 1200, "location_id": "saint-oree-hospice", "activity": "work", "commitment": 75}
+      ],
+      "needs": [
+        {"kind": "answers", "weight": 96, "satisfiers": ["investigate", "travel"]},
+        {"kind": "duty", "weight": 88, "satisfiers": ["care", "protect", "work"]},
+        {"kind": "coin", "weight": 35, "satisfiers": ["earn_coin", "work"]}
+      ],
+      "private_goals": [
+        {
+          "id": "compare-draznan-samples",
+          "desire": "Compare Drazna's oldest silt samples with recent patients rather than accepting a story about one birthplace.",
+          "priority": 5,
+          "approach": "direct",
+          "target": {"kind": "rumor", "id": "drazna-first-record"},
+          "risk_tolerance": "bold"
+        },
+        {
+          "id": "test-oakrun-remedy",
+          "desire": "Learn why an Oakrun apothecary's remedy works better than the physic garden's preparations.",
+          "priority": 4,
+          "approach": "patient",
+          "target": {"kind": "npc", "id": "basil-oakrun"},
+          "risk_tolerance": "measured"
+        }
+      ],
+      "movement": {
+        "travel_modes": ["walk", "carriage", "ferry"],
+        "maximum_route_risk": "dire",
+        "avoid_threats": ["zealots"],
+        "fallback_location_id": "saint-oree-hospice"
+      },
+      "belief_refs": [
+        {"rumor_id": "drazna-first-record", "belief_id": "sabine-drazna-first"},
+        {"rumor_id": "rouvray-burns-refugees", "belief_id": "sabine-rouvray-gates"},
+        {"rumor_id": "medicine-stops-rot", "belief_id": "sabine-remedy"}
+      ],
+      "trigger_ids": ["basil-sabine-remedy-dispute", "matthieu-turns-from-zealots", "sabine-jory-eastbound-seat"],
+      "offscreen_policy": {
+        "can_relocate": true,
+        "can_die": true,
+        "missed_windows_are_final": true,
+        "minimum_warning_memories": 1
+      }
+    },
+    {
+      "id": "matthieu-orne",
+      "name": "Matthieu Orne",
+      "role": "driver of the Bell and Reed",
+      "kind": "worker",
+      "home_location_id": "orison_fields",
+      "deliberation_windows": [
+        {"minute": 270, "purpose": "safety"},
+        {"minute": 510, "purpose": "travel"},
+        {"minute": 840, "purpose": "replan"},
+        {"minute": 1170, "purpose": "social"}
+      ],
+      "schedule": [
+        {"start_minute": 0, "location_id": "orison_fields", "activity": "sleep", "commitment": 75},
+        {"start_minute": 270, "location_id": "orison_fields", "activity": "care", "commitment": 90},
+        {"start_minute": 360, "location_id": "orison_fields", "activity": "travel", "commitment": 85},
+        {"start_minute": 900, "location_id": "orison_fields", "activity": "repair", "commitment": 90},
+        {"start_minute": 1140, "location_id": "orison_fields", "activity": "socialize", "commitment": 50}
+      ],
+      "needs": [
+        {"kind": "duty", "weight": 88, "satisfiers": ["protect", "travel", "work"]},
+        {"kind": "safety", "weight": 92, "satisfiers": ["seek_safety", "repair"]},
+        {"kind": "coin", "weight": 60, "satisfiers": ["earn_coin", "work"]}
+      ],
+      "private_goals": [
+        {
+          "id": "keep-southern-road-open",
+          "desire": "Keep the long Amberfall road open as an alternative for families unable to cross Drazna's pass.",
+          "priority": 5,
+          "approach": "dutiful",
+          "target": {"kind": "location", "id": "alderwick"},
+          "risk_tolerance": "measured"
+        },
+        {
+          "id": "avoid-inspection-mob",
+          "desire": "Turn the coach around before gate inspection becomes a roadside burning.",
+          "priority": 4,
+          "approach": "protective",
+          "target": {"kind": "rumor", "id": "rouvray-burns-refugees"},
+          "risk_tolerance": "avoidant"
+        }
+      ],
+      "movement": {
+        "travel_modes": ["walk", "carriage"],
+        "maximum_route_risk": "dangerous",
+        "avoid_threats": ["black_silt", "rot_growth", "zealots"],
+        "fallback_location_id": "orison_fields"
+      },
+      "belief_refs": [
+        {"rumor_id": "east-road-is-closed", "belief_id": "matthieu-east-road"},
+        {"rumor_id": "rot-rides-carriages", "belief_id": "matthieu-carriage-rot"},
+        {"rumor_id": "rouvray-burns-refugees", "belief_id": "matthieu-rouvray-gates"}
+      ],
+      "trigger_ids": ["matthieu-turns-from-zealots"],
+      "offscreen_policy": {
+        "can_relocate": true,
+        "can_die": true,
+        "missed_windows_are_final": true,
+        "minimum_warning_memories": 1
+      }
+    },
+    {
+      "id": "lina-pell",
+      "name": "Lina Pell",
+      "role": "Draznan refugee and keeper of the Mudwheel",
+      "kind": "traveller",
+      "home_location_id": "drazna_lantern_quays",
+      "deliberation_windows": [
+        {"minute": 330, "purpose": "care"},
+        {"minute": 600, "purpose": "work"},
+        {"minute": 930, "purpose": "replan"},
+        {"minute": 1200, "purpose": "social"}
+      ],
+      "schedule": [
+        {"start_minute": 0, "location_id": "drazna_lantern_quays", "activity": "sleep", "commitment": 70},
+        {"start_minute": 330, "location_id": "drazna_lantern_quays", "activity": "work", "commitment": 85},
+        {"start_minute": 480, "location_id": "drazna_high_crown", "activity": "travel", "commitment": 75},
+        {"start_minute": 810, "location_id": "drazna_birch_heights", "activity": "care", "commitment": 75},
+        {"start_minute": 1080, "location_id": "drazna_lantern_quays", "activity": "socialize", "commitment": 65}
+      ],
+      "needs": [
+        {"kind": "belonging", "weight": 90, "satisfiers": ["care", "socialize", "protect"]},
+        {"kind": "grief", "weight": 75, "satisfiers": ["grieve", "create"]},
+        {"kind": "coin", "weight": 62, "satisfiers": ["earn_coin", "work"]}
+      ],
+      "private_goals": [
+        {
+          "id": "carry-names-home",
+          "desire": "Carry refugee names and letters back into Drazna so absence is not mistaken for death.",
+          "priority": 5,
+          "approach": "dutiful",
+          "target": {"kind": "npc", "id": "nera-bell"},
+          "risk_tolerance": "measured"
+        },
+        {
+          "id": "find-dreaming-sister",
+          "desire": "Find whether her missing sister also dreamt of voices beneath black water.",
+          "priority": 4,
+          "approach": "patient",
+          "target": {"kind": "rumor", "id": "rot-speaks-in-dreams"},
+          "risk_tolerance": "bold"
+        }
+      ],
+      "movement": {
+        "travel_modes": ["walk", "carriage", "ferry"],
+        "maximum_route_risk": "dire",
+        "avoid_threats": ["zealots"],
+        "fallback_location_id": "drazna_lantern_quays"
+      },
+      "belief_refs": [
+        {"rumor_id": "drazna-first-record", "belief_id": "lina-drazna-first"},
+        {"rumor_id": "black-silt-erases-names", "belief_id": "lina-silt-names"},
+        {"rumor_id": "rot-speaks-in-dreams", "belief_id": "lina-rot-dreams"},
+        {"rumor_id": "rouvray-burns-refugees", "belief_id": "lina-rouvray-gates"}
+      ],
+      "trigger_ids": ["elowen-lina-refugee-night", "lina-carries-names-uphill"],
+      "offscreen_policy": {
+        "can_relocate": true,
+        "can_die": true,
+        "missed_windows_are_final": true,
+        "minimum_warning_memories": 1
+      }
+    }
+  ]
+}

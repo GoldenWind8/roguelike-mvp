@@ -1,0 +1,597 @@
+{
+  "schema_version": 1,
+  "rumors": [
+    {
+      "id": "drazna-first-record",
+      "topic": "Drazna is where the black rot began.",
+      "truth": {
+        "classification": "partial",
+        "account": "Drazna preserves the oldest widely verified public record of a black-rot disaster. The records prove when officials acknowledged it, not where the phenomenon originated.",
+        "evidence": [
+          "House of Names tablets predate every surviving foreign notice.",
+          "Earlier Draznan maintenance rolls describe isolated black silt without naming a common cause.",
+          "Later accounts repeatedly replace 'first verified' with 'first'."
+        ]
+      },
+      "beliefs": [
+        {
+          "id": "elowen-drazna-first",
+          "holder_npc_id": "elowen-wayfarers-rest",
+          "claim": "Every dated version starts in Drazna, but travellers cannot agree whether that means beginning or merely reporting.",
+          "confidence": 64,
+          "truth_alignment": "partial",
+          "source": {"kind": "npc", "ref": "rowan-oakrun-courier", "chain": ["rowan-oakrun-courier"]}
+        },
+        {
+          "id": "edda-drazna-first",
+          "holder_npc_id": "edda-marr",
+          "claim": "Drazna recorded the black water first because Drazna kept names and water gauges. That is not proof the rot was born there.",
+          "confidence": 92,
+          "truth_alignment": "accurate",
+          "source": {"kind": "firsthand", "ref": "drazna_birch_heights", "chain": []}
+        },
+        {
+          "id": "nera-drazna-first",
+          "holder_npc_id": "nera-bell",
+          "claim": "The first complete public account is Draznan; older fragments exist, and none establish an origin.",
+          "confidence": 98,
+          "truth_alignment": "accurate",
+          "source": {"kind": "document", "ref": "house-of-names-black-water-tablets", "chain": []}
+        },
+        {
+          "id": "rowan-drazna-first",
+          "holder_npc_id": "rowan-oakrun-courier",
+          "claim": "The earliest dispatch I can date names Drazna, but its opening sentence refers to damage already complete.",
+          "confidence": 88,
+          "truth_alignment": "accurate",
+          "source": {"kind": "document", "ref": "eastern-dispatch-forty-one", "chain": []}
+        },
+        {
+          "id": "sabine-drazna-first",
+          "holder_npc_id": "sabine-vauclair",
+          "claim": "Drazna is the first clinical record available in Rouvray, not necessarily the first sick soil.",
+          "confidence": 82,
+          "truth_alignment": "accurate",
+          "source": {"kind": "official_notice", "ref": "saint-oree-hospice", "chain": []}
+        },
+        {
+          "id": "lina-drazna-first",
+          "holder_npc_id": "lina-pell",
+          "claim": "People outside Drazna call us the beginning because they did not have to remember the years before the proclamations.",
+          "confidence": 86,
+          "truth_alignment": "partial",
+          "source": {"kind": "firsthand", "ref": "drazna_lantern_quays", "chain": []}
+        },
+        {
+          "id": "mara-drazna-first",
+          "holder_npc_id": "mara-vey",
+          "claim": "The Crown possesses the oldest verified record and no defensible proof of origin.",
+          "confidence": 96,
+          "truth_alignment": "accurate",
+          "source": {"kind": "document", "ref": "crown-sluice-incident-register", "chain": []}
+        }
+      ],
+      "transmission": {
+        "share_threshold": 45,
+        "distortion": "soft",
+        "contexts": ["carriage", "inn", "market", "road"]
+      }
+    },
+    {
+      "id": "east-road-is-closed",
+      "topic": "No passable road remains between Amberfall and Drazna.",
+      "truth": {
+        "classification": "false",
+        "account": "The direct crown road was formally closed, but the old hedgerow route reaches Hollowmere and the Glasswater Causeway still carries guarded convoys. It is dangerous, intermittent, and politically convenient to call nonexistent.",
+        "evidence": [
+          "The Grey Heron maintains a twice-weekly attempt when convoy numbers permit.",
+          "Old waystones connect Pilgrim's Hollow to Hollowmere.",
+          "Draznan freight arrives with Glasswater lime on its wheels."
+        ]
+      },
+      "beliefs": [
+        {
+          "id": "tom-east-road",
+          "holder_npc_id": "tom-oakrun-stable",
+          "claim": "The east road is closed to ordinary coaches, but somebody keeps bringing Draznan shoe nails through it.",
+          "confidence": 70,
+          "truth_alignment": "partial",
+          "source": {"kind": "npc", "ref": "hester-oakrun-carriage", "chain": ["hester-oakrun-carriage"]}
+        },
+        {
+          "id": "hester-east-road",
+          "holder_npc_id": "hester-oakrun-carriage",
+          "claim": "Closed is a notice nailed in Alderwick. The stones remain, and desperate drivers still use them.",
+          "confidence": 94,
+          "truth_alignment": "accurate",
+          "source": {"kind": "firsthand", "ref": "hollowmere_post", "chain": []}
+        },
+        {
+          "id": "alys-east-road",
+          "holder_npc_id": "alys-oakrun-watch",
+          "claim": "A forbidden road is not an absent road; Oakrun has fresh wheel marks to prove that much.",
+          "confidence": 78,
+          "truth_alignment": "accurate",
+          "source": {"kind": "npc", "ref": "hester-oakrun-carriage", "chain": ["hester-oakrun-carriage"]}
+        },
+        {
+          "id": "edda-east-road",
+          "holder_npc_id": "edda-marr",
+          "claim": "The erased road remains continuous from Oakrun to Hollowmere and onward at low water.",
+          "confidence": 96,
+          "truth_alignment": "accurate",
+          "source": {"kind": "firsthand", "ref": "oakrun_pilgrims_hollow", "chain": []}
+        },
+        {
+          "id": "jory-east-road",
+          "holder_npc_id": "jory-rusk",
+          "claim": "The road is open whenever enough people accept that open and safe are different words.",
+          "confidence": 99,
+          "truth_alignment": "accurate",
+          "source": {"kind": "firsthand", "ref": "hollowmere_post", "chain": []}
+        },
+        {
+          "id": "matthieu-east-road",
+          "holder_npc_id": "matthieu-orne",
+          "claim": "One driver still attempts the eastern causeway; calling that a road is generous.",
+          "confidence": 76,
+          "truth_alignment": "partial",
+          "source": {"kind": "npc", "ref": "jory-rusk", "chain": ["jory-rusk"]}
+        }
+      ],
+      "transmission": {
+        "share_threshold": 35,
+        "distortion": "soft",
+        "contexts": ["carriage", "inn", "road"]
+      }
+    },
+    {
+      "id": "rot-rides-carriages",
+      "topic": "Carriages carry the black rot from kingdom to kingdom.",
+      "truth": {
+        "classification": "partial",
+        "account": "Black silt can cling to wet wheels, boots, roots, and cargo, but most carriage stains are inert road mud. Human movement spreads both contamination and panic; a carriage is neither necessary nor sufficient.",
+        "evidence": [
+          "Lye removes ordinary road mud but not active black residue.",
+          "Contaminated carts have arrived after outbreaks and also crossed clean districts without causing one.",
+          "Some affected sites have no carriage access."
+        ]
+      },
+      "beliefs": [
+        {
+          "id": "tom-carriage-rot",
+          "holder_npc_id": "tom-oakrun-stable",
+          "claim": "Some east-road mud is wrong and survives lye; I would still test the wheel before blaming the driver.",
+          "confidence": 85,
+          "truth_alignment": "accurate",
+          "source": {"kind": "firsthand", "ref": "oakrun_north_road", "chain": []}
+        },
+        {
+          "id": "hester-carriage-rot",
+          "holder_npc_id": "hester-oakrun-carriage",
+          "claim": "A dirty wheel can carry bad silt, but the loudest accusers never inspect their own boots.",
+          "confidence": 80,
+          "truth_alignment": "accurate",
+          "source": {"kind": "npc", "ref": "tom-oakrun-stable", "chain": ["tom-oakrun-stable"]}
+        },
+        {
+          "id": "alys-carriage-rot",
+          "holder_npc_id": "alys-oakrun-watch",
+          "claim": "One impossible carriage carried black residue into Oakrun, which proves a case, not a universal rule.",
+          "confidence": 72,
+          "truth_alignment": "partial",
+          "source": {"kind": "npc", "ref": "fen-alder", "chain": ["fen-alder"]}
+        },
+        {
+          "id": "fen-carriage-rot",
+          "holder_npc_id": "fen-alder",
+          "claim": "The uncounted carriage had clean wheels when it arrived and black wheel wells when it left.",
+          "confidence": 91,
+          "truth_alignment": "partial",
+          "source": {"kind": "firsthand", "ref": "oakrun_old_tollhouse", "chain": []}
+        },
+        {
+          "id": "jory-carriage-rot",
+          "holder_npc_id": "jory-rusk",
+          "claim": "The Black Mile marks wheels, but scraping and lye before dry ground has kept the Grey Heron from carrying a live stain west.",
+          "confidence": 87,
+          "truth_alignment": "accurate",
+          "source": {"kind": "firsthand", "ref": "hollowmere_post", "chain": []}
+        },
+        {
+          "id": "matthieu-carriage-rot",
+          "holder_npc_id": "matthieu-orne",
+          "claim": "Any coach that has carried a Draznan passenger may be tainted.",
+          "confidence": 45,
+          "truth_alignment": "false",
+          "source": {"kind": "anonymous", "ref": "unknown", "chain": []}
+        }
+      ],
+      "transmission": {
+        "share_threshold": 30,
+        "distortion": "volatile",
+        "contexts": ["carriage", "inn", "market", "road", "work"]
+      }
+    },
+    {
+      "id": "black-silt-erases-names",
+      "topic": "Black silt can steal memories and names.",
+      "truth": {
+        "classification": "unresolved",
+        "account": "Exposure correlates with missing words, altered memory, and people failing to recognize familiar names. Medicine, trauma, fever, and deliberate chemical additives confound every surviving case.",
+        "evidence": [
+          "Wren lost autobiographical memory after both exposure and treatment.",
+          "Several House of Names tablets were found polished blank below the floodline.",
+          "Draznan families report name-loss without agreeing on symptoms or timing."
+        ]
+      },
+      "beliefs": [
+        {
+          "id": "basil-silt-names",
+          "holder_npc_id": "basil-oakrun",
+          "claim": "Fever and terror disturb memory; calling the silt a thief may keep patients from describing useful symptoms.",
+          "confidence": 78,
+          "truth_alignment": "unresolved",
+          "source": {"kind": "firsthand", "ref": "oakrun_old_mill_yard", "chain": []}
+        },
+        {
+          "id": "wren-silt-names",
+          "holder_npc_id": "wren-no-house",
+          "claim": "The black smell came before the pain, but my names disappeared after the medicine.",
+          "confidence": 90,
+          "truth_alignment": "accurate",
+          "source": {"kind": "firsthand", "ref": "oakrun_pilgrims_hollow", "chain": []}
+        },
+        {
+          "id": "nera-silt-names",
+          "holder_npc_id": "nera-bell",
+          "claim": "Blank tablets and missing memories repeat together in the archive, but stone cannot tell me which caused which.",
+          "confidence": 74,
+          "truth_alignment": "unresolved",
+          "source": {"kind": "document", "ref": "house-of-names-blank-tablet-register", "chain": []}
+        },
+        {
+          "id": "pava-silt-names",
+          "holder_npc_id": "pava-mirek",
+          "claim": "Vasko began forgetting work songs after his first black-water dive.",
+          "confidence": 82,
+          "truth_alignment": "partial",
+          "source": {"kind": "npc", "ref": "vasko-mirek", "chain": ["vasko-mirek"]}
+        },
+        {
+          "id": "lina-silt-names",
+          "holder_npc_id": "lina-pell",
+          "claim": "My sister knew every quay family and then called me by our dead mother's name.",
+          "confidence": 88,
+          "truth_alignment": "partial",
+          "source": {"kind": "firsthand", "ref": "drazna_lantern_quays", "chain": []}
+        }
+      ],
+      "transmission": {
+        "share_threshold": 55,
+        "distortion": "volatile",
+        "contexts": ["camp", "inn", "work"]
+      }
+    },
+    {
+      "id": "drazna-crown-drowned-ward",
+      "topic": "The Draznan Crown deliberately drowned one of its own wards.",
+      "truth": {
+        "classification": "confirmed",
+        "account": "An earlier king ordered a populated lower ward flooded to preserve High Crown and the primary sluice during a structural failure. Later rolls removed many residents from the official count.",
+        "evidence": [
+          "The sealed sluice order names the ward and the closure hour.",
+          "Maintenance testimony describes occupied roofs below the closing gate.",
+          "Household rolls exceed the memorial count by hundreds."
+        ]
+      },
+      "beliefs": [
+        {
+          "id": "mara-drowned-ward",
+          "holder_npc_id": "mara-vey",
+          "claim": "The old Crown knowingly sacrificed the lower ward; publishing the order before the sluice is secure may sacrifice another.",
+          "confidence": 100,
+          "truth_alignment": "accurate",
+          "source": {"kind": "document", "ref": "sealed-lower-sluice-order", "chain": []}
+        },
+        {
+          "id": "ilya-drowned-ward",
+          "holder_npc_id": "ilya-sorn",
+          "claim": "The lower gate was closed while maintenance crews could still hear people above it.",
+          "confidence": 96,
+          "truth_alignment": "accurate",
+          "source": {"kind": "firsthand", "ref": "drazna_crown_sluice", "chain": []}
+        },
+        {
+          "id": "olek-drowned-ward",
+          "holder_npc_id": "olek-var",
+          "claim": "Vesna's dry-route maps put inhabited addresses below the official empty-ward line.",
+          "confidence": 86,
+          "truth_alignment": "accurate",
+          "source": {"kind": "npc", "ref": "vesna-korr", "chain": ["vesna-korr"]}
+        },
+        {
+          "id": "vesna-drowned-ward",
+          "holder_npc_id": "vesna-korr",
+          "claim": "My route keys open homes the memorial claims never existed.",
+          "confidence": 98,
+          "truth_alignment": "accurate",
+          "source": {"kind": "firsthand", "ref": "drazna_undertide", "chain": []}
+        },
+        {
+          "id": "alin-drowned-ward",
+          "holder_npc_id": "alin-vey",
+          "claim": "The sealed order and missing census names prove an intentional drowning followed by an intentional erasure.",
+          "confidence": 99,
+          "truth_alignment": "accurate",
+          "source": {"kind": "document", "ref": "sealed-lower-sluice-order", "chain": []}
+        }
+      ],
+      "transmission": {
+        "share_threshold": 70,
+        "distortion": "stable",
+        "contexts": ["camp", "inn", "work"]
+      }
+    },
+    {
+      "id": "undertide-survivors",
+      "topic": "People remain alive beneath Drazna's declared floodline.",
+      "truth": {
+        "classification": "confirmed",
+        "account": "Divers and displaced residents use air pockets, high service rooms, and changing dry routes in Undertide. Their number and condition change with every sluice cycle.",
+        "evidence": [
+          "Fresh lamp soot appears in rooms declared submerged.",
+          "Food wrappings and repaired guide ropes lie beyond the dry-dock gate.",
+          "Vasko's recent chalk marks continue past the official search limit."
+        ]
+      },
+      "beliefs": [
+        {
+          "id": "ilya-undertide",
+          "holder_npc_id": "ilya-sorn",
+          "claim": "Olek's crews hear people answer pipe knocks below the official evacuation line.",
+          "confidence": 83,
+          "truth_alignment": "accurate",
+          "source": {"kind": "npc", "ref": "olek-var", "chain": ["olek-var"]}
+        },
+        {
+          "id": "olek-undertide",
+          "holder_npc_id": "olek-var",
+          "claim": "There are survivors below; every public rescue announcement also tells the water guards where to seal.",
+          "confidence": 96,
+          "truth_alignment": "accurate",
+          "source": {"kind": "firsthand", "ref": "drazna_undertide", "chain": []}
+        },
+        {
+          "id": "pava-undertide",
+          "holder_npc_id": "pava-mirek",
+          "claim": "Olek heard Vasko's three-knock signal after the Crown ended its search.",
+          "confidence": 91,
+          "truth_alignment": "accurate",
+          "source": {"kind": "npc", "ref": "olek-var", "chain": ["olek-var"]}
+        },
+        {
+          "id": "vasko-undertide",
+          "holder_npc_id": "vasko-mirek",
+          "claim": "Six people share the upper dry dock with me, and two can no longer climb.",
+          "confidence": 100,
+          "truth_alignment": "accurate",
+          "source": {"kind": "firsthand", "ref": "drazna_undertide", "chain": []}
+        },
+        {
+          "id": "vesna-undertide",
+          "holder_npc_id": "vesna-korr",
+          "claim": "At least three family routes remain occupied below the declared floodline.",
+          "confidence": 94,
+          "truth_alignment": "accurate",
+          "source": {"kind": "firsthand", "ref": "drazna_undertide", "chain": []}
+        }
+      ],
+      "transmission": {
+        "share_threshold": 65,
+        "distortion": "soft",
+        "contexts": ["camp", "market", "work"]
+      }
+    },
+    {
+      "id": "rouvray-burns-refugees",
+      "topic": "Rouvray burns Draznan refugees at its gates.",
+      "truth": {
+        "classification": "false",
+        "account": "Gate crews burn contaminated cargo and clothing. Several refugees have been injured by unofficial inspection mobs, but the hospice does not burn people. Repetition collapses those facts into a more frightening claim.",
+        "evidence": [
+          "Saint Orée intake rolls record admitted Draznan patients after every gate fire.",
+          "The burn orders list cloth, timber, roots, and wagon scrap rather than people.",
+          "Witnesses place violent penitents outside official gate lines."
+        ]
+      },
+      "beliefs": [
+        {
+          "id": "elowen-rouvray-gates",
+          "holder_npc_id": "elowen-wayfarers-rest",
+          "claim": "Lina saw belongings burned and people struck; by Oakrun the telling had become people burned.",
+          "confidence": 68,
+          "truth_alignment": "accurate",
+          "source": {"kind": "npc", "ref": "lina-pell", "chain": ["lina-pell"]}
+        },
+        {
+          "id": "sabine-rouvray-gates",
+          "holder_npc_id": "sabine-vauclair",
+          "claim": "The hospice burns tainted goods, while armed penitents outside its authority have attacked their owners.",
+          "confidence": 96,
+          "truth_alignment": "accurate",
+          "source": {"kind": "firsthand", "ref": "saint-oree-hospice", "chain": []}
+        },
+        {
+          "id": "matthieu-rouvray-gates",
+          "holder_npc_id": "matthieu-orne",
+          "claim": "No official burns people, but a driver who waits for the distinction may lose passengers to a mob.",
+          "confidence": 89,
+          "truth_alignment": "accurate",
+          "source": {"kind": "firsthand", "ref": "orison_fields", "chain": []}
+        },
+        {
+          "id": "lina-rouvray-gates",
+          "holder_npc_id": "lina-pell",
+          "claim": "They burned my blankets and struck a man who tried to pull his family papers from the fire.",
+          "confidence": 94,
+          "truth_alignment": "accurate",
+          "source": {"kind": "firsthand", "ref": "saint-oree-hospice", "chain": []}
+        }
+      ],
+      "transmission": {
+        "share_threshold": 25,
+        "distortion": "volatile",
+        "contexts": ["carriage", "inn", "market", "road"]
+      }
+    },
+    {
+      "id": "rot-speaks-in-dreams",
+      "topic": "The black rot speaks familiar names in dreams.",
+      "truth": {
+        "classification": "unresolved",
+        "account": "Exposed people across distant places report dreams of familiar voices beneath still water. Trauma, shared rumor, fever, and an unknown property of the rot remain plausible explanations.",
+        "evidence": [
+          "Wren described the dream before hearing Lina's account.",
+          "Lina's sister recorded the same image in a private household letter.",
+          "No waking observer has documented a voice from active residue."
+        ]
+      },
+      "beliefs": [
+        {
+          "id": "maud-rot-dreams",
+          "holder_npc_id": "maud-oakrun-orchard",
+          "claim": "Wren dreams of water speaking names; a dream is evidence of hurt, not yet evidence of a talking thing.",
+          "confidence": 62,
+          "truth_alignment": "unresolved",
+          "source": {"kind": "npc", "ref": "wren-no-house", "chain": ["wren-no-house"]}
+        },
+        {
+          "id": "wren-rot-dreams",
+          "holder_npc_id": "wren-no-house",
+          "claim": "Still water repeats names I do not remember learning.",
+          "confidence": 93,
+          "truth_alignment": "unresolved",
+          "source": {"kind": "firsthand", "ref": "oakrun_pilgrims_hollow", "chain": []}
+        },
+        {
+          "id": "lina-rot-dreams",
+          "holder_npc_id": "lina-pell",
+          "claim": "My sister heard our mother's voice beneath black water before she disappeared.",
+          "confidence": 91,
+          "truth_alignment": "unresolved",
+          "source": {"kind": "firsthand", "ref": "drazna_lantern_quays", "chain": []}
+        }
+      ],
+      "transmission": {
+        "share_threshold": 60,
+        "distortion": "volatile",
+        "contexts": ["camp", "inn"]
+      }
+    },
+    {
+      "id": "low-water-road-safe",
+      "topic": "Drazna's low-water roads are safe whenever the lake retreats.",
+      "truth": {
+        "classification": "false",
+        "account": "Low water reveals routes, entrances, and hazards together. It reduces drowning risk on some segments while exposing black silt, unstable roofs, trapped dead, and competing salvage crews.",
+        "evidence": [
+          "The dry-line chalk changes after every sluice release.",
+          "Most Undertide accidents occur during accessible low-water hours.",
+          "Local guides disagree because each controls a different segment."
+        ]
+      },
+      "beliefs": [
+        {
+          "id": "edda-low-water",
+          "holder_npc_id": "edda-marr",
+          "claim": "Low water makes a road visible, not safe; Jory waits for guides as well as gauges.",
+          "confidence": 86,
+          "truth_alignment": "accurate",
+          "source": {"kind": "npc", "ref": "jory-rusk", "chain": ["jory-rusk"]}
+        },
+        {
+          "id": "olek-low-water",
+          "holder_npc_id": "olek-var",
+          "claim": "Low water is when routes become profitable and people become careless.",
+          "confidence": 95,
+          "truth_alignment": "accurate",
+          "source": {"kind": "firsthand", "ref": "drazna_undertide", "chain": []}
+        },
+        {
+          "id": "vasko-low-water",
+          "holder_npc_id": "vasko-mirek",
+          "claim": "The path I entered on was dry; the same stones now end at a collapsed roof.",
+          "confidence": 100,
+          "truth_alignment": "accurate",
+          "source": {"kind": "firsthand", "ref": "drazna_undertide", "chain": []}
+        },
+        {
+          "id": "jory-low-water",
+          "holder_npc_id": "jory-rusk",
+          "claim": "A falling gauge opens the causeway, then the local guide decides whether open means passable.",
+          "confidence": 94,
+          "truth_alignment": "accurate",
+          "source": {"kind": "firsthand", "ref": "hollowmere_post", "chain": []}
+        }
+      ],
+      "transmission": {
+        "share_threshold": 40,
+        "distortion": "soft",
+        "contexts": ["carriage", "market", "road", "work"]
+      }
+    },
+    {
+      "id": "medicine-stops-rot",
+      "topic": "Oakrun's apothecary has a cure for the black rot.",
+      "truth": {
+        "classification": "partial",
+        "account": "Basil's preparations slow several visible symptoms and can save exposed tissue. They do not remove active contamination, restore lost memory, or prevent recurrence, and one preparation includes an amnestic ingredient.",
+        "evidence": [
+          "Treated orchard roots survived but became pale and scentless.",
+          "Wren survived treatment and lost autobiographical memory.",
+          "Rouvrain preparations with similar antiseptics slow lesions less effectively."
+        ]
+      },
+      "beliefs": [
+        {
+          "id": "basil-remedy",
+          "holder_npc_id": "basil-oakrun",
+          "claim": "The preparation arrests visible tissue damage; cure is a larger word than any honest apothecary should use.",
+          "confidence": 98,
+          "truth_alignment": "accurate",
+          "source": {"kind": "firsthand", "ref": "oakrun_crossroads", "chain": []}
+        },
+        {
+          "id": "maud-remedy",
+          "holder_npc_id": "maud-oakrun-orchard",
+          "claim": "Basil's wash saved three trees and took every living smell from their roots.",
+          "confidence": 95,
+          "truth_alignment": "accurate",
+          "source": {"kind": "firsthand", "ref": "oakrun_orchard_lane", "chain": []}
+        },
+        {
+          "id": "wren-remedy",
+          "holder_npc_id": "wren-no-house",
+          "claim": "The medicine stopped the pain and left me alive without most of myself.",
+          "confidence": 100,
+          "truth_alignment": "accurate",
+          "source": {"kind": "firsthand", "ref": "oakrun_pilgrims_hollow", "chain": []}
+        },
+        {
+          "id": "sabine-remedy",
+          "holder_npc_id": "sabine-vauclair",
+          "claim": "Basil reports symptom control, not a cure, but his results exceed anything in Bellifont's physic garden.",
+          "confidence": 72,
+          "truth_alignment": "partial",
+          "source": {"kind": "npc", "ref": "basil-oakrun", "chain": ["basil-oakrun"]}
+        }
+      ],
+      "transmission": {
+        "share_threshold": 30,
+        "distortion": "volatile",
+        "contexts": ["carriage", "inn", "market", "work"]
+      }
+    }
+  ]
+}

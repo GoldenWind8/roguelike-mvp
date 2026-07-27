@@ -1,0 +1,765 @@
+{
+  "schema_version": 1,
+  "triggers": [
+    {
+      "id": "elowen-rowan-dated-rumor",
+      "kind": "conversation",
+      "participants": ["elowen-wayfarers-rest", "rowan-oakrun-courier"],
+      "window": {"opens_day": 0, "closes_day": null, "cooldown_minutes": 2880, "max_firings": 20},
+      "conditions": [
+        {"kind": "co_located", "npc_ids": ["elowen-wayfarers-rest", "rowan-oakrun-courier"]},
+        {"kind": "day_phase", "phases": ["dusk", "night"]}
+      ],
+      "effects": [
+        {
+          "kind": "share_rumor",
+          "speaker_npc_id": "rowan-oakrun-courier",
+          "listener_npc_id": "elowen-wayfarers-rest",
+          "rumor_id": "drazna-first-record"
+        },
+        {
+          "kind": "remember",
+          "npc_id": "rowan-oakrun-courier",
+          "summary": "Elowen separated the words 'first recorded' from 'began' while comparing eastern accounts.",
+          "importance": 5,
+          "tags": ["person", "testimony", "rot"]
+        }
+      ],
+      "conversation": {
+        "opening_speaker_npc_id": "elowen-wayfarers-rest",
+        "opening_line": "Give me the date before the disaster, Rowan. I have heard the disaster enough.",
+        "mode": "continuous",
+        "max_turns": 6,
+        "topics": ["black_rot", "rumors", "roads"],
+        "stop_when": ["danger", "separated", "topic_exhausted"],
+        "followup_trigger_ids": []
+      },
+      "missed_consequences": [],
+      "aftermath_clues": []
+    },
+    {
+      "id": "edda-hester-east-road",
+      "kind": "conversation",
+      "participants": ["edda-marr", "hester-oakrun-carriage"],
+      "window": {"opens_day": 0, "closes_day": null, "cooldown_minutes": 4320, "max_firings": 12},
+      "conditions": [
+        {"kind": "co_located", "npc_ids": ["edda-marr", "hester-oakrun-carriage"]},
+        {"kind": "believes", "npc_id": "edda-marr", "rumor_id": "east-road-is-closed", "minimum_confidence": 70}
+      ],
+      "effects": [
+        {
+          "kind": "share_rumor",
+          "speaker_npc_id": "edda-marr",
+          "listener_npc_id": "hester-oakrun-carriage",
+          "rumor_id": "low-water-road-safe"
+        },
+        {
+          "kind": "relationship_shift",
+          "from_npc_id": "hester-oakrun-carriage",
+          "to_npc_id": "edda-marr",
+          "axis": "respect",
+          "delta": 4
+        }
+      ],
+      "conversation": {
+        "opening_speaker_npc_id": "hester-oakrun-carriage",
+        "opening_line": "Your chart says road. My axle says ditch. Show me where the difference begins.",
+        "mode": "continuous",
+        "max_turns": 7,
+        "topics": ["carriages", "roads", "black_rot"],
+        "stop_when": ["danger", "separated", "speaker_refuses", "topic_exhausted"],
+        "followup_trigger_ids": ["wren-leaves-for-drazna"]
+      },
+      "missed_consequences": [],
+      "aftermath_clues": []
+    },
+    {
+      "id": "tom-wren-black-mud",
+      "kind": "conversation",
+      "participants": ["tom-oakrun-stable", "wren-no-house"],
+      "window": {"opens_day": 0, "closes_day": null, "cooldown_minutes": 2880, "max_firings": 10},
+      "conditions": [
+        {"kind": "co_located", "npc_ids": ["tom-oakrun-stable", "wren-no-house"]},
+        {"kind": "day_phase", "phases": ["dawn", "day"]}
+      ],
+      "effects": [
+        {
+          "kind": "share_rumor",
+          "speaker_npc_id": "tom-oakrun-stable",
+          "listener_npc_id": "wren-no-house",
+          "rumor_id": "rot-rides-carriages"
+        },
+        {
+          "kind": "remember",
+          "npc_id": "tom-oakrun-stable",
+          "summary": "Wren recognized the sweet-iron smell on a wheel before Tom uncovered the black stain.",
+          "importance": 7,
+          "tags": ["person", "carriage", "rot", "testimony"]
+        }
+      ],
+      "conversation": {
+        "opening_speaker_npc_id": "wren-no-house",
+        "opening_line": "Do not wet that wheel. The smell wakes when water touches it.",
+        "mode": "continuous",
+        "max_turns": 5,
+        "topics": ["black_rot", "carriages", "medicine"],
+        "stop_when": ["danger", "separated", "topic_exhausted"],
+        "followup_trigger_ids": []
+      },
+      "missed_consequences": [],
+      "aftermath_clues": []
+    },
+    {
+      "id": "maud-wren-root-memory",
+      "kind": "conversation",
+      "participants": ["maud-oakrun-orchard", "wren-no-house"],
+      "window": {"opens_day": 0, "closes_day": null, "cooldown_minutes": 4320, "max_firings": 10},
+      "conditions": [
+        {"kind": "co_located", "npc_ids": ["maud-oakrun-orchard", "wren-no-house"]},
+        {"kind": "npc_at", "npc_id": "maud-oakrun-orchard", "location_id": "oakrun_orchard_lane"}
+      ],
+      "effects": [
+        {
+          "kind": "share_rumor",
+          "speaker_npc_id": "wren-no-house",
+          "listener_npc_id": "maud-oakrun-orchard",
+          "rumor_id": "black-silt-erases-names"
+        },
+        {
+          "kind": "relationship_shift",
+          "from_npc_id": "wren-no-house",
+          "to_npc_id": "maud-oakrun-orchard",
+          "axis": "trust",
+          "delta": 5
+        }
+      ],
+      "conversation": {
+        "opening_speaker_npc_id": "maud-oakrun-orchard",
+        "opening_line": "You need not remember this tree. Tell me whether its root smells wrong now.",
+        "mode": "continuous",
+        "max_turns": 5,
+        "topics": ["black_rot", "medicine", "family"],
+        "stop_when": ["danger", "separated", "speaker_refuses", "topic_exhausted"],
+        "followup_trigger_ids": []
+      },
+      "missed_consequences": [],
+      "aftermath_clues": []
+    },
+    {
+      "id": "alys-hester-carriage-warning",
+      "kind": "conversation",
+      "participants": ["alys-oakrun-watch", "hester-oakrun-carriage"],
+      "window": {"opens_day": 0, "closes_day": null, "cooldown_minutes": 2880, "max_firings": 20},
+      "conditions": [
+        {"kind": "co_located", "npc_ids": ["alys-oakrun-watch", "hester-oakrun-carriage"]},
+        {"kind": "believes", "npc_id": "alys-oakrun-watch", "rumor_id": "rot-rides-carriages", "minimum_confidence": 60}
+      ],
+      "effects": [
+        {
+          "kind": "share_rumor",
+          "speaker_npc_id": "hester-oakrun-carriage",
+          "listener_npc_id": "alys-oakrun-watch",
+          "rumor_id": "east-road-is-closed"
+        },
+        {
+          "kind": "relationship_shift",
+          "from_npc_id": "alys-oakrun-watch",
+          "to_npc_id": "hester-oakrun-carriage",
+          "axis": "trust",
+          "delta": 3
+        }
+      ],
+      "conversation": {
+        "opening_speaker_npc_id": "alys-oakrun-watch",
+        "opening_line": "Tell me which wheel to inspect, not which passenger to frighten.",
+        "mode": "single_exchange",
+        "max_turns": 4,
+        "topics": ["carriages", "black_rot", "roads"],
+        "stop_when": ["danger", "separated", "topic_exhausted"],
+        "followup_trigger_ids": []
+      },
+      "missed_consequences": [],
+      "aftermath_clues": []
+    },
+    {
+      "id": "basil-sabine-remedy-dispute",
+      "kind": "conversation",
+      "participants": ["basil-oakrun", "sabine-vauclair"],
+      "window": {"opens_day": 2, "closes_day": null, "cooldown_minutes": 5760, "max_firings": 8},
+      "conditions": [
+        {"kind": "co_located", "npc_ids": ["basil-oakrun", "sabine-vauclair"]},
+        {"kind": "believes", "npc_id": "sabine-vauclair", "rumor_id": "medicine-stops-rot", "minimum_confidence": 60}
+      ],
+      "effects": [
+        {
+          "kind": "share_rumor",
+          "speaker_npc_id": "basil-oakrun",
+          "listener_npc_id": "sabine-vauclair",
+          "rumor_id": "black-silt-erases-names"
+        },
+        {
+          "kind": "relationship_shift",
+          "from_npc_id": "sabine-vauclair",
+          "to_npc_id": "basil-oakrun",
+          "axis": "trust",
+          "delta": -3
+        }
+      ],
+      "conversation": {
+        "opening_speaker_npc_id": "sabine-vauclair",
+        "opening_line": "Your wash closes lesions my best spirits barely slow. I want the whole preparation, including what you call inactive.",
+        "mode": "continuous",
+        "max_turns": 8,
+        "topics": ["medicine", "black_rot", "missing_people"],
+        "stop_when": ["danger", "separated", "speaker_refuses", "topic_exhausted"],
+        "followup_trigger_ids": []
+      },
+      "missed_consequences": [],
+      "aftermath_clues": []
+    },
+    {
+      "id": "elowen-lina-refugee-night",
+      "kind": "conversation",
+      "participants": ["elowen-wayfarers-rest", "lina-pell"],
+      "window": {"opens_day": 1, "closes_day": null, "cooldown_minutes": 7200, "max_firings": 6},
+      "conditions": [
+        {"kind": "co_located", "npc_ids": ["elowen-wayfarers-rest", "lina-pell"]},
+        {"kind": "day_phase", "phases": ["dusk", "night"]}
+      ],
+      "effects": [
+        {
+          "kind": "share_rumor",
+          "speaker_npc_id": "lina-pell",
+          "listener_npc_id": "elowen-wayfarers-rest",
+          "rumor_id": "rouvray-burns-refugees"
+        },
+        {
+          "kind": "relationship_shift",
+          "from_npc_id": "lina-pell",
+          "to_npc_id": "elowen-wayfarers-rest",
+          "axis": "trust",
+          "delta": 5
+        }
+      ],
+      "conversation": {
+        "opening_speaker_npc_id": "elowen-wayfarers-rest",
+        "opening_line": "Start with what you saw at the gate. We can discuss what people call it after you have eaten.",
+        "mode": "continuous",
+        "max_turns": 6,
+        "topics": ["family", "black_rot", "rumors", "roads"],
+        "stop_when": ["danger", "separated", "speaker_refuses", "topic_exhausted"],
+        "followup_trigger_ids": []
+      },
+      "missed_consequences": [],
+      "aftermath_clues": []
+    },
+    {
+      "id": "ilya-nera-channel-names",
+      "kind": "conversation",
+      "participants": ["ilya-sorn", "nera-bell"],
+      "window": {"opens_day": 0, "closes_day": null, "cooldown_minutes": 4320, "max_firings": 10},
+      "conditions": [
+        {"kind": "co_located", "npc_ids": ["ilya-sorn", "nera-bell"]},
+        {"kind": "believes", "npc_id": "ilya-sorn", "rumor_id": "drazna-crown-drowned-ward", "minimum_confidence": 80}
+      ],
+      "effects": [
+        {
+          "kind": "share_rumor",
+          "speaker_npc_id": "ilya-sorn",
+          "listener_npc_id": "nera-bell",
+          "rumor_id": "undertide-survivors"
+        },
+        {
+          "kind": "remember",
+          "npc_id": "nera-bell",
+          "summary": "Ilya supplied the maintenance names omitted from the lower-channel flood roll.",
+          "importance": 8,
+          "tags": ["person", "testimony", "grief"]
+        }
+      ],
+      "conversation": {
+        "opening_speaker_npc_id": "ilya-sorn",
+        "opening_line": "I can give you the crew names. If I do, the margin notes show who opened the channel.",
+        "mode": "continuous",
+        "max_turns": 7,
+        "topics": ["flood", "missing_people", "family"],
+        "stop_when": ["danger", "separated", "speaker_refuses", "topic_exhausted"],
+        "followup_trigger_ids": ["mara-ilya-sluice-choice"]
+      },
+      "missed_consequences": [],
+      "aftermath_clues": []
+    },
+    {
+      "id": "pava-olek-diver-bargain",
+      "kind": "conversation",
+      "participants": ["pava-mirek", "olek-var"],
+      "window": {"opens_day": 0, "closes_day": null, "cooldown_minutes": 2880, "max_firings": 12},
+      "conditions": [
+        {"kind": "co_located", "npc_ids": ["pava-mirek", "olek-var"]},
+        {"kind": "believes", "npc_id": "pava-mirek", "rumor_id": "undertide-survivors", "minimum_confidence": 75}
+      ],
+      "effects": [
+        {
+          "kind": "relationship_shift",
+          "from_npc_id": "pava-mirek",
+          "to_npc_id": "olek-var",
+          "axis": "obligation",
+          "delta": 6
+        },
+        {
+          "kind": "remember",
+          "npc_id": "olek-var",
+          "summary": "Pava offered roof crews and winter timber in exchange for another Undertide descent.",
+          "importance": 7,
+          "tags": ["person", "promise", "danger"]
+        }
+      ],
+      "conversation": {
+        "opening_speaker_npc_id": "pava-mirek",
+        "opening_line": "You need roof timber. I need my brother. We can both stop pretending this is not a price.",
+        "mode": "continuous",
+        "max_turns": 7,
+        "topics": ["missing_people", "family", "flood"],
+        "stop_when": ["danger", "separated", "speaker_refuses", "topic_exhausted"],
+        "followup_trigger_ids": ["vasko-low-water-return"]
+      },
+      "missed_consequences": [],
+      "aftermath_clues": []
+    },
+    {
+      "id": "mara-alin-gate-hearing",
+      "kind": "conversation",
+      "participants": ["mara-vey", "alin-vey"],
+      "window": {"opens_day": 1, "closes_day": null, "cooldown_minutes": 7200, "max_firings": 8},
+      "conditions": [
+        {"kind": "co_located", "npc_ids": ["mara-vey", "alin-vey"]},
+        {"kind": "believes", "npc_id": "alin-vey", "rumor_id": "drazna-crown-drowned-ward", "minimum_confidence": 90}
+      ],
+      "effects": [
+        {
+          "kind": "relationship_shift",
+          "from_npc_id": "mara-vey",
+          "to_npc_id": "alin-vey",
+          "axis": "respect",
+          "delta": 3
+        },
+        {
+          "kind": "relationship_shift",
+          "from_npc_id": "mara-vey",
+          "to_npc_id": "alin-vey",
+          "axis": "fear",
+          "delta": 4
+        }
+      ],
+      "conversation": {
+        "opening_speaker_npc_id": "alin-vey",
+        "opening_line": "Open the gate yard to testimony. If the city must hear the water behind us, let it also hear the names beneath us.",
+        "mode": "continuous",
+        "max_turns": 8,
+        "topics": ["flood", "family", "missing_people"],
+        "stop_when": ["danger", "separated", "speaker_refuses", "topic_exhausted"],
+        "followup_trigger_ids": []
+      },
+      "missed_consequences": [],
+      "aftermath_clues": []
+    },
+    {
+      "id": "sabine-jory-eastbound-seat",
+      "kind": "conversation",
+      "participants": ["sabine-vauclair", "jory-rusk"],
+      "window": {"opens_day": 2, "closes_day": null, "cooldown_minutes": 4320, "max_firings": 10},
+      "conditions": [
+        {"kind": "co_located", "npc_ids": ["sabine-vauclair", "jory-rusk"]},
+        {"kind": "believes", "npc_id": "sabine-vauclair", "rumor_id": "drazna-first-record", "minimum_confidence": 70}
+      ],
+      "effects": [
+        {
+          "kind": "share_rumor",
+          "speaker_npc_id": "jory-rusk",
+          "listener_npc_id": "sabine-vauclair",
+          "rumor_id": "low-water-road-safe"
+        },
+        {
+          "kind": "relationship_shift",
+          "from_npc_id": "jory-rusk",
+          "to_npc_id": "sabine-vauclair",
+          "axis": "respect",
+          "delta": 3
+        }
+      ],
+      "conversation": {
+        "opening_speaker_npc_id": "jory-rusk",
+        "opening_line": "A physician buys a seat. Someone bringing open bottles buys the whole rear bench and my suspicion.",
+        "mode": "continuous",
+        "max_turns": 6,
+        "topics": ["carriages", "medicine", "roads", "black_rot"],
+        "stop_when": ["danger", "separated", "speaker_refuses", "topic_exhausted"],
+        "followup_trigger_ids": []
+      },
+      "missed_consequences": [],
+      "aftermath_clues": []
+    },
+    {
+      "id": "olek-vasko-ledger-return",
+      "kind": "conversation",
+      "participants": ["olek-var", "vasko-mirek"],
+      "window": {"opens_day": 2, "closes_day": null, "cooldown_minutes": 10080, "max_firings": 4},
+      "conditions": [
+        {"kind": "co_located", "npc_ids": ["olek-var", "vasko-mirek"]},
+        {"kind": "trigger_fired", "trigger_id": "vasko-low-water-return"}
+      ],
+      "effects": [
+        {
+          "kind": "share_rumor",
+          "speaker_npc_id": "vasko-mirek",
+          "listener_npc_id": "olek-var",
+          "rumor_id": "drazna-crown-drowned-ward"
+        },
+        {
+          "kind": "relationship_shift",
+          "from_npc_id": "vasko-mirek",
+          "to_npc_id": "olek-var",
+          "axis": "trust",
+          "delta": -4
+        }
+      ],
+      "conversation": {
+        "opening_speaker_npc_id": "vasko-mirek",
+        "opening_line": "You sold the dive as salvage. The ledger says those rooms were sealed with families inside.",
+        "mode": "continuous",
+        "max_turns": 8,
+        "topics": ["flood", "missing_people", "family"],
+        "stop_when": ["danger", "separated", "speaker_refuses", "topic_exhausted"],
+        "followup_trigger_ids": []
+      },
+      "missed_consequences": [],
+      "aftermath_clues": []
+    },
+    {
+      "id": "fen-takes-grey-heron",
+      "kind": "story",
+      "participants": ["fen-alder", "jory-rusk"],
+      "window": {"opens_day": 4, "closes_day": 14, "cooldown_minutes": 0, "max_firings": 1},
+      "conditions": [
+        {"kind": "believes", "npc_id": "fen-alder", "rumor_id": "rot-rides-carriages", "minimum_confidence": 80},
+        {"kind": "carriage_arrives", "carriage_id": "grey-heron", "location_id": "oakrun_pilgrims_hollow"}
+      ],
+      "effects": [
+        {
+          "kind": "board_carriage",
+          "npc_id": "fen-alder",
+          "carriage_id": "grey-heron",
+          "destination_location_id": "drazna_lantern_quays"
+        },
+        {
+          "kind": "set_direction",
+          "npc_id": "fen-alder",
+          "location_id": "drazna_birch_heights",
+          "reason": "Fen wants to compare his impossible count against Drazna's oldest surviving road rolls."
+        },
+        {
+          "kind": "remember",
+          "npc_id": "jory-rusk",
+          "summary": "Fen boarded with one small bag and kept a folded tally inside his coat.",
+          "importance": 7,
+          "tags": ["person", "departure", "carriage"]
+        }
+      ],
+      "conversation": null,
+      "missed_consequences": [
+        {
+          "kind": "set_direction",
+          "npc_id": "fen-alder",
+          "location_id": "oakrun_barrow_verge",
+          "reason": "Fear outlasted the eastbound window, so Fen hides his duplicate among the old tally-keepers."
+        },
+        {
+          "kind": "leave_evidence",
+          "location_id": "oakrun_old_tollhouse",
+          "description": "Fen's cold fire, an uneaten heel of bread, and a carriage date scratched out three times remain behind."
+        }
+      ],
+      "aftermath_clues": [
+        {
+          "location_id": "oakrun_old_tollhouse",
+          "description": "A Grey Heron fare coin lies beneath Fen's chair although he never boarded.",
+          "discoverable_for_days": 30
+        },
+        {
+          "location_id": "oakrun_barrow_verge",
+          "description": "Fresh wax seals one gap in the crowned tally stone.",
+          "discoverable_for_days": 60
+        }
+      ]
+    },
+    {
+      "id": "wren-leaves-for-drazna",
+      "kind": "story",
+      "participants": ["wren-no-house", "edda-marr", "jory-rusk"],
+      "window": {"opens_day": 6, "closes_day": 21, "cooldown_minutes": 0, "max_firings": 1},
+      "conditions": [
+        {"kind": "co_located", "npc_ids": ["wren-no-house", "edda-marr", "jory-rusk"]},
+        {"kind": "carriage_arrives", "carriage_id": "grey-heron", "location_id": "oakrun_pilgrims_hollow"},
+        {"kind": "believes", "npc_id": "wren-no-house", "rumor_id": "rot-speaks-in-dreams", "minimum_confidence": 80}
+      ],
+      "effects": [
+        {
+          "kind": "board_carriage",
+          "npc_id": "wren-no-house",
+          "carriage_id": "grey-heron",
+          "destination_location_id": "drazna_lantern_quays"
+        },
+        {
+          "kind": "board_carriage",
+          "npc_id": "edda-marr",
+          "carriage_id": "grey-heron",
+          "destination_location_id": "drazna_lantern_quays"
+        },
+        {
+          "kind": "remember",
+          "npc_id": "wren-no-house",
+          "summary": "Edda offered a place beside her without asking Wren to prove any remembered name.",
+          "importance": 9,
+          "tags": ["person", "promise", "departure", "carriage"]
+        }
+      ],
+      "conversation": null,
+      "missed_consequences": [
+        {
+          "kind": "set_direction",
+          "npc_id": "edda-marr",
+          "location_id": "hollowmere_post",
+          "reason": "Edda leaves on foot when the final affordable Grey Heron departure passes."
+        },
+        {
+          "kind": "set_direction",
+          "npc_id": "wren-no-house",
+          "location_id": "oakrun_fieldsite_verge",
+          "reason": "Without Edda's departure, Wren follows the nearer remembered machinery instead of the eastern road."
+        },
+        {
+          "kind": "relationship_shift",
+          "from_npc_id": "wren-no-house",
+          "to_npc_id": "edda-marr",
+          "axis": "obligation",
+          "delta": -6
+        }
+      ],
+      "aftermath_clues": [
+        {
+          "location_id": "oakrun_pilgrims_hollow",
+          "description": "Edda's sleeping place is swept clean; one half of her route map remains tucked beneath Wren's blanket.",
+          "discoverable_for_days": 45
+        },
+        {
+          "location_id": "oakrun_fieldsite_verge",
+          "description": "Wren's careful footprints stop where the old apparatus begins.",
+          "discoverable_for_days": 15
+        }
+      ]
+    },
+    {
+      "id": "vasko-low-water-return",
+      "kind": "story",
+      "participants": ["vasko-mirek", "pava-mirek", "vesna-korr"],
+      "window": {"opens_day": 2, "closes_day": 7, "cooldown_minutes": 0, "max_firings": 1},
+      "conditions": [
+        {"kind": "npc_at", "npc_id": "vasko-mirek", "location_id": "drazna_undertide"},
+        {"kind": "route_pressure_at_least", "hostile_passage_id": "undertide-mouth", "minimum": 70},
+        {"kind": "believes", "npc_id": "vesna-korr", "rumor_id": "undertide-survivors", "minimum_confidence": 85}
+      ],
+      "effects": [
+        {
+          "kind": "set_direction",
+          "npc_id": "vasko-mirek",
+          "location_id": "drazna_lantern_quays",
+          "reason": "Vesna's signal marks a brief route above the rising Undertide."
+        },
+        {
+          "kind": "remember",
+          "npc_id": "pava-mirek",
+          "summary": "Vesna's lantern pattern means Vasko is moving toward the quay before the next sluice release.",
+          "importance": 10,
+          "tags": ["person", "danger", "family"]
+        }
+      ],
+      "conversation": null,
+      "missed_consequences": [
+        {
+          "kind": "change_need",
+          "npc_id": "vasko-mirek",
+          "need": "health",
+          "delta": 35
+        },
+        {
+          "kind": "set_direction",
+          "npc_id": "vesna-korr",
+          "location_id": "drazna_undertide",
+          "reason": "When Vasko misses the signal, Vesna attempts the drowned route herself."
+        },
+        {
+          "kind": "leave_evidence",
+          "location_id": "drazna_undertide",
+          "description": "Vasko's rope is cut above a fresh chalk arrow pointing away from the old dry dock."
+        }
+      ],
+      "aftermath_clues": [
+        {
+          "location_id": "drazna_lantern_quays",
+          "description": "Pava keeps an unlit crimson wrist strip tied to the salvage crane.",
+          "discoverable_for_days": 90
+        },
+        {
+          "location_id": "drazna_undertide",
+          "description": "Three new knock marks answer from beyond the collapsed dry-line route.",
+          "discoverable_for_days": 12
+        }
+      ]
+    },
+    {
+      "id": "lina-carries-names-uphill",
+      "kind": "story",
+      "participants": ["lina-pell", "nera-bell"],
+      "window": {"opens_day": 0, "closes_day": null, "cooldown_minutes": 4320, "max_firings": 100},
+      "conditions": [
+        {"kind": "carriage_arrives", "carriage_id": "mudwheel", "location_id": "drazna_high_crown"},
+        {"kind": "co_located", "npc_ids": ["lina-pell", "nera-bell"]}
+      ],
+      "effects": [
+        {
+          "kind": "remember",
+          "npc_id": "nera-bell",
+          "summary": "Lina delivered another bundle of refugee names and return addresses from the Mudwheel.",
+          "importance": 5,
+          "tags": ["person", "carriage", "testimony"]
+        },
+        {
+          "kind": "relationship_shift",
+          "from_npc_id": "nera-bell",
+          "to_npc_id": "lina-pell",
+          "axis": "obligation",
+          "delta": 2
+        }
+      ],
+      "conversation": null,
+      "missed_consequences": [],
+      "aftermath_clues": []
+    },
+    {
+      "id": "matthieu-turns-from-zealots",
+      "kind": "story",
+      "participants": ["matthieu-orne", "sabine-vauclair"],
+      "window": {"opens_day": 3, "closes_day": 10, "cooldown_minutes": 0, "max_firings": 1},
+      "conditions": [
+        {"kind": "route_pressure_at_least", "hostile_passage_id": "penitent-mile", "minimum": 60},
+        {"kind": "believes", "npc_id": "matthieu-orne", "rumor_id": "rouvray-burns-refugees", "minimum_confidence": 75}
+      ],
+      "effects": [
+        {
+          "kind": "set_direction",
+          "npc_id": "matthieu-orne",
+          "location_id": "bellifont",
+          "reason": "Matthieu refuses the Penitent Mile and returns passengers to Bellifont before the armed inspection."
+        },
+        {
+          "kind": "remember",
+          "npc_id": "sabine-vauclair",
+          "summary": "Matthieu abandoned a paid westbound run rather than surrender Draznan passengers to penitents.",
+          "importance": 8,
+          "tags": ["person", "danger", "carriage", "promise"]
+        },
+        {
+          "kind": "relationship_shift",
+          "from_npc_id": "sabine-vauclair",
+          "to_npc_id": "matthieu-orne",
+          "axis": "respect",
+          "delta": 7
+        }
+      ],
+      "conversation": null,
+      "missed_consequences": [
+        {
+          "kind": "set_direction",
+          "npc_id": "sabine-vauclair",
+          "location_id": "alderwick",
+          "reason": "The coach passes the inspection without Sabine, who continues toward Amberfall on foot."
+        },
+        {
+          "kind": "relationship_shift",
+          "from_npc_id": "sabine-vauclair",
+          "to_npc_id": "matthieu-orne",
+          "axis": "trust",
+          "delta": -8
+        },
+        {
+          "kind": "leave_evidence",
+          "location_id": "orison_fields",
+          "description": "A physician's case lies split beside an inspection fire, its clean instruments taken and its Draznan notes burned."
+        }
+      ],
+      "aftermath_clues": [
+        {
+          "location_id": "orison_fields",
+          "description": "The Bell and Reed's wheel tracks continue west while one set of bootprints turns back alone.",
+          "discoverable_for_days": 20
+        }
+      ]
+    },
+    {
+      "id": "mara-ilya-sluice-choice",
+      "kind": "story",
+      "participants": ["mara-vey", "ilya-sorn"],
+      "window": {"opens_day": 3, "closes_day": 12, "cooldown_minutes": 0, "max_firings": 1},
+      "conditions": [
+        {"kind": "trigger_fired", "trigger_id": "ilya-nera-channel-names"},
+        {"kind": "co_located", "npc_ids": ["mara-vey", "ilya-sorn"]},
+        {"kind": "npc_at", "npc_id": "ilya-sorn", "location_id": "drazna_crown_sluice"}
+      ],
+      "effects": [
+        {
+          "kind": "set_direction",
+          "npc_id": "mara-vey",
+          "location_id": "drazna_crown_sluice",
+          "reason": "Mara chooses to inspect the failing lower station with the warden whose testimony can expose the old flood."
+        },
+        {
+          "kind": "relationship_shift",
+          "from_npc_id": "mara-vey",
+          "to_npc_id": "ilya-sorn",
+          "axis": "trust",
+          "delta": 5
+        },
+        {
+          "kind": "remember",
+          "npc_id": "ilya-sorn",
+          "summary": "Mara came below the safe waterline after learning he gave Nera the omitted crew names.",
+          "importance": 9,
+          "tags": ["person", "danger", "testimony"]
+        }
+      ],
+      "conversation": null,
+      "missed_consequences": [
+        {
+          "kind": "set_direction",
+          "npc_id": "ilya-sorn",
+          "location_id": "drazna_undertide",
+          "reason": "With no crown inspection forthcoming, Ilya attempts the lower pressure route alone."
+        },
+        {
+          "kind": "relationship_shift",
+          "from_npc_id": "ilya-sorn",
+          "to_npc_id": "mara-vey",
+          "axis": "trust",
+          "delta": -9
+        }
+      ],
+      "aftermath_clues": [
+        {
+          "location_id": "drazna_crown_sluice",
+          "description": "Ilya's junior river-key hangs beside an unanswered inspection request.",
+          "discoverable_for_days": 40
+        }
+      ]
+    }
+  ]
+}

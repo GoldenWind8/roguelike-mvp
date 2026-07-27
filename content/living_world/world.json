@@ -1,0 +1,720 @@
+{
+  "schema_version": 1,
+  "world": {
+    "id": "three-crown-roads",
+    "name": "The Three Crown Roads",
+    "day_length_minutes": 1440
+  },
+  "carriage_network": {
+    "scope": "shared_world",
+    "network_visibility": "public",
+    "generated_frontier": {
+      "eligible_biomes": ["amberfall_fields", "rouvray_lowlands", "drazna_marches", "deep_frontier"],
+      "minimum_depth": 2,
+      "guaranteed_archetypes": ["caravan_remains"],
+      "other_room_chance_percent": 16,
+      "requires_road_connection": true,
+      "requires_arrival_before_naming": true,
+      "first_arrival_may_name": true,
+      "default_stop_name": "Unnamed Waystop",
+      "name_character_limit": 32,
+      "generated_departure_minutes": [360, 720, 1080]
+    },
+    "fast_travel": {
+      "uses_route_travel_minutes": true,
+      "requires_operating_window": true,
+      "advances_world_time": true,
+      "moves_party_together": true,
+      "resolves_route_pressure": true
+    }
+  },
+  "kingdoms": [
+    {
+      "id": "amberfall",
+      "name": "Amberfall",
+      "demonym": "Amberfolk",
+      "capital_location_id": "alderwick",
+      "first_public_rot_record": false,
+      "rot_proximity": "hearsay",
+      "public_account": "Most Amberfolk know the black rot as contradictory carriage talk: poisoned rain, a Draznan civil war, bad grain, or an eastern superstition. Oakrun has stains and sick roots, but no authority has named them.",
+      "travel_motive": "The warm western roads still promise food, work, replacement horses, and a bed. They also funnel anyone seeking Drazna through Oakrun, where every version of the eastern disaster meets.",
+      "character": "A pastoral crown of hedged fields, orchard shires, practical market towns, and a distant monarchy that is felt chiefly through roads and stamped coin."
+    },
+    {
+      "id": "drazna",
+      "name": "The Draznan Crown",
+      "demonym": "Draznan",
+      "capital_location_id": "drazna_high_crown",
+      "first_public_rot_record": true,
+      "rot_proximity": "endemic",
+      "public_account": "Drazna holds the oldest widely verified account of black water spoiling stone, roots, flesh, and names. That makes it the first recorded kingdom, not a proven birthplace. The distinction is usually lost before a rumor reaches Oakrun.",
+      "travel_motive": "Survivors go home for missing kin; physicians and opportunists go for samples; clerks go for dates; frightened pilgrims go because every other account points east. The same traffic carries distorted testimony back out.",
+      "character": "A lake crown rebuilt vertically after old floods: wet timber wards, slate roofs, sluice galleries, ferries, memorial archives, and inhabited bridges over the drowned city."
+    },
+    {
+      "id": "rouvray",
+      "name": "Rouvray",
+      "demonym": "Rouvrain",
+      "capital_location_id": "bellifont",
+      "first_public_rot_record": false,
+      "rot_proximity": "witnessed",
+      "public_account": "Rouvrain hospices receive Draznan refugees and blackened cargo. Cathedral authorities call the corruption a material contagion while roadside preachers call it judgment; both stories produce fires at the gates.",
+      "travel_motive": "Its hospitals, scriptoria, and guarded pilgrim roads draw the injured and the curious. Its southern field road is the long alternative when the direct Draznan causeway becomes impassable.",
+      "character": "A country of limestone cathedral towns, bell roads, chalk fields, vineyards, charitable hospices, and increasingly severe gate inspections."
+    }
+  ],
+  "locations": [
+    {
+      "id": "oakrun_crossroads",
+      "name": "Oakrun Crossroads",
+      "kingdom_id": "amberfall",
+      "kind": "town",
+      "description": "A great oak, a warm inn, a stable yard, and the meeting of the south road with older ways whose stones disagree with modern maps.",
+      "tags": ["carriage_stop", "healer", "lodging", "market", "safe_at_night", "stables", "work"]
+    },
+    {
+      "id": "oakrun_north_road",
+      "name": "Oakrun North Road",
+      "kingdom_id": "amberfall",
+      "kind": "road_site",
+      "description": "A rutted approach where horses shy before travellers see any threat and black mud clings beneath ordinary brown clay.",
+      "tags": ["rot_signs"]
+    },
+    {
+      "id": "oakrun_orchard_lane",
+      "name": "Oakrun Orchard Lane",
+      "kingdom_id": "amberfall",
+      "kind": "field",
+      "description": "Maud Bell's worked rows, cider press, and pale treated roots lie along a buried watercourse.",
+      "tags": ["rot_signs", "work"]
+    },
+    {
+      "id": "oakrun_old_mill_yard",
+      "name": "Oakrun Old Mill Yard",
+      "kingdom_id": "amberfall",
+      "kind": "road_site",
+      "description": "The stopped mill stands above sweet-smelling black silt and a track recently widened for a narrow wagon.",
+      "tags": ["rot_signs"]
+    },
+    {
+      "id": "oakrun_pilgrims_hollow",
+      "name": "Oakrun Pilgrim's Hollow",
+      "kingdom_id": "amberfall",
+      "kind": "waystation",
+      "description": "A roofed roadside hollow where stranded travellers sleep beside worn stones that still point east.",
+      "tags": ["carriage_stop", "lodging"]
+    },
+    {
+      "id": "oakrun_old_tollhouse",
+      "name": "Oakrun Old Tollhouse",
+      "kingdom_id": "amberfall",
+      "kind": "road_site",
+      "description": "Fen Alder inhabits the ruined counting post among wheel marks, duplicate tallies, and the remains of an abolished route.",
+      "tags": ["work"]
+    },
+    {
+      "id": "oakrun_barrow_verge",
+      "name": "Oakrun Barrow Verge",
+      "kingdom_id": "amberfall",
+      "kind": "road_site",
+      "description": "Crowned stones and disturbed graves overlook the north road; tally-keepers were buried here before the toll moved.",
+      "tags": []
+    },
+    {
+      "id": "oakrun_fieldsite_verge",
+      "name": "Oakrun Severed Fieldsite",
+      "kingdom_id": "amberfall",
+      "kind": "road_site",
+      "description": "Broken apparatus and blackened holding pits occupy a cut in the fields beyond the abandoned mill.",
+      "tags": ["rot_signs"]
+    },
+    {
+      "id": "alderwick",
+      "name": "Alderwick",
+      "kingdom_id": "amberfall",
+      "kind": "capital",
+      "description": "Amberfall's low brick capital surrounds a broad coach yard, wool market, river stairs, and crown offices that receive eastern reports weeks late.",
+      "tags": ["archive", "carriage_stop", "healer", "lodging", "market", "safe_at_night", "stables", "work"]
+    },
+    {
+      "id": "briarwash_fields",
+      "name": "The Briarwash Fields",
+      "kingdom_id": "amberfall",
+      "kind": "field",
+      "description": "Miles of sheep pasture and drainage ditches make a visible but exposed approach to the capital.",
+      "tags": ["work"]
+    },
+    {
+      "id": "hollowmere_post",
+      "name": "Hollowmere Post",
+      "kingdom_id": "amberfall",
+      "kind": "border_post",
+      "description": "The last Amberfall toll shed faces a flooded eastern mile. Drivers wait here to join convoys or quietly turn around.",
+      "tags": ["carriage_stop", "lodging", "stables"]
+    },
+    {
+      "id": "drazna_high_crown",
+      "name": "Drazna, High Crown",
+      "kingdom_id": "drazna",
+      "kind": "capital",
+      "description": "The surviving palace height commands sluices, bridges, and the drowned foundations of Old Drazna without controlling all of them.",
+      "tags": ["archive", "carriage_stop", "healer", "lodging", "market", "safe_at_night", "stables", "work"]
+    },
+    {
+      "id": "drazna_lantern_quays",
+      "name": "Drazna, Lantern Quays",
+      "kingdom_id": "drazna",
+      "kind": "city_district",
+      "description": "Ferries, eel smoke, salvage stalls, and refugee notices crowd the lowest inhabited quay above black-marked pilings.",
+      "tags": ["carriage_stop", "docks", "lodging", "market", "rot_signs", "work"]
+    },
+    {
+      "id": "drazna_birch_heights",
+      "name": "Drazna, Birch Heights",
+      "kingdom_id": "drazna",
+      "kind": "city_district",
+      "description": "The House of Names keeps flood tablets and household rolls on a dry slope planted with white birch.",
+      "tags": ["archive", "carriage_stop", "healer", "safe_at_night", "work"]
+    },
+    {
+      "id": "drazna_crown_sluice",
+      "name": "Drazna, Crown Sluice",
+      "kingdom_id": "drazna",
+      "kind": "city_district",
+      "description": "Timber gears, water gauges, pressure galleries, and sealed lower channels keep the surviving wards above the lake.",
+      "tags": ["rot_signs", "work"]
+    },
+    {
+      "id": "drazna_walking_ward",
+      "name": "Drazna, Walking Ward",
+      "kingdom_id": "drazna",
+      "kind": "city_district",
+      "description": "Black-timber homes and workshops bridge from roof to roof where streets have become canals.",
+      "tags": ["lodging", "safe_at_night", "work"]
+    },
+    {
+      "id": "drazna_undertide",
+      "name": "Drazna, Undertide",
+      "kingdom_id": "drazna",
+      "kind": "road_site",
+      "description": "Dry docks and drowned service passages appear only as the lake falls. Divers, smugglers, and wardens all claim different maps.",
+      "tags": ["rot_signs", "work"]
+    },
+    {
+      "id": "bellifont",
+      "name": "Bellifont",
+      "kingdom_id": "rouvray",
+      "kind": "capital",
+      "description": "Rouvray's limestone capital grows around a cathedral close, physic gardens, crowded hospices, and gate yards bright with inspection fires.",
+      "tags": ["archive", "carriage_stop", "healer", "lodging", "market", "safe_at_night", "stables", "work", "worship"]
+    },
+    {
+      "id": "saint-oree-hospice",
+      "name": "Saint Orée Hospice",
+      "kingdom_id": "rouvray",
+      "kind": "hospice",
+      "description": "A road hospital outside Bellifont where Draznan arrivals are washed, named, questioned, and sometimes refused entry.",
+      "tags": ["archive", "healer", "lodging", "safe_at_night", "work", "worship"]
+    },
+    {
+      "id": "orison_fields",
+      "name": "The Orison Fields",
+      "kingdom_id": "rouvray",
+      "kind": "field",
+      "description": "Chalk roads cross vineyard walls and open grain country where travellers can see danger long before they can escape it.",
+      "tags": ["carriage_stop", "work"]
+    },
+    {
+      "id": "hollow_bells_post",
+      "name": "Hollow Bells Post",
+      "kingdom_id": "rouvray",
+      "kind": "border_post",
+      "description": "A wind-cut gate below the pass hangs cracked bells for each missing coach. No keeper agrees what rings them at night.",
+      "tags": ["carriage_stop", "lodging", "stables"]
+    }
+  ],
+  "routes": [
+    {
+      "id": "oakrun-crossroads-north",
+      "name": "The Near North Road",
+      "from_location_id": "oakrun_crossroads",
+      "to_location_id": "oakrun_north_road",
+      "passage": "hedgerow_track",
+      "travel_minutes": 35,
+      "risk": "guarded",
+      "hostile_passage_ids": [],
+      "description": "A short, familiar road whose horses have recently begun to fear the last bend."
+    },
+    {
+      "id": "oakrun-crossroads-orchard",
+      "name": "Orchard Lane",
+      "from_location_id": "oakrun_crossroads",
+      "to_location_id": "oakrun_orchard_lane",
+      "passage": "field_road",
+      "travel_minutes": 25,
+      "risk": "safe",
+      "hostile_passage_ids": [],
+      "description": "A worked lane between hedges, irrigation ditches, and Maud's cider rows."
+    },
+    {
+      "id": "oakrun-crossroads-hollow",
+      "name": "The Pilgrim Spur",
+      "from_location_id": "oakrun_crossroads",
+      "to_location_id": "oakrun_pilgrims_hollow",
+      "passage": "hedgerow_track",
+      "travel_minutes": 30,
+      "risk": "safe",
+      "hostile_passage_ids": [],
+      "description": "A worn western spur preserved because travellers still sleep beneath its little roof."
+    },
+    {
+      "id": "oakrun-north-toll",
+      "name": "The Abolished Toll",
+      "from_location_id": "oakrun_north_road",
+      "to_location_id": "oakrun_old_tollhouse",
+      "passage": "forest_track",
+      "travel_minutes": 45,
+      "risk": "guarded",
+      "hostile_passage_ids": [],
+      "description": "Weeds obscure the wheel ruts, but Fen still counts every axle that passes."
+    },
+    {
+      "id": "oakrun-north-barrow",
+      "name": "Tally-Keeper's Rise",
+      "from_location_id": "oakrun_north_road",
+      "to_location_id": "oakrun_barrow_verge",
+      "passage": "forest_track",
+      "travel_minutes": 50,
+      "risk": "dangerous",
+      "hostile_passage_ids": ["barrow-turn"],
+      "description": "The road climbs among crown stones and graves older than the current toll."
+    },
+    {
+      "id": "oakrun-barrow-hollow",
+      "name": "The Worn-Saint Cut",
+      "from_location_id": "oakrun_barrow_verge",
+      "to_location_id": "oakrun_pilgrims_hollow",
+      "passage": "forest_track",
+      "travel_minutes": 40,
+      "risk": "dangerous",
+      "hostile_passage_ids": [],
+      "description": "A steep cut allows careful travellers to avoid returning by the north bend."
+    },
+    {
+      "id": "oakrun-orchard-mill",
+      "name": "Millwater Lane",
+      "from_location_id": "oakrun_orchard_lane",
+      "to_location_id": "oakrun_old_mill_yard",
+      "passage": "field_road",
+      "travel_minutes": 35,
+      "risk": "dangerous",
+      "hostile_passage_ids": ["scentless-runoff"],
+      "description": "The buried watercourse becomes visible beside roots that no longer smell alive."
+    },
+    {
+      "id": "oakrun-mill-fieldsite",
+      "name": "The Severed Track",
+      "from_location_id": "oakrun_old_mill_yard",
+      "to_location_id": "oakrun_fieldsite_verge",
+      "passage": "field_road",
+      "travel_minutes": 50,
+      "risk": "dire",
+      "hostile_passage_ids": ["fieldsite-cut"],
+      "description": "Recent wagon work has reopened a track through long grass to the broken holding site."
+    },
+    {
+      "id": "oakrun-fieldsite-toll",
+      "name": "The Counting Ditch",
+      "from_location_id": "oakrun_fieldsite_verge",
+      "to_location_id": "oakrun_old_tollhouse",
+      "passage": "marsh_road",
+      "travel_minutes": 45,
+      "risk": "dangerous",
+      "hostile_passage_ids": [],
+      "description": "A drainage ditch and service road close Oakrun's northern loop."
+    },
+    {
+      "id": "oakrun-south-highroad",
+      "name": "The Amberfall Highroad",
+      "from_location_id": "oakrun_crossroads",
+      "to_location_id": "alderwick",
+      "passage": "field_road",
+      "travel_minutes": 720,
+      "risk": "guarded",
+      "hostile_passage_ids": ["briarwash-reavers"],
+      "description": "The dependable south road crosses the Briarwash grazing country before reaching Alderwick's coach yard."
+    },
+    {
+      "id": "alderwick-briarwash",
+      "name": "The Wool Road",
+      "from_location_id": "alderwick",
+      "to_location_id": "briarwash_fields",
+      "passage": "field_road",
+      "travel_minutes": 90,
+      "risk": "safe",
+      "hostile_passage_ids": [],
+      "description": "Shepherd tracks and crown milestones spread across the capital's near fields."
+    },
+    {
+      "id": "oakrun-hollowmere",
+      "name": "The Unharvested Miles",
+      "from_location_id": "oakrun_pilgrims_hollow",
+      "to_location_id": "hollowmere_post",
+      "passage": "hedgerow_track",
+      "travel_minutes": 540,
+      "risk": "dangerous",
+      "hostile_passage_ids": ["unharvested-miles"],
+      "description": "Abandoned strips of rye and blind hedges lead to the last eastern toll shed."
+    },
+    {
+      "id": "glasswater-causeway",
+      "name": "The Glasswater Causeway",
+      "from_location_id": "hollowmere_post",
+      "to_location_id": "drazna_lantern_quays",
+      "passage": "causeway",
+      "travel_minutes": 1080,
+      "risk": "dire",
+      "hostile_passage_ids": ["glasswater-black-mile"],
+      "description": "Raised stones and drowned villages cross the lakeward marsh to Drazna. Some milestones are visible only at low water."
+    },
+    {
+      "id": "drazna-quay-high-crown",
+      "name": "The Lantern Climb",
+      "from_location_id": "drazna_lantern_quays",
+      "to_location_id": "drazna_high_crown",
+      "passage": "city_road",
+      "travel_minutes": 45,
+      "risk": "guarded",
+      "hostile_passage_ids": [],
+      "description": "Stone stairs and haul ramps climb from the quay to the palace height."
+    },
+    {
+      "id": "drazna-high-birch",
+      "name": "Birch Stair",
+      "from_location_id": "drazna_high_crown",
+      "to_location_id": "drazna_birch_heights",
+      "passage": "city_road",
+      "travel_minutes": 35,
+      "risk": "safe",
+      "hostile_passage_ids": [],
+      "description": "A dry memorial road connects crown offices to the House of Names."
+    },
+    {
+      "id": "drazna-high-sluice",
+      "name": "The Gauge Walk",
+      "from_location_id": "drazna_high_crown",
+      "to_location_id": "drazna_crown_sluice",
+      "passage": "city_road",
+      "travel_minutes": 30,
+      "risk": "guarded",
+      "hostile_passage_ids": [],
+      "description": "A watched service walk follows pressure pipes and emergency spillways."
+    },
+    {
+      "id": "drazna-quay-walking",
+      "name": "The Walking Bridges",
+      "from_location_id": "drazna_lantern_quays",
+      "to_location_id": "drazna_walking_ward",
+      "passage": "city_road",
+      "travel_minutes": 40,
+      "risk": "guarded",
+      "hostile_passage_ids": [],
+      "description": "Rope-braced bridges flex between inhabited roofs and quay cranes."
+    },
+    {
+      "id": "drazna-quay-undertide",
+      "name": "The Low-Water Descent",
+      "from_location_id": "drazna_lantern_quays",
+      "to_location_id": "drazna_undertide",
+      "passage": "marsh_road",
+      "travel_minutes": 55,
+      "risk": "dire",
+      "hostile_passage_ids": ["undertide-mouth"],
+      "description": "Mud stairs and old dock roofs emerge beneath the quay as the lake falls."
+    },
+    {
+      "id": "drazna-hollow-bells",
+      "name": "The Pass of Hollow Bells",
+      "from_location_id": "drazna_high_crown",
+      "to_location_id": "hollow_bells_post",
+      "passage": "mountain_pass",
+      "travel_minutes": 1260,
+      "risk": "dire",
+      "hostile_passage_ids": ["hollow-bells-pass"],
+      "description": "A high coach road crosses rain-black ridges between Drazna and Rouvray."
+    },
+    {
+      "id": "hollow-bells-bellifont",
+      "name": "The Bell Road",
+      "from_location_id": "hollow_bells_post",
+      "to_location_id": "bellifont",
+      "passage": "field_road",
+      "travel_minutes": 420,
+      "risk": "guarded",
+      "hostile_passage_ids": [],
+      "description": "Limestone shrines and inspected waystations mark the descent toward Bellifont."
+    },
+    {
+      "id": "bellifont-hospice",
+      "name": "Saint Orée Road",
+      "from_location_id": "bellifont",
+      "to_location_id": "saint-oree-hospice",
+      "passage": "city_road",
+      "travel_minutes": 25,
+      "risk": "safe",
+      "hostile_passage_ids": [],
+      "description": "A crowded gate road joins the capital's eastern ward to its refugee hospice."
+    },
+    {
+      "id": "bellifont-orison",
+      "name": "The Orison Road",
+      "from_location_id": "bellifont",
+      "to_location_id": "orison_fields",
+      "passage": "field_road",
+      "travel_minutes": 110,
+      "risk": "guarded",
+      "hostile_passage_ids": [],
+      "description": "Vineyard walls and processional stones lead into open chalk country."
+    },
+    {
+      "id": "alderwick-rouvray-highroad",
+      "name": "The Long Penance",
+      "from_location_id": "alderwick",
+      "to_location_id": "orison_fields",
+      "passage": "field_road",
+      "travel_minutes": 1440,
+      "risk": "dangerous",
+      "hostile_passage_ids": ["penitent-mile"],
+      "description": "A long southern alternative links Rouvray and Amberfall through exposed fields, toll chapels, and no reliable shelter."
+    }
+  ],
+  "hostile_passages": [
+    {
+      "id": "barrow-turn",
+      "route_id": "oakrun-north-barrow",
+      "name": "The Barrow Turn",
+      "segment_start_percent": 55,
+      "segment_end_percent": 90,
+      "threats": ["barrow_dead"],
+      "active_phases": ["dusk", "night"],
+      "bypass": "local_guide",
+      "encounter_pressure": 58,
+      "warning": "Horses sweat white before the crowned stones become visible.",
+      "description": "Old tally-keepers leave their graves after sunset and follow wheels rather than footsteps."
+    },
+    {
+      "id": "scentless-runoff",
+      "route_id": "oakrun-orchard-mill",
+      "name": "The Scentless Runoff",
+      "segment_start_percent": 60,
+      "segment_end_percent": 85,
+      "threats": ["black_silt", "rot_growth"],
+      "active_phases": ["dawn", "day", "dusk", "night"],
+      "bypass": "local_guide",
+      "encounter_pressure": 52,
+      "warning": "Birds stop at the last healthy ditch and the air loses the smell of wet soil.",
+      "description": "A narrow black seep crosses the lane upstream of Maud's press."
+    },
+    {
+      "id": "fieldsite-cut",
+      "route_id": "oakrun-mill-fieldsite",
+      "name": "The Fieldsite Cut",
+      "segment_start_percent": 35,
+      "segment_end_percent": 95,
+      "threats": ["feral_hounds", "rot_growth", "sinkholes"],
+      "active_phases": ["dawn", "day", "dusk", "night"],
+      "bypass": "guarded_convoy",
+      "encounter_pressure": 76,
+      "warning": "The grass lies outward from pits that look shallow until weight touches them.",
+      "description": "Escaped animals and unstable holding trenches make the reopened service road lethal."
+    },
+    {
+      "id": "briarwash-reavers",
+      "route_id": "oakrun-south-highroad",
+      "name": "Briarwash Verge",
+      "segment_start_percent": 48,
+      "segment_end_percent": 63,
+      "threats": ["road_bandits"],
+      "active_phases": ["dusk", "night"],
+      "bypass": "guarded_convoy",
+      "encounter_pressure": 36,
+      "warning": "Fresh-cut briar bundles appear beside milestones where no hedge work is due.",
+      "description": "A small reaver band taxes lone carts but avoids scheduled coaches with visible guards."
+    },
+    {
+      "id": "unharvested-miles",
+      "route_id": "oakrun-hollowmere",
+      "name": "The Unharvested Miles",
+      "segment_start_percent": 28,
+      "segment_end_percent": 84,
+      "threats": ["feral_hounds", "road_bandits", "rot_growth"],
+      "active_phases": ["dawn", "dusk", "night"],
+      "bypass": "local_guide",
+      "encounter_pressure": 68,
+      "warning": "Rye stands black at the base while its heads remain gold, and no farm smoke rises beyond it.",
+      "description": "Blind hedges conceal abandoned holdings, hungry animals, and people who now live by stopping eastbound traffic."
+    },
+    {
+      "id": "glasswater-black-mile",
+      "route_id": "glasswater-causeway",
+      "name": "The Black Mile",
+      "segment_start_percent": 41,
+      "segment_end_percent": 78,
+      "threats": ["black_silt", "drowned_dead", "floodwater", "sinkholes"],
+      "active_phases": ["dawn", "day", "dusk", "night"],
+      "bypass": "low_water",
+      "encounter_pressure": 86,
+      "warning": "The causeway's white stones turn mirror-black one by one, and drowned doorframes stand in the reeds.",
+      "description": "Floodwater crosses broken stones above a drowned hamlet whose dead return to the road when wheels disturb the silt."
+    },
+    {
+      "id": "undertide-mouth",
+      "route_id": "drazna-quay-undertide",
+      "name": "Undertide Mouth",
+      "segment_start_percent": 25,
+      "segment_end_percent": 100,
+      "threats": ["black_silt", "drowned_dead", "floodwater"],
+      "active_phases": ["dawn", "day", "dusk", "night"],
+      "bypass": "low_water",
+      "encounter_pressure": 81,
+      "warning": "Divers chalk the safe waterline anew each morning; yesterday's marks end below the surface.",
+      "description": "The old dry-dock descent is accessible for hours at a time and never has the same hazards twice."
+    },
+    {
+      "id": "hollow-bells-pass",
+      "route_id": "drazna-hollow-bells",
+      "name": "Hollow Bells Pass",
+      "segment_start_percent": 30,
+      "segment_end_percent": 88,
+      "threats": ["deserters", "rockfall", "wolves"],
+      "active_phases": ["dawn", "dusk", "night"],
+      "bypass": "weather_window",
+      "encounter_pressure": 79,
+      "warning": "Cracked bells ring upslope in still air, followed by stones moving where no cart can be seen.",
+      "description": "Storm damage and abandoned military posts leave long blind climbs controlled by deserter camps."
+    },
+    {
+      "id": "penitent-mile",
+      "route_id": "alderwick-rouvray-highroad",
+      "name": "The Penitent Mile",
+      "segment_start_percent": 52,
+      "segment_end_percent": 71,
+      "threats": ["road_bandits", "wolves", "zealots"],
+      "active_phases": ["dusk", "night"],
+      "bypass": "paid_toll",
+      "encounter_pressure": 63,
+      "warning": "Unlicensed shrines ask travellers to burn eastern possessions before they may pass.",
+      "description": "A moving camp of armed penitents controls wells along the most exposed section of the southern road."
+    }
+  ],
+  "carriages": [
+    {
+      "id": "oak-and-crown",
+      "name": "The Oak and Crown",
+      "operator_npc_id": "hester-oakrun-carriage",
+      "stop_location_ids": ["oakrun_crossroads", "alderwick"],
+      "route_ids": ["oakrun-south-highroad"],
+      "capacity": 6,
+      "fare_coin": 12,
+      "operating_windows": [
+        {"day": "monday", "start_minute": 330, "end_minute": 450, "from_location_id": "oakrun_crossroads"},
+        {"day": "thursday", "start_minute": 330, "end_minute": 450, "from_location_id": "oakrun_crossroads"},
+        {"day": "tuesday", "start_minute": 360, "end_minute": 480, "from_location_id": "alderwick"},
+        {"day": "friday", "start_minute": 360, "end_minute": 480, "from_location_id": "alderwick"}
+      ],
+      "departures": [
+        {"day": "monday", "minute": 390, "from_location_id": "oakrun_crossroads"},
+        {"day": "thursday", "minute": 390, "from_location_id": "oakrun_crossroads"},
+        {"day": "tuesday", "minute": 420, "from_location_id": "alderwick"},
+        {"day": "friday", "minute": 420, "from_location_id": "alderwick"}
+      ],
+      "layover_minutes": 90,
+      "serves_generated_frontier": false,
+      "service_rules": {
+        "minimum_passengers": 1,
+        "cancels_at_pressure": 72,
+        "waits_minutes": 20,
+        "refuses_threats": ["rot_growth"]
+      },
+      "description": "Hester's broad, well-maintained coach keeps Oakrun tied to Amberfall's capital and carries most reliable dated news."
+    },
+    {
+      "id": "grey-heron",
+      "name": "The Grey Heron",
+      "operator_npc_id": "jory-rusk",
+      "stop_location_ids": ["oakrun_pilgrims_hollow", "hollowmere_post", "drazna_lantern_quays"],
+      "route_ids": ["oakrun-hollowmere", "glasswater-causeway"],
+      "capacity": 5,
+      "fare_coin": 31,
+      "operating_windows": [
+        {"day": "wednesday", "start_minute": 270, "end_minute": 390, "from_location_id": "oakrun_pilgrims_hollow"},
+        {"day": "sunday", "start_minute": 240, "end_minute": 360, "from_location_id": "drazna_lantern_quays"}
+      ],
+      "departures": [
+        {"day": "wednesday", "minute": 330, "from_location_id": "oakrun_pilgrims_hollow"},
+        {"day": "sunday", "minute": 300, "from_location_id": "drazna_lantern_quays"}
+      ],
+      "layover_minutes": 180,
+      "serves_generated_frontier": true,
+      "service_rules": {
+        "minimum_passengers": 2,
+        "cancels_at_pressure": 92,
+        "waits_minutes": 10,
+        "refuses_threats": []
+      },
+      "description": "A narrow, high-wheeled east coach that runs only when Jory can form a convoy at Hollowmere. It is not safe; it is merely still running."
+    },
+    {
+      "id": "bell-and-reed",
+      "name": "The Bell and Reed",
+      "operator_npc_id": "matthieu-orne",
+      "stop_location_ids": ["alderwick", "orison_fields"],
+      "route_ids": ["alderwick-rouvray-highroad"],
+      "capacity": 8,
+      "fare_coin": 24,
+      "operating_windows": [
+        {"day": "monday", "start_minute": 300, "end_minute": 420, "from_location_id": "alderwick"},
+        {"day": "thursday", "start_minute": 300, "end_minute": 420, "from_location_id": "orison_fields"}
+      ],
+      "departures": [
+        {"day": "monday", "minute": 360, "from_location_id": "alderwick"},
+        {"day": "thursday", "minute": 360, "from_location_id": "orison_fields"}
+      ],
+      "layover_minutes": 240,
+      "serves_generated_frontier": true,
+      "service_rules": {
+        "minimum_passengers": 3,
+        "cancels_at_pressure": 78,
+        "waits_minutes": 30,
+        "refuses_threats": ["black_silt", "rot_growth"]
+      },
+      "description": "A long-bodied Rouvrain coach used by pilgrims, physicians, and families avoiding the Draznan road."
+    },
+    {
+      "id": "mudwheel",
+      "name": "The Mudwheel",
+      "operator_npc_id": "lina-pell",
+      "stop_location_ids": ["drazna_lantern_quays", "drazna_high_crown", "drazna_birch_heights"],
+      "route_ids": ["drazna-quay-high-crown", "drazna-high-birch"],
+      "capacity": 4,
+      "fare_coin": 3,
+      "operating_windows": [
+        {"day": "tuesday", "start_minute": 420, "end_minute": 540, "from_location_id": "drazna_lantern_quays"},
+        {"day": "friday", "start_minute": 420, "end_minute": 540, "from_location_id": "drazna_lantern_quays"}
+      ],
+      "departures": [
+        {"day": "tuesday", "minute": 480, "from_location_id": "drazna_lantern_quays"},
+        {"day": "friday", "minute": 480, "from_location_id": "drazna_lantern_quays"}
+      ],
+      "layover_minutes": 45,
+      "serves_generated_frontier": false,
+      "service_rules": {
+        "minimum_passengers": 0,
+        "cancels_at_pressure": 101,
+        "waits_minutes": 15,
+        "refuses_threats": []
+      },
+      "description": "A small freight wagon that Lina uses to carry names, letters, and people uphill from arriving ferries."
+    }
+  ]
+}
