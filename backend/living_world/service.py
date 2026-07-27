@@ -53,6 +53,7 @@ class LivingWorldConfig:
 
 
 DEFAULT_CONFIG = LivingWorldConfig()
+_AUTHORED_TRIGGER_WATERMARK_KEY = "authored_triggers_through_minute"
 
 
 @dataclass(frozen=True)
@@ -130,6 +131,16 @@ class LivingWorldService:
             )
             counters.writes += int(created)
             from_minute = state.world_minute
+            # Establish the trigger consumer's checkpoint before advancing
+            # the producer clock. It remains unchanged until the separate
+            # authored-trigger transaction succeeds, so a crash between the
+            # two commits retries the exact interval. Existing saves begin at
+            # their current minute rather than retro-evaluating ancient state.
+            if _AUTHORED_TRIGGER_WATERMARK_KEY not in (state.variables or {}):
+                variables = dict(state.variables or {})
+                variables[_AUTHORED_TRIGGER_WATERMARK_KEY] = from_minute
+                state.variables = variables
+                counters.writes += 1
 
             last_real_at = state.last_real_at
             if isinstance(last_real_at, (datetime, float, int)):
