@@ -665,6 +665,9 @@ async def _known_people_view(
 ) -> list[dict]:
     result: list[dict] = []
     content = _content()
+    current_room_content_id = await session.scalar(
+        select(Room.content_id).where(Room.id == current_room_id)
+    )
     identities = tuple(row.knowledge_key for row in rows)
     npc_presence = {
         npc.content_id: (npc, bool(in_transit))
@@ -745,7 +748,15 @@ async def _known_people_view(
             "relationship": relationship,
             "relationship_note": relationship_note,
             "availability": availability,
-            "activity": _activity_view(goal, availability) if present else None,
+            "activity": (
+                _activity_view(
+                    goal,
+                    availability,
+                    current_room_id=current_room_id,
+                    current_room_content_id=current_room_content_id,
+                )
+                if present else None
+            ),
             "last_seen": {
                 "room_name": known.payload.get(
                     "last_seen_room_name", known.place or "Unknown place"
@@ -816,12 +827,46 @@ def _relationship_note(row: NPCRelationship | None) -> str | None:
     return "They remember speaking with you."
 
 
-def _activity_view(goal: NPCGoal | None, availability: str) -> dict:
+def _activity_view(
+    goal: NPCGoal | None,
+    availability: str,
+    *,
+    current_room_id: int | None = None,
+    current_room_content_id: str | None = None,
+) -> dict:
     if availability == "dead":
         return {"kind": "unknown", "label": "No longer living"}
     if goal is None:
         return {"kind": "idle", "label": "Following their ordinary routine"}
-    kind = "travelling" if goal.kind == "travel" else "working"
+
+    # A location-shaped private goal is stored as ``travel`` even when the
+    # person is already standing at its target (Odran holding Gate Seven is
+    # the sharpest example). Once deliberation has chosen a concrete current
+    # intention, describe that observable intention instead of leaking—or
+    # misrepresenting—the underlying private goal category.
+    context = goal.context if isinstance(goal.context, dict) else {}
+    current_intention = context.get("current_intention")
+    authored = context.get("authored")
+    location_goal_is_here = (
+        isinstance(authored, dict)
+        and authored.get("target_kind") == "location"
+        and goal.target_id == current_room_content_id
+    )
+    if isinstance(current_intention, dict):
+        target_room_id = current_intention.get("target_room_id")
+        visibly_departing = (
+            current_intention.get("kind") in {
+                "travel",
+                "seek_person",
+                "avoid_person",
+                "flee",
+            }
+            and isinstance(target_room_id, int)
+            and target_room_id != current_room_id
+        )
+    else:
+        visibly_departing = goal.kind == "travel" and not location_goal_is_here
+    kind = "travelling" if visibly_departing else "working"
     return {
         "kind": kind,
         "label": (

@@ -132,6 +132,11 @@ async def test_successful_drazna_arc_matrix_stays_coherent_for_sixty_days(sessio
     assert firings["nera-tablet-theft"] == "applied"
     assert firings["mara-alin-hearing-outcome"] == "applied"
     assert firings["odran-cadence-pacified"] == "applied"
+    gate_room_id = rooms["drazna_gate_seven"].id
+    assert {
+        (await _npc(session, npc_id)).room_id
+        for npc_id in ("odran-third-bell", "rada-velic", "luka-nen")
+    } == {gate_room_id}
     assert {
         "gate-seven-unanswered-flood",
         "gate-seven-cadence-expired",
@@ -220,6 +225,79 @@ async def test_successful_drazna_arc_matrix_stays_coherent_for_sixty_days(sessio
             })
         )
     )).scalar_one() == one_shot_count
+
+
+async def test_gate_pacification_cannot_be_performed_by_dead_rada(session):
+    await _seed_world(session)
+    await advance_authored_triggers(
+        session,
+        from_minute=0,
+        to_minute=8 * _DAY - 1,
+        active_room_ids=(),
+    )
+    facts = await _facts(session)
+    assert facts["drazna.gate_seven_climax"] == {
+        "state": "engaged",
+        "gate": "locked",
+        "cadence_known": True,
+    }
+    assert "drazna.gate_seven_resolution" not in facts
+
+    rada = await _npc(session, "rada-velic")
+    rada.hp = 0
+    rada.is_alive = False
+    await session.commit()
+    await advance_authored_triggers(
+        session,
+        from_minute=8 * _DAY - 1,
+        to_minute=9 * _DAY,
+        active_room_ids=(),
+    )
+
+    assert "drazna.gate_seven_resolution" not in await _facts(session)
+    assert "odran-cadence-pacified" not in await _firings(session)
+
+
+async def test_gate_pacification_defers_visible_relocation_then_gathers_witnesses(
+    session,
+):
+    rooms = await _seed_world(session)
+    await advance_authored_triggers(
+        session,
+        from_minute=0,
+        to_minute=8 * _DAY - 1,
+        active_room_ids=(),
+    )
+    rada = await _npc(session, "rada-velic")
+    luka = await _npc(session, "luka-nen")
+    gate = rooms["drazna_gate_seven"]
+    assert rada.room_id != gate.id
+    assert luka.room_id != gate.id
+
+    await advance_authored_triggers(
+        session,
+        from_minute=8 * _DAY - 1,
+        to_minute=9 * _DAY,
+        active_room_ids=(rada.room_id,),
+    )
+    assert "drazna.gate_seven_resolution" not in await _facts(session)
+    assert (await _npc(session, "rada-velic")).room_id == rada.room_id
+
+    await advance_authored_triggers(
+        session,
+        from_minute=8 * _DAY - 1,
+        to_minute=9 * _DAY,
+        active_room_ids=(),
+    )
+    assert (await _facts(session))["drazna.gate_seven_resolution"] == {
+        "state": "pacified",
+        "gate": "vented",
+        "names_spoken": 14,
+    }
+    assert {
+        (await _npc(session, npc_id)).room_id
+        for npc_id in ("odran-third-bell", "rada-velic", "luka-nen")
+    } == {gate.id}
 
 
 async def test_withheld_list_secured_tablet_and_suppressed_hearing_are_exclusive(

@@ -105,6 +105,42 @@ async def test_present_person_with_travel_goal_is_not_described_as_out_of_sight(
     }
 
 
+async def test_local_location_goal_does_not_claim_the_person_is_leaving(
+    session,
+):
+    room, player, basil = await _player_and_basil(session)
+    session.add(NPCGoal(
+        npc_content_id=basil.content_id,
+        goal_key="hold-this-room",
+        kind="travel",
+        target_id=room.content_id,
+        priority=99,
+        status="active",
+        created_at_minute=0,
+        next_deliberation_minute=500,
+        context={
+            "authored": {"target_kind": "location"},
+        },
+    ))
+    await session.commit()
+
+    payload = await world_sync(
+        session,
+        player_id=player.id,
+        current_room_id=room.id,
+    )
+    known = next(
+        person for person in payload["known_people"]
+        if person["world_id"] == basil.content_id
+    )
+
+    assert known["availability"] == "present"
+    assert known["activity"] == {
+        "kind": "working",
+        "label": "Occupied with private concerns",
+    }
+
+
 async def test_world_sync_never_observes_a_durable_row_while_npc_is_in_transit(
     session,
 ):

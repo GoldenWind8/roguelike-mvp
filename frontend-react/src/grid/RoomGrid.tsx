@@ -93,9 +93,24 @@ function objectIcon(obj: ObjectSummary): string {
   return OBJECT_ICONS[obj.type] ?? "✨";
 }
 
-function objectActionLabel(obj: ObjectSummary): string {
+function objectActionLabel(
+  obj: ObjectSummary,
+  withinReach: boolean,
+): string {
   if (obj.type === "chest") {
+    if (!withinReach) {
+      return `Inspect ${obj.label}; step closer to ${obj.opened ? "look inside" : "open it"}`;
+    }
     return obj.opened ? `Look inside ${obj.label}` : `Open ${obj.label}`;
+  }
+  if (!withinReach && obj.interaction) {
+    const closerAction = {
+      shop: "browse its wares",
+      noticeboard: "read its notices",
+      carriage: "use its carriage routes",
+      situation: "attend to it",
+    }[obj.interaction];
+    return `Inspect ${obj.label}; step closer to ${closerAction}`;
   }
   switch (obj.interaction) {
     case "shop":
@@ -205,10 +220,19 @@ interface Camera {
 const NO_FADES = { left: false, right: false, top: false, bottom: false };
 
 export function RoomGrid() {
-  const { room, playerId, selectedSlot, actionLocked, waitingFor } = useGame();
+  const {
+    room,
+    playerId,
+    selectedSlot,
+    chestOpenPending,
+    actionLocked,
+    waitingFor,
+  } = useGame();
   const api = useGameApi();
+  const stageRef = useRef<HTMLElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
+  const previousRoomIdRef = useRef<number | null>(null);
   const [cam, setCam] = useState<Camera>({ x: 0, y: 0, animate: false, fades: NO_FADES });
   const [debugFootprints, setDebugFootprints] = useState(false);
   const dragRef = useRef<{ sx: number; sy: number; cx: number; cy: number } | null>(null);
@@ -311,6 +335,18 @@ export function RoomGrid() {
   useEffect(() => {
     recenterCamera(true);
   }, [recenterCamera, room?.room.id, room?.room.width, room?.room.height]);
+
+  useEffect(() => {
+    const roomId = room?.room.id;
+    if (roomId === undefined) return;
+    const previousRoomId = previousRoomIdRef.current;
+    previousRoomIdRef.current = roomId;
+    if (previousRoomId === null || previousRoomId === roomId) return;
+    const frame = window.requestAnimationFrame(() => {
+      stageRef.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [room?.room.id]);
 
   useEffect(() => {
     const recenter = () => recenterCamera(true);
@@ -530,6 +566,13 @@ export function RoomGrid() {
   const objectRenders = room.objects.map((obj) => {
     const bounds = objectVisualBounds(obj);
     const fadesForActor = objectOccludesActor(obj, livingActors);
+    const openingChest = obj.type === "chest" && chestOpenPending === obj.id;
+    const actionLabel = openingChest
+      ? `Opening ${obj.label}`
+      : objectActionLabel(
+          obj,
+          Boolean(me && distanceToObject(me.position, obj) <= 1),
+        );
 
     return (
       <div
@@ -544,8 +587,10 @@ export function RoomGrid() {
           <button
             className="object-art-button"
             type="button"
-            title={objectActionLabel(obj)}
-            aria-label={objectActionLabel(obj)}
+            title={actionLabel}
+            aria-label={actionLabel}
+            aria-busy={openingChest}
+            disabled={openingChest}
             style={{
               width: `${(bounds.visualWidth / bounds.logicalWidth) * 100}%`,
               height: `${(bounds.visualHeight / bounds.logicalHeight) * 100}%`,
@@ -568,8 +613,10 @@ export function RoomGrid() {
           <button
             className="object-art-button object-fallback-button"
             type="button"
-            title={objectActionLabel(obj)}
-            aria-label={objectActionLabel(obj)}
+            title={actionLabel}
+            aria-label={actionLabel}
+            aria-busy={openingChest}
+            disabled={openingChest}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
@@ -590,7 +637,12 @@ export function RoomGrid() {
   const inCombat = room.room.mode === "combat";
 
   return (
-    <section className="stage">
+    <section
+      ref={stageRef}
+      className="stage"
+      tabIndex={-1}
+      aria-label={`${room.room.name} map`}
+    >
       <div
         className="grid-frame"
         ref={frameRef}

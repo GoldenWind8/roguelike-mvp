@@ -110,6 +110,8 @@ ideas stay separate.
 - General world-object pickup and non-consumable key-item support. Chests,
   shops, inventory use, evidence inspection, and authored interactions are
   already functional.
+- Enemy and boss on-death loot hooks are not wired yet; current material
+  rewards come from chests, shops, and salvage buyback.
 - Multi-process workers, Redis routing, or production-scale MMO infrastructure.
 
 ## Setup

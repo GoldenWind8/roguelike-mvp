@@ -1485,6 +1485,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 12px;
   background: radial-gradient(ellipse at center, rgba(20, 12, 6, 0.55), rgba(10, 6, 3, 0.82));
   animation: veil-in 0.35s ease;
 }
@@ -1495,6 +1496,8 @@ button {
   align-items: center;
   gap: 16px;
   max-width: min(92vw, 760px);
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
   padding: 22px 26px 18px;
   border-radius: 12px;
   border: 1px solid var(--edge);
@@ -1658,8 +1661,13 @@ button {
 
 .shop-head { margin-bottom: 16px; }
 .shop-head h2 { margin: 1px 0 0; color: var(--gold); font-size: 24px; }
+.shop-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 .shop-kicker {
-  color: var(--muted);
+  color: var(--faint);
   font-size: 10px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -1675,6 +1683,22 @@ button {
   font-weight: 700;
 }
 
+.shop-close {
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(218, 169, 86, 0.35);
+  border-radius: 50%;
+  color: #d9c5a3;
+  background: rgba(8, 5, 3, 0.42);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.shop-close:hover, .shop-close:focus-visible {
+  color: #fff1ce;
+  background: rgba(151, 94, 39, 0.52);
+}
+
 .shop-purse span, .shop-buy span, .stat-coins .stat-icon { color: #e9b949; }
 .shop-stock { display: grid; gap: 9px; }
 .shop-item {
@@ -1686,7 +1710,7 @@ button {
   min-height: 86px;
   padding: 10px 12px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-left: 3px solid var(--muted);
+  border-left: 3px solid var(--faint);
   border-radius: 5px;
   background: rgba(9, 7, 6, 0.34);
 }
@@ -1700,7 +1724,7 @@ button {
 .shop-item-copy em {
   display: block;
   margin: 2px 0 5px;
-  color: var(--muted);
+  color: var(--faint);
   font-size: 10px;
   font-style: normal;
   letter-spacing: 0.08em;
@@ -1740,7 +1764,7 @@ button {
 }
 .shop-section-head h3 { margin: 2px 0 0; color: #e8d2a7; }
 .shop-section-head > span, .shop-pack-empty {
-  color: var(--muted);
+  color: var(--faint);
   font-size: 11px;
 }
 .shop-pack-empty {
@@ -1756,14 +1780,14 @@ button {
   place-content: center;
   gap: 7px;
   text-align: center;
-  color: var(--muted);
+  color: var(--faint);
 }
 .shop-empty strong { color: #d7c3a1; font-size: 18px; }
 .shop-foot {
   margin-top: 16px;
   padding-top: 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.07);
-  color: var(--muted);
+  color: var(--faint);
   font-size: 11px;
 }
 
@@ -1937,6 +1961,43 @@ button {
   .shop-item { grid-template-columns: 42px 1fr; }
   .shop-buy { grid-column: 1 / -1; }
   .shop-foot { align-items: flex-start; flex-direction: column; }
+}
+
+@media (max-width: 620px) {
+  .hotbar-wrap {
+    width: calc(100vw - 16px);
+    bottom: 8px;
+  }
+  .hotbar {
+    --mobile-slot: clamp(44px, 12vw, 52px);
+    display: grid;
+    grid-template-columns: repeat(5, var(--mobile-slot));
+    justify-content: center;
+    max-width: 100%;
+  }
+  .hotbar .slot {
+    width: var(--mobile-slot);
+    height: var(--mobile-slot);
+  }
+  .hotbar-hint {
+    max-width: calc(100vw - 24px);
+    overflow: hidden;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .loot-veil { padding: 8px; }
+  .loot-modal {
+    width: 100%;
+    max-height: calc(100dvh - 16px);
+    padding: 18px 14px 14px;
+  }
+  .loot-cards { width: 100%; }
+  .loot-card { width: min(100%, 300px); }
+  .loot-actions {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
 }
 
 /* --- player-known wider world -------------------------------------------- */

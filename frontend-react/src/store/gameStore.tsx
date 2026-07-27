@@ -224,6 +224,11 @@ export interface DiscoveryToastState {
 }
 
 export type WorldDrawerTab = "rumors" | "chronicle" | "people";
+export type ProximityOpenKind =
+  | "shop"
+  | "noticeboard"
+  | "carriage"
+  | "situation";
 
 export interface GameState {
   screen: "login" | "game";
@@ -241,7 +246,14 @@ export interface GameState {
    * broadcasts — so two players at one chest see each other's grabs.
    * Local UI state; closing it never talks to the server. */
   lootReveal: { objectId: string; finds: LootFind[] } | null;
+  chestOpenPending: string | null;
+  lootPendingCards: number[];
+  proximityOpenPending: {
+    kind: ProximityOpenKind;
+    objectId: string;
+  } | null;
   shop: ShopView | null;
+  shopPending: "buy" | "sell" | null;
   noticeboard: NoticeboardView | null;
   carriage: CarriageView | null;
   carriagePending: "name" | "travel" | null;
@@ -276,7 +288,11 @@ const initialState: GameState = {
   inspection: null,
   selectedSlot: null,
   lootReveal: null,
+  chestOpenPending: null,
+  lootPendingCards: [],
+  proximityOpenPending: null,
   shop: null,
+  shopPending: null,
   noticeboard: null,
   carriage: null,
   carriagePending: null,
@@ -307,7 +323,15 @@ type Action =
   | { type: "player_said"; text: string }
   | { type: "close_inspection" }
   | { type: "close_loot" }
+  | { type: "chest_open_pending"; objectId: string }
+  | { type: "loot_card_pending"; objectId: string; cardIndex: number }
+  | {
+      type: "proximity_open_pending";
+      kind: ProximityOpenKind;
+      objectId: string;
+    }
   | { type: "close_shop" }
+  | { type: "shop_pending"; pending: "buy" | "sell" }
   | { type: "close_noticeboard" }
   | { type: "close_carriage" }
   | { type: "carriage_pending"; pending: "name" | "travel" }
@@ -419,7 +443,18 @@ function reduce(state: GameState, action: Action): GameState {
       // Back to the front door, but keep local preferences (music).
       return { ...initialState, musicOn: state.musicOn, loginError: action.message };
     case "status":
-      return { ...state, connection: action.status };
+      return action.status === "connected"
+        ? { ...state, connection: action.status }
+        : {
+            ...state,
+            connection: action.status,
+            chestOpenPending: null,
+            lootPendingCards: [],
+            proximityOpenPending: null,
+            shopPending: null,
+            carriagePending: null,
+            situationPending: false,
+          };
     case "server":
       return reduceServer(state, action.msg);
     case "open_dialogue":
@@ -440,13 +475,40 @@ function reduce(state: GameState, action: Action): GameState {
     case "close_inspection":
       return { ...state, inspection: null };
     case "close_loot":
-      return { ...state, lootReveal: null };
+      return state.lootPendingCards.length > 0
+        ? state
+        : { ...state, lootReveal: null };
+    case "chest_open_pending":
+      return { ...state, chestOpenPending: action.objectId };
+    case "loot_card_pending":
+      if (
+        state.lootReveal?.objectId !== action.objectId
+        || state.lootPendingCards.includes(action.cardIndex)
+      ) return state;
+      return {
+        ...state,
+        lootPendingCards: [...state.lootPendingCards, action.cardIndex],
+      };
+    case "proximity_open_pending":
+      return {
+        ...state,
+        proximityOpenPending: {
+          kind: action.kind,
+          objectId: action.objectId,
+        },
+      };
     case "close_shop":
-      return { ...state, shop: null };
+      return state.shopPending
+        ? state
+        : { ...state, shop: null };
+    case "shop_pending":
+      return { ...state, shopPending: action.pending };
     case "close_noticeboard":
       return { ...state, noticeboard: null };
     case "close_carriage":
-      return { ...state, carriage: null, carriagePending: null };
+      return state.carriagePending
+        ? state
+        : { ...state, carriage: null, carriagePending: null };
     case "carriage_pending":
       return { ...state, carriagePending: action.pending };
     case "close_situation":
@@ -487,23 +549,57 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
     case "join_ack":
       // The server's username is authoritative (a resumed session joins
       // before the login form ever ran).
-      return { ...state, playerId: msg.player_id, username: msg.username, room: msg.state };
+      return {
+        ...state,
+        playerId: msg.player_id,
+        username: msg.username,
+        room: msg.state,
+        chestOpenPending: null,
+        lootPendingCards: [],
+        proximityOpenPending: null,
+        shopPending: null,
+        carriagePending: null,
+        situationPending: false,
+      };
     case "state_update":
     case "room_changed": {
+      const changedRoom = msg.type === "room_changed";
+      const completedLocalTrade = msg.events.some((event) =>
+        (
+          event.event_type === "shop_purchased"
+          || event.event_type === "item_sold"
+        )
+        && event.data.player_id === state.playerId
+      );
       let next = {
         ...state,
         room: msg.state,
-        log: appendLog(state.log, formatEvents(msg.events, msg.state)),
+        // "Here & Now" belongs to this room. Preserve the transition events,
+        // but do not carry an old district's transcript into the next.
+        log: changedRoom
+          ? appendLog([], formatEvents(msg.events, msg.state))
+          : appendLog(state.log, formatEvents(msg.events, msg.state)),
         // A broadcast state means the round resolved (or the world moved on).
         actionLocked: false,
         waitingFor: [],
-        // Travel invalidates a proximity-bound exploration service.
-        shop: msg.type === "room_changed" ? null : state.shop,
-        noticeboard: msg.type === "room_changed" ? null : state.noticeboard,
-        carriage: msg.type === "room_changed" ? null : state.carriage,
-        carriagePending: msg.type === "room_changed" ? null : state.carriagePending,
-        situation: msg.type === "room_changed" ? null : state.situation,
-        situationPending: msg.type === "room_changed"
+        // Travel invalidates every room- or proximity-bound surface.
+        dialogue: changedRoom ? null : state.dialogue,
+        inspection: changedRoom ? null : state.inspection,
+        lootReveal: changedRoom ? null : state.lootReveal,
+        chestOpenPending: changedRoom ? null : state.chestOpenPending,
+        lootPendingCards: changedRoom ? [] : state.lootPendingCards,
+        proximityOpenPending: changedRoom
+          ? null
+          : state.proximityOpenPending,
+        shop: changedRoom ? null : state.shop,
+        shopPending: changedRoom || completedLocalTrade
+          ? null
+          : state.shopPending,
+        noticeboard: changedRoom ? null : state.noticeboard,
+        carriage: changedRoom ? null : state.carriage,
+        carriagePending: changedRoom ? null : state.carriagePending,
+        situation: changedRoom ? null : state.situation,
+        situationPending: changedRoom
           ? false
           : state.situationPending,
       };
@@ -518,7 +614,19 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
               objectId: String(e.data.object_id),
               finds: ((e.data.items as ChestFind[]) ?? []).map((f) => ({ ...f })),
             },
+            chestOpenPending: null,
+            lootPendingCards: [],
+            proximityOpenPending: null,
             inspection: null,
+            dialogue: null,
+            shop: null,
+            shopPending: null,
+            noticeboard: null,
+            carriage: null,
+            carriagePending: null,
+            situation: null,
+            situationPending: false,
+            worldDrawerOpen: false,
           };
         } else if (e.event_type === "chest_looted"
             && next.lootReveal
@@ -526,9 +634,32 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
           const taken = e.data.item as ItemView;
           const taker = msg.state.players[String(e.data.player_id)]?.name ?? "someone";
           const finds = [...next.lootReveal.finds];
-          const idx = finds.findIndex((f) => !f.takenBy && f.item.id === taken.id);
+          const localTake = e.data.player_id === state.playerId;
+          // Local pending card indices disambiguate identical items. Peer
+          // events have no client request to correlate, so they consume the
+          // first matching untaken reveal card.
+          const pendingMatch = localTake
+            ? next.lootPendingCards.find((cardIndex) => {
+                const find = finds[cardIndex];
+                return Boolean(
+                  find
+                  && !find.takenBy
+                  && find.item.id === taken.id,
+                );
+              })
+            : undefined;
+          const idx = pendingMatch
+            ?? finds.findIndex((find) =>
+              !find.takenBy && find.item.id === taken.id
+            );
           if (idx >= 0) finds[idx] = { ...finds[idx], takenBy: taker };
-          next = { ...next, lootReveal: { ...next.lootReveal, finds } };
+          next = {
+            ...next,
+            lootReveal: { ...next.lootReveal, finds },
+            lootPendingCards: localTake && idx >= 0
+              ? next.lootPendingCards.filter((cardIndex) => cardIndex !== idx)
+              : next.lootPendingCards,
+          };
         } else if (e.event_type === "shop_purchased"
             && next.shop
             && next.shop.id === e.data.shop_id) {
@@ -570,12 +701,28 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
       return {
         ...state,
         lootReveal: { objectId: msg.object_id, finds: msg.items.map((f) => ({ ...f })) },
+        chestOpenPending: null,
+        lootPendingCards: [],
+        proximityOpenPending: null,
         inspection: null,
+        dialogue: null,
+        shop: null,
+        shopPending: null,
+        noticeboard: null,
+        carriage: null,
+        carriagePending: null,
+        situation: null,
+        situationPending: false,
+        worldDrawerOpen: false,
       };
     case "shop_opened":
       return {
         ...state,
         shop: msg.shop,
+        shopPending: null,
+        chestOpenPending: null,
+        lootPendingCards: [],
+        proximityOpenPending: null,
         inspection: null,
         dialogue: null,
         lootReveal: null,
@@ -584,22 +731,34 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
         carriagePending: null,
         situation: null,
         situationPending: false,
+        worldDrawerOpen: false,
       };
     case "shop_stock":
       if (!state.shop || state.shop.id !== msg.shop_id) return state;
-      return { ...state, shop: { ...state.shop, stock: msg.stock } };
+      return {
+        ...state,
+        shop: { ...state.shop, stock: msg.stock },
+        shopPending: state.shopPending === "buy"
+          ? null
+          : state.shopPending,
+      };
     case "noticeboard_opened":
       return {
         ...state,
         noticeboard: msg.noticeboard,
+        chestOpenPending: null,
+        lootPendingCards: [],
+        proximityOpenPending: null,
         inspection: null,
         dialogue: null,
         lootReveal: null,
         shop: null,
+        shopPending: null,
         carriage: null,
         carriagePending: null,
         situation: null,
         situationPending: false,
+        worldDrawerOpen: false,
       };
     case "carriage_opened":
       return {
@@ -618,13 +777,18 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
           service: msg.service,
         },
         carriagePending: null,
+        chestOpenPending: null,
+        lootPendingCards: [],
+        proximityOpenPending: null,
         inspection: null,
         dialogue: null,
         lootReveal: null,
         shop: null,
+        shopPending: null,
         noticeboard: null,
         situation: null,
         situationPending: false,
+        worldDrawerOpen: false,
       };
     case "carriage_stop_named": {
       if (!state.carriage) return state;
@@ -657,13 +821,18 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
         ...state,
         situation: msg.situation,
         situationPending: false,
+        chestOpenPending: null,
+        lootPendingCards: [],
+        proximityOpenPending: null,
         inspection: null,
         dialogue: null,
         lootReveal: null,
         shop: null,
+        shopPending: null,
         noticeboard: null,
         carriage: null,
         carriagePending: null,
+        worldDrawerOpen: false,
       };
     case "situation_resolved":
       if (!state.situation || state.situation.id !== msg.situation_id) {
@@ -688,8 +857,11 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
     case "travel_started":
       return {
         ...state,
-        carriage: null,
-        carriagePending: null,
+        // Keep the busy route surface mounted until room_changed installs the
+        // destination. It is the visible progress state and blocks both
+        // pointer and keyboard actions while the server advances world time
+        // and hydrates a cold arrival room.
+        carriagePending: "travel",
         log: appendLog(state.log, [{
           id: ++logSeq,
           kind: "ambient",
@@ -712,7 +884,7 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
         log: appendLog(state.log, [{
           id: ++logSeq,
           kind: "ambient",
-          text: `The carriage reaches ${msg.stop.name} after ${total} minutes${waited} (${msg.fare} coins).${danger}`,
+          text: `The carriage reaches ${msg.stop.name} after ${total} minutes${waited} (${msg.fare} coin${msg.fare === 1 ? "" : "s"}).${danger}`,
         }]),
       };
       }
@@ -789,6 +961,10 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
         ...state,
         log: appendLog(state.log, [{ id: ++logSeq, kind: "error", text: msg.message }]),
         dialogue: state.dialogue ? { ...state.dialogue, pending: false } : null,
+        chestOpenPending: null,
+        lootPendingCards: [],
+        proximityOpenPending: null,
+        shopPending: null,
         carriagePending: null,
         situationPending: false,
       };
@@ -842,8 +1018,14 @@ interface GameApi {
   closeSituation(): void;
   dismissDiscovery(id: number): void;
   /** Take one chosen item from an opened chest (the popup's Take button).
-   * `index` is the item's current position among the chest's leftovers. */
-  takeItem(objectId: string, index: number, itemId: number): void;
+   * `index` is the item's current position among the chest's leftovers;
+   * `cardIndex` is its stable position in the open reveal. */
+  takeItem(
+    objectId: string,
+    index: number,
+    itemId: number,
+    cardIndex: number,
+  ): void;
   /** Hold/put away a belt slot (toggle). Pass null to empty your hands. */
   selectSlot(index: number | null): void;
   inspect(objectId: string): void;
@@ -870,12 +1052,91 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reduce, initialState);
   const socketRef = useRef<GameSocket | null>(null);
   const stateRef = useRef(state);
+  const chestOpenPendingRef = useRef<string | null>(null);
+  const lootCardPendingRef = useRef<Set<string>>(new Set());
+  const proximityOpenPendingRef = useRef<string | null>(null);
+  const shopTradePendingRef = useRef(false);
   stateRef.current = state;
 
   useEffect(() => () => socketRef.current?.close(), []);
 
   const api = useMemo<GameApi>(() => {
+    const clearRequestRefs = () => {
+      chestOpenPendingRef.current = null;
+      lootCardPendingRef.current.clear();
+      proximityOpenPendingRef.current = null;
+      shopTradePendingRef.current = false;
+    };
+
     const handleMessage = (msg: ServerMessage) => {
+      if (msg.type === "error" || msg.type === "room_changed") {
+        clearRequestRefs();
+      } else if (msg.type === "chest_contents") {
+        if (chestOpenPendingRef.current === msg.object_id) {
+          chestOpenPendingRef.current = null;
+        }
+      } else if (
+        msg.type === "shop_opened"
+        || msg.type === "noticeboard_opened"
+        || msg.type === "carriage_opened"
+        || msg.type === "situation_opened"
+      ) {
+        proximityOpenPendingRef.current = null;
+      } else if (msg.type === "shop_stock") {
+        shopTradePendingRef.current = false;
+      } else if (msg.type === "state_update") {
+        const current = stateRef.current;
+        const finds = current.lootReveal?.finds.map((find) => ({ ...find }));
+        for (const event of msg.events) {
+          if (
+            event.event_type === "chest_opened"
+            && event.data.player_id === current.playerId
+            && chestOpenPendingRef.current === String(event.data.object_id)
+          ) {
+            chestOpenPendingRef.current = null;
+          } else if (
+            event.event_type === "chest_looted"
+            && event.data.player_id === current.playerId
+            && current.lootReveal
+            && current.lootReveal.objectId === event.data.object_id
+            && finds
+          ) {
+            const item = event.data.item as ItemView;
+            const objectId = current.lootReveal.objectId;
+            // Match the acknowledgement against the synchronous request
+            // keys, not merely the first identical untaken item in the last
+            // rendered state. Several take-all acknowledgements can arrive
+            // before React publishes a render; the Set still records which
+            // duplicate card each outstanding request belongs to.
+            const cardIndex = finds.findIndex((find, index) =>
+              !find.takenBy
+              && find.item.id === item.id
+              && lootCardPendingRef.current.has(`${objectId}:${index}`)
+            );
+            if (cardIndex >= 0) {
+              lootCardPendingRef.current.delete(
+                `${objectId}:${cardIndex}`,
+              );
+              finds[cardIndex] = { ...finds[cardIndex], takenBy: "response" };
+            } else {
+              // A tightly batched peer update can make stateRef one render
+              // behind the reducer. The durable pending state still guards
+              // every unresolved card; discard only the synchronous shim.
+              lootCardPendingRef.current.clear();
+            }
+          }
+          if (
+            (
+              event.event_type === "shop_purchased"
+              || event.event_type === "item_sold"
+            )
+            && event.data.player_id === current.playerId
+          ) {
+            shopTradePendingRef.current = false;
+          }
+        }
+      }
+
       // Two messages carry side effects no reducer should own:
       if (msg.type === "error" && msg.code === "auth") {
         // The stored token is dead (forged, or the db was reset) — forget it
@@ -896,12 +1157,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const socket = () => {
       if (!socketRef.current) {
         socketRef.current = new RealGameSocket();
-        socketRef.current.connect(handleMessage, (status) => dispatch({ type: "status", status }));
+        socketRef.current.connect(handleMessage, (status) => {
+          if (status !== "connected") clearRequestRefs();
+          dispatch({ type: "status", status });
+        });
       }
       return socketRef.current;
     };
 
     const joinAs = (username: string, token: string) => {
+      clearRequestRefs();
       dispatch({ type: "logged_in", username });
       socket().send({ type: "join", token });
       if (stateRef.current.musicOn) ambient.start();
@@ -942,6 +1207,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         return true;
       },
       logout() {
+        clearRequestRefs();
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem(NAME_KEY);
         socketRef.current?.close();
@@ -952,6 +1218,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       rejoin() {
         const token = localStorage.getItem(TOKEN_KEY);
         if (!token) return;
+        clearRequestRefs();
         socketRef.current?.close();
         socketRef.current = null;
         // A beat between close and rejoin: the server saves the leaver and
@@ -991,12 +1258,35 @@ export function GameProvider({ children }: { children: ReactNode }) {
         socket().send({ type: held.equipped ? "unequip" : "equip", slot });
       },
       openChest(objectId) {
+        if (
+          chestOpenPendingRef.current
+          || proximityOpenPendingRef.current
+          || stateRef.current.chestOpenPending
+          || stateRef.current.proximityOpenPending
+        ) return;
+        chestOpenPendingRef.current = objectId;
+        dispatch({ type: "chest_open_pending", objectId });
         socket().send({ type: "open_chest", object_id: objectId });
       },
       openShop(objectId) {
+        if (
+          chestOpenPendingRef.current
+          || proximityOpenPendingRef.current
+          || stateRef.current.chestOpenPending
+          || stateRef.current.proximityOpenPending
+        ) return;
+        proximityOpenPendingRef.current = `shop:${objectId}`;
+        dispatch({
+          type: "proximity_open_pending",
+          kind: "shop",
+          objectId,
+        });
         socket().send({ type: "open_shop", object_id: objectId });
       },
       buyShopItem(objectId, slot, itemId, stockedOn) {
+        if (shopTradePendingRef.current || stateRef.current.shopPending) return;
+        shopTradePendingRef.current = true;
+        dispatch({ type: "shop_pending", pending: "buy" });
         socket().send({
           type: "buy_shop_item",
           object_id: objectId,
@@ -1006,6 +1296,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
         });
       },
       sellShopItem(objectId, slot, itemId) {
+        if (shopTradePendingRef.current || stateRef.current.shopPending) return;
+        shopTradePendingRef.current = true;
+        dispatch({ type: "shop_pending", pending: "sell" });
         socket().send({
           type: "sell_shop_item",
           object_id: objectId,
@@ -1014,6 +1307,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
         });
       },
       openNoticeboard(objectId) {
+        if (
+          chestOpenPendingRef.current
+          || proximityOpenPendingRef.current
+          || stateRef.current.chestOpenPending
+          || stateRef.current.proximityOpenPending
+        ) return;
+        proximityOpenPendingRef.current = `noticeboard:${objectId}`;
+        dispatch({
+          type: "proximity_open_pending",
+          kind: "noticeboard",
+          objectId,
+        });
         socket().send({ type: "open_noticeboard", object_id: objectId });
       },
       postNotice(objectId, body) {
@@ -1023,6 +1328,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
         socket().send({ type: "delete_notice", object_id: objectId, notice_id: noticeId });
       },
       openCarriage(objectId) {
+        if (
+          chestOpenPendingRef.current
+          || proximityOpenPendingRef.current
+          || stateRef.current.chestOpenPending
+          || stateRef.current.proximityOpenPending
+        ) return;
+        proximityOpenPendingRef.current = `carriage:${objectId}`;
+        dispatch({
+          type: "proximity_open_pending",
+          kind: "carriage",
+          objectId,
+        });
         socket().send({ type: "open_carriage", object_id: objectId });
       },
       closeCarriage() {
@@ -1051,6 +1368,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
         });
       },
       openSituation(objectId) {
+        if (
+          chestOpenPendingRef.current
+          || proximityOpenPendingRef.current
+          || stateRef.current.chestOpenPending
+          || stateRef.current.proximityOpenPending
+        ) return;
+        proximityOpenPendingRef.current = `situation:${objectId}`;
+        dispatch({
+          type: "proximity_open_pending",
+          kind: "situation",
+          objectId,
+        });
         socket().send({ type: "open_situation", object_id: objectId });
       },
       resolveSituation(choiceId) {
@@ -1071,7 +1400,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
       dismissDiscovery(id) {
         dispatch({ type: "dismiss_discovery", id });
       },
-      takeItem(objectId, index, itemId) {
+      takeItem(objectId, index, itemId, cardIndex) {
+        const requestKey = `${objectId}:${cardIndex}`;
+        if (
+          lootCardPendingRef.current.has(requestKey)
+          || stateRef.current.lootPendingCards.includes(cardIndex)
+        ) return;
+        lootCardPendingRef.current.add(requestKey);
+        dispatch({ type: "loot_card_pending", objectId, cardIndex });
         socket().send({ type: "take_item", object_id: objectId, index, item_id: itemId });
       },
       selectSlot(index) {

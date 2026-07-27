@@ -101,7 +101,14 @@ export function DialoguePanel() {
           <span className="dialogue-role">{npc.role}</span>
         </div>
         <span className={`disp-chip ${relationshipClass}`}>{relationshipLabel}</span>
-        <button className="panel-close" onClick={() => api.closeDialogue()} title="Close (Esc)">×</button>
+        <button
+          className="panel-close"
+          onClick={() => api.closeDialogue()}
+          title="Close (Esc)"
+          aria-label={`Close conversation with ${npc.name}`}
+        >
+          ×
+        </button>
       </div>
 
       {(activity?.label || knownNpc?.relationship_note) && (
@@ -118,7 +125,14 @@ export function DialoguePanel() {
         </div>
       )}
 
-      <div className="dialogue-log" ref={logRef}>
+      <div
+        className="dialogue-log"
+        ref={logRef}
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions text"
+        aria-busy={dialogue.pending}
+      >
         {dialogue.lines.length === 0 && !dialogue.pending && (
           <div className="dialogue-line line-hint">
             {npc.name} waits to hear what you have to say.
@@ -153,6 +167,7 @@ export function DialoguePanel() {
           value={draft}
           maxLength={300}
           placeholder={`Say something to ${npc.name}…`}
+          aria-label={`Say something to ${npc.name}`}
           disabled={dialogue.pending}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {

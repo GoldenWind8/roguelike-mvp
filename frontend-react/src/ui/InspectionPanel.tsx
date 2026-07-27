@@ -2,21 +2,64 @@
  * Opened chests show what waits inside (finds nobody chose to take —
  * docs/LOOT.md); "Look inside" is the same open_chest request, which the
  * server answers with chest_contents so the selection popup can rise. */
+import { useEffect, useRef } from "react";
+
 import { useGame, useGameApi } from "../store/gameStore";
 import { ItemArt } from "./ItemArt";
 
 export function InspectionPanel() {
-  const { inspection } = useGame();
+  const { inspection, chestOpenPending } = useGame();
   const api = useGameApi();
+  const panelRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!inspection || !window.matchMedia("(max-width: 700px)").matches) return;
+    const previousFocus = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const reducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    const frame = window.requestAnimationFrame(() => {
+      panelRef.current?.focus({ preventScroll: true });
+      panelRef.current?.scrollIntoView({
+        behavior: reducedMotion ? "auto" : "smooth",
+        block: "start",
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (!previousFocus?.isConnected) return;
+      previousFocus.focus({ preventScroll: true });
+      previousFocus.scrollIntoView({
+        behavior: reducedMotion ? "auto" : "smooth",
+        block: "center",
+      });
+    };
+  }, [inspection?.id]);
+
   if (!inspection) return null;
 
   const contents = inspection.contents ?? [];
 
   return (
-    <section className="panel panel-inspection">
-      <h3>
+    <section
+      ref={panelRef}
+      className="panel panel-inspection"
+      tabIndex={-1}
+      role="region"
+      aria-live="polite"
+      aria-labelledby="inspection-title"
+    >
+      <h3 id="inspection-title">
         A Closer Look
-        <button className="panel-close" onClick={() => api.closeInspection()}>×</button>
+        <button
+          className="panel-close"
+          onClick={() => api.closeInspection()}
+          aria-label="Close inspection"
+        >
+          ×
+        </button>
       </h3>
       <div className="inspection-title">{inspection.label}</div>
       <p className="inspection-desc">{inspection.description}</p>
@@ -40,12 +83,15 @@ export function InspectionPanel() {
           ))}
           <button
             className="contents-take"
+            disabled={chestOpenPending === inspection.id}
             onClick={() => {
               api.openChest(inspection.id);
               api.closeInspection();
             }}
           >
-            Look inside (stand beside it)
+            {chestOpenPending === inspection.id
+              ? "Opening…"
+              : "Look inside (stand beside it)"}
           </button>
         </div>
       )}

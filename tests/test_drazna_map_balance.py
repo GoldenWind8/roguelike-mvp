@@ -20,6 +20,7 @@ from backend.events import EventType
 from backend.inventory import attack_range, equip
 from backend.models import TileType
 from backend.object_defs import get_object_definition, occupied_cells
+from backend.regional_items import DRAZNA_ITEMS
 from backend.room_engine import RoomEngine
 from backend.room_loader import EnemySpawn, RoomObject, RoomTemplate
 from backend.seeds import (
@@ -657,6 +658,37 @@ def _add_odran(engine: RoomEngine) -> None:
     engine.refresh_mode()
 
 
+def _add_authored_bystanders(engine: RoomEngine, room_id: str) -> None:
+    """Load the room's non-hostile residents for practical path audits."""
+    for index, (npc_id, seed) in enumerate(sorted(NPC_SEEDS_BY_ID.items())):
+        (
+            npc_room_id,
+            persona,
+            x,
+            y,
+            hp,
+            defense,
+            attack_damage,
+        ) = seed
+        if (
+            npc_room_id != room_id
+            or persona["disposition"] == Disposition.HOSTILE.value
+        ):
+            continue
+        engine.room.add_npc(NPC(
+            id=f"npc_{npc_id}",
+            db_id=20_000 + index,
+            name=persona["name"],
+            position=Position(x, y),
+            hp=hp,
+            max_hp=hp,
+            defense=defense,
+            attack_damage=attack_damage,
+            disposition=Disposition(persona["disposition"]),
+            persona=persona,
+        ))
+
+
 def _run_encounter(
     room_id: str,
     entry_index: int,
@@ -742,6 +774,207 @@ def _run_encounter(
         rounds += 1
     assert rounds < 40
     return player, rounds, follower
+
+
+def test_live_residents_never_block_an_entry_shortcut_or_secret_route():
+    """Exercise every entry-to-exit route with authored NPC occupancy live."""
+    traversed = 0
+    for room_id, room in ROOMS.items():
+        exits = _room_exits(room_id)
+        exit_tiles = {exit_spec.position for exit_spec in exits}
+        walkable = _walkable(room)
+        for source_index, source in enumerate(exits):
+            # Reserved procedural/temporary gateways are destinations here;
+            # only persisted room connections have a reverse-room arrival id.
+            if source.kind != "connection":
+                continue
+            for target in exits:
+                engine = RoomEngine(_template(room_id, include_enemies=False))
+                _add_authored_bystanders(engine, room_id)
+                arrival = engine.room.free_arrival(1_000 + source_index)
+                assert arrival is not None
+                player = Player(
+                    id=f"player_live_route_{traversed}",
+                    name="Live Route Auditor",
+                    position=Position(0, 0),
+                    hp=100,
+                    max_hp=100,
+                    defense=1,
+                    attack_damage=30,
+                )
+                engine.attach_player(player, Position(*arrival))
+                route = _path(
+                    walkable,
+                    arrival,
+                    target.position,
+                    forbidden=exit_tiles - {target.position},
+                )
+                events = []
+                current = arrival
+                for next_point in route:
+                    events, resolved = engine.submit_action(
+                        player.id,
+                        {
+                            "action_type": "move",
+                            "direction": [
+                                next_point[0] - current[0],
+                                next_point[1] - current[1],
+                            ],
+                        },
+                    )
+                    assert resolved
+                    current = next_point
+                expected = (
+                    EventType.PLAYER_ENTERED_FRONTIER
+                    if target.kind == "frontier"
+                    else EventType.PLAYER_ENTERED_DOOR
+                )
+                assert expected in {event.event_type for event in events}
+                traversed += 1
+
+    assert traversed == 162
+
+
+def test_every_full_four_player_spawn_cluster_can_evacuate_without_deadlock():
+    """At least one player can move out until each four-person cluster clears."""
+    for room_id, room in ROOMS.items():
+        walkable = _walkable(room)
+        exit_tiles = {
+            exit_spec.position
+            for exit_spec in _room_exits(room_id)
+        }
+        occupied = set(map(tuple, room["spawn_points"]))
+        assert len(occupied) == 4
+        evacuation_order = []
+        while occupied:
+            movable = next(
+                (
+                    point
+                    for point in sorted(occupied)
+                    if exit_tiles & set(_distances(
+                        walkable,
+                        point,
+                        forbidden=occupied - {point},
+                    ))
+                ),
+                None,
+            )
+            assert movable is not None, (
+                f"{room_id} deadlocks a full party at {sorted(occupied)}"
+            )
+            occupied.remove(movable)
+            evacuation_order.append(movable)
+        assert len(evacuation_order) == 4
+
+
+def _run_first_clear_tour(
+    *,
+    gear: tuple[str, ...] = (),
+    recover_before_gate: int = 0,
+) -> tuple[Player, list[tuple[str, int, int]]]:
+    """Carry one player's health through a physical first-clear region loop."""
+    route = (
+        ("drazna_reed_market", "drazna_lantern_quays"),
+        ("drazna_high_crown", "drazna_reed_market"),
+        ("drazna_crown_sluice", "drazna_high_crown"),
+        ("drazna_pressure_gallery", "drazna_crown_sluice"),
+        ("drazna_tablet_vault", "drazna_pressure_gallery"),
+        ("drazna_house_of_names", "drazna_tablet_vault"),
+        ("drazna_birch_heights", "drazna_house_of_names"),
+        ("drazna_roofwright_loft", "drazna_birch_heights"),
+        ("drazna_walking_ward", "drazna_roofwright_loft"),
+        ("drazna_lantern_quays", "drazna_walking_ward"),
+        ("drazna_mud_crown", "drazna_lantern_quays"),
+        ("drazna_undertide", "drazna_mud_crown"),
+        ("drazna_dry_dock", "drazna_undertide"),
+        ("drazna_gate_seven", "drazna_dry_dock"),
+    )
+    player = Player(
+        id="player_first_clear",
+        name="First-Clear Auditor",
+        position=Position(0, 0),
+        hp=100,
+        max_hp=100,
+        defense=1,
+        attack_damage=30,
+    )
+    for item_name in gear:
+        player.inventory.append({
+            "item": ITEMS[item_name],
+            "quantity": 1,
+            "equipped": False,
+        })
+        assert equip(player, len(player.inventory) - 1) is None
+
+    results = []
+    for room_id, source_room_id in route:
+        if room_id == "drazna_gate_seven" and recover_before_gate:
+            player.hp = min(
+                player.max_hp,
+                player.hp + recover_before_gate,
+            )
+        engine = RoomEngine(_template(room_id))
+        _add_authored_bystanders(engine, room_id)
+        if room_id == "drazna_gate_seven":
+            _add_odran(engine)
+        entry_index = next(
+            index
+            for index, exit_spec in enumerate(_room_exits(room_id))
+            if exit_spec.label == source_room_id
+        )
+        arrival = engine.room.free_arrival(1_000 + entry_index)
+        assert arrival is not None
+        engine.attach_player(player, Position(*arrival))
+
+        rounds = 0
+        while player.is_alive and _hostiles(engine) and rounds < 40:
+            _events, resolved = engine.submit_action(
+                player.id,
+                _combat_action(engine, player),
+            )
+            assert resolved
+            rounds += 1
+        assert rounds < 40
+        results.append((room_id, player.hp, rounds))
+        if not player.is_alive:
+            break
+    return player, results
+
+
+def test_cumulative_region_tour_rewards_preparation_without_requiring_it_early():
+    """Ordinary routes are viable bare; the complete loop asks for one upgrade."""
+    bare, bare_results = _run_first_clear_tour()
+    assert not bare.is_alive
+    assert all(hp > 0 for _room_id, hp, _rounds in bare_results[:-1])
+    assert bare_results[-2][0] == "drazna_dry_dock"
+    assert 25 <= bare_results[-2][1] <= 45
+    assert bare_results[-1][0] == "drazna_gate_seven"
+
+    repair_kit = next(
+        item
+        for item in DRAZNA_ITEMS
+        if item["name"] == "Floodwarden Repair Kit"
+    )
+    repair_amount = next(
+        effect["amount"]
+        for effect in repair_kit["payload"]["effects"]
+        if effect["kind"] == "restore_hp"
+    )
+    repaired, _repaired_results = _run_first_clear_tour(
+        recover_before_gate=repair_amount,
+    )
+    assert repaired.is_alive
+    assert 1 <= repaired.hp <= 15
+
+    common, _common_results = _run_first_clear_tour(
+        gear=("Rusty Dagger", "Leather Cap", "Wooden Buckler"),
+    )
+    steel, _steel_results = _run_first_clear_tour(
+        gear=("Steel Sword", "Wooden Buckler"),
+    )
+    assert common.is_alive and 40 <= common.hp <= 60
+    assert steel.is_alive and steel.hp >= 60
+    assert steel.hp > common.hp
 
 
 def test_every_combat_entry_is_survivable_but_gate_seven_stays_a_climax():

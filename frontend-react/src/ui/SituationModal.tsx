@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 
 import { useGame, useGameApi } from "../store/gameStore";
+import { usePointerSettle } from "./usePointerSettle";
 
 
 export function SituationModal() {
@@ -10,6 +11,7 @@ export function SituationModal() {
   const firstChoiceRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
+  const pointerSettled = usePointerSettle(situation?.id);
 
   useEffect(() => {
     if (!situation) return;
@@ -17,7 +19,9 @@ export function SituationModal() {
       ? document.activeElement
       : null;
     return () => {
-      returnFocusRef.current?.focus();
+      if (returnFocusRef.current?.isConnected) {
+        returnFocusRef.current.focus();
+      }
       returnFocusRef.current = null;
     };
   }, [situation?.id]);
@@ -25,10 +29,19 @@ export function SituationModal() {
   useEffect(() => {
     if (!situation) return;
     const frame = window.requestAnimationFrame(() => {
-      (firstChoiceRef.current ?? closeRef.current)?.focus();
+      (
+        situationPending
+          ? modalRef.current
+          : firstChoiceRef.current ?? closeRef.current
+      )?.focus();
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [situation?.id, situation?.resolved, situation?.choices.length]);
+  }, [
+    situation?.id,
+    situation?.resolved,
+    situation?.choices.length,
+    situationPending,
+  ]);
 
   if (!situation) return null;
 
@@ -36,7 +49,11 @@ export function SituationModal() {
     <div
       className="situation-veil"
       onMouseDown={(event) => {
-        if (event.currentTarget === event.target && !situationPending) {
+        if (
+          event.currentTarget === event.target
+          && !situationPending
+          && pointerSettled(event)
+        ) {
           api.closeSituation();
         }
       }}
@@ -88,7 +105,9 @@ export function SituationModal() {
           <button
             ref={closeRef}
             className="situation-close"
-            onClick={() => api.closeSituation()}
+            onClick={(event) => {
+              if (pointerSettled(event)) api.closeSituation();
+            }}
             disabled={situationPending}
             aria-label="Step away"
             title="Step away (Esc)"
@@ -114,7 +133,11 @@ export function SituationModal() {
                   key={choice.id}
                   ref={index === 0 ? firstChoiceRef : undefined}
                   disabled={situationPending}
-                  onClick={() => api.resolveSituation(choice.id)}
+                  onClick={(event) => {
+                    if (pointerSettled(event)) {
+                      api.resolveSituation(choice.id);
+                    }
+                  }}
                 >
                   <span>{choice.label}</span>
                   <small>{choice.description}</small>

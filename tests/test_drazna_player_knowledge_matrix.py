@@ -242,7 +242,9 @@ async def test_partial_attendance_hides_successful_arcs_until_local_discovery(
         for entry in payload["chronicle"]
         if entry["title"] == "Someone moved on"
     ]
-    assert len(departures) == 3
+    # Teo, Vasko, and Olek already left anonymous traces.  Luka's deliberate
+    # gathering at Gate Seven adds one more without revealing who moved.
+    assert len(departures) == 4
     for departure in departures:
         assert departure["body"] == (
             "Signs show that someone left this place between visits."

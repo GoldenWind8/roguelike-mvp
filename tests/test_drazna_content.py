@@ -377,6 +377,21 @@ def test_drazna_story_web_has_missable_consequences_and_multiple_gate_outcomes()
     )
 
 
+def test_recurring_archive_handoff_requires_living_participants():
+    trigger = load_living_world_content().triggers[
+        "lina-carries-names-uphill"
+    ]
+    living_guards = {
+        (condition["npc_id"], condition["value"])
+        for condition in trigger["conditions"]
+        if condition["kind"] == "npc_alive"
+    }
+    assert {
+        ("lina-pell", True),
+        ("nera-bell", True),
+    } <= living_guards
+
+
 def test_first_scar_evidence_preserves_record_without_claiming_origin():
     content = load_living_world_content()
     drazna = content.kingdoms["drazna"]

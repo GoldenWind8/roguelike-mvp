@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useGame, useGameApi } from "../store/gameStore";
+import { usePointerSettle } from "./usePointerSettle";
 
 function relativeExpiry(value: string | null): string | null {
   if (!value) return null;
@@ -19,6 +20,9 @@ export function NoticeboardModal() {
   const { noticeboard } = useGame();
   const api = useGameApi();
   const [body, setBody] = useState("");
+  const modalRef = useRef<HTMLElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const pointerSettled = usePointerSettle(noticeboard?.id);
 
   const ownNotice = useMemo(
     () => noticeboard?.notices.find((notice) => notice.can_delete) ?? null,
@@ -27,6 +31,22 @@ export function NoticeboardModal() {
   useEffect(() => {
     if (!noticeboard || ownNotice) setBody("");
   }, [noticeboard?.id, ownNotice]);
+  useEffect(() => {
+    if (!noticeboard) return;
+    const previousFocus = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const frame = window.requestAnimationFrame(() => closeRef.current?.focus());
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, [noticeboard?.id]);
+  useEffect(() => {
+    if (!noticeboard || !ownNotice) return;
+    const frame = window.requestAnimationFrame(() => closeRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [noticeboard?.id, ownNotice?.id]);
   if (!noticeboard) return null;
 
   const playerCount = noticeboard.notices.filter((notice) => notice.kind === "player").length;
@@ -37,14 +57,63 @@ export function NoticeboardModal() {
   };
 
   return (
-    <div className="noticeboard-veil" onClick={() => api.closeNoticeboard()}>
-      <section className="noticeboard-modal" onClick={(event) => event.stopPropagation()}>
+    <div
+      className="noticeboard-veil"
+      onMouseDown={(event) => {
+        if (
+          event.currentTarget === event.target
+          && pointerSettled(event)
+        ) {
+          api.closeNoticeboard();
+        }
+      }}
+    >
+      <section
+        ref={modalRef}
+        className="noticeboard-modal"
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="noticeboard-title"
+        onKeyDown={(event) => {
+          if (event.key !== "Tab" || !modalRef.current) return;
+          const focusable = Array.from(
+            modalRef.current.querySelectorAll<HTMLElement>(
+              "button:not(:disabled), textarea:not(:disabled), [href], [tabindex='0']",
+            ),
+          );
+          if (focusable.length === 0) {
+            event.preventDefault();
+            modalRef.current.focus();
+            return;
+          }
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+          if (event.shiftKey && (
+            document.activeElement === first
+            || document.activeElement === modalRef.current
+          )) {
+            event.preventDefault();
+            last.focus();
+          } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+          }
+        }}
+      >
         <header className="noticeboard-head">
           <div>
             <div className="noticeboard-kicker">Town notices</div>
-            <h2>{noticeboard.label}</h2>
+            <h2 id="noticeboard-title">{noticeboard.label}</h2>
           </div>
-          <button type="button" onClick={() => api.closeNoticeboard()} aria-label="Close noticeboard">
+          <button
+            ref={closeRef}
+            type="button"
+            onClick={(event) => {
+              if (pointerSettled(event)) api.closeNoticeboard();
+            }}
+            aria-label="Close noticeboard"
+          >
             ×
           </button>
         </header>
@@ -63,7 +132,14 @@ export function NoticeboardModal() {
                   {notice.can_delete && deleteId !== null && (
                     <button
                       type="button"
-                      onClick={() => api.deleteNotice(noticeboard.object_id, deleteId)}
+                      onClick={(event) => {
+                        if (pointerSettled(event)) {
+                          api.deleteNotice(
+                            noticeboard.object_id,
+                            deleteId,
+                          );
+                        }
+                      }}
                     >
                       Take down
                     </button>
@@ -81,7 +157,7 @@ export function NoticeboardModal() {
             submit();
           }}
         >
-          <label htmlFor="notice-body">
+          <label htmlFor="notice-body" aria-live="polite">
             {ownNotice ? "Your notice is already pinned" : "Leave a notice"}
           </label>
           <textarea
@@ -102,7 +178,13 @@ export function NoticeboardModal() {
               {noticeboard.post_ttl_days} days
             </span>
             <span>{body.length}/{noticeboard.text_limit}</span>
-            <button type="submit" disabled={Boolean(ownNotice) || !body.trim()}>
+            <button
+              type="submit"
+              disabled={Boolean(ownNotice) || !body.trim()}
+              onClick={(event) => {
+                if (!pointerSettled(event)) event.preventDefault();
+              }}
+            >
               Pin notice
             </button>
           </div>

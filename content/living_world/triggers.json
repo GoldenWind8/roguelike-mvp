@@ -597,7 +597,9 @@
       "window": {"opens_day": 0, "closes_day": null, "cooldown_minutes": 4320, "max_firings": 100},
       "conditions": [
         {"kind": "carriage_arrives", "carriage_id": "mudwheel", "location_id": "drazna_high_crown"},
-        {"kind": "co_located", "npc_ids": ["lina-pell", "nera-bell"]}
+        {"kind": "co_located", "npc_ids": ["lina-pell", "nera-bell"]},
+        {"kind": "npc_alive", "npc_id": "lina-pell", "value": true},
+        {"kind": "npc_alive", "npc_id": "nera-bell", "value": true}
       ],
       "effects": [
         {
@@ -1689,7 +1691,9 @@
         {"kind": "fact_equals", "fact_key": "drazna.gate_seven_climax", "value": {"state": "engaged", "gate": "locked", "cadence_known": true}},
         {"kind": "believes", "npc_id": "rada-velic", "rumor_id": "gate-seven-fourteen", "minimum_confidence": 90},
         {"kind": "npc_alive", "npc_id": "odran-third-bell", "value": true},
-        {"kind": "npc_alive", "npc_id": "luka-nen", "value": true}
+        {"kind": "npc_alive", "npc_id": "rada-velic", "value": true},
+        {"kind": "npc_alive", "npc_id": "luka-nen", "value": true},
+        {"kind": "npc_at", "npc_id": "odran-third-bell", "location_id": "drazna_gate_seven"}
       ],
       "effects": [
         {
@@ -1698,6 +1702,18 @@
           "subject_id": "drazna-gate-seven-reckoning",
           "predicate": "outcome",
           "value": {"state": "pacified", "gate": "vented", "names_spoken": 14}
+        },
+        {
+          "kind": "relocate_npc",
+          "npc_id": "rada-velic",
+          "location_id": "drazna_gate_seven",
+          "reason": "Rada follows the expedition's returning pressure signal into Gate Seven before the lower chain can complete its turn."
+        },
+        {
+          "kind": "relocate_npc",
+          "npc_id": "luka-nen",
+          "location_id": "drazna_gate_seven",
+          "reason": "Luka brings the complete closure roll to the chain drum so every answer has a living witness."
         },
         {
           "kind": "set_disposition",

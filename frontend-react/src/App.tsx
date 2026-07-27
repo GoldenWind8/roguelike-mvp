@@ -67,6 +67,14 @@ export default function App() {
   const api = useGameApi();
   const mode = state.room?.room.mode ?? "exploration";
   const me = state.playerId && state.room ? state.room.players[state.playerId] : null;
+  const proximityOpeningLabel = state.proximityOpenPending
+    ? {
+        shop: "The keeper checks the counter…",
+        noticeboard: "Reading the posted notices…",
+        carriage: "Asking after the road…",
+        situation: "Taking stock of the mechanism…",
+      }[state.proximityOpenPending.kind]
+    : null;
 
   // A stored session skips the front door.
   useEffect(() => {
@@ -85,39 +93,89 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
       if (state.screen !== "game") return;
+      const target = e.target instanceof HTMLElement ? e.target : null;
+      const isTextEntry = target?.matches(
+        "input, textarea, select, [contenteditable='true']",
+      ) ?? false;
+
+      // Escape belongs to the topmost local surface, including when focus is
+      // inside a notice text area or another native control.
+      if (e.key === "Escape") {
+        e.preventDefault();
+        if (state.worldDrawerOpen) api.closeWorldDrawer();
+        else if (state.lootReveal) api.closeLoot();
+        else if (state.chestOpenPending) {
+          // The server may already be minting the contents. Keep the busy
+          // surface authoritative until it answers.
+        }
+        else if (state.proximityOpenPending) {
+          // Nearby services answer authoritatively; the pending surface also
+          // keeps queued movement from invalidating their eventual view.
+        }
+        else if (state.shop) {
+          if (!state.shopPending) api.closeShop();
+        }
+        else if (state.noticeboard) api.closeNoticeboard();
+        else if (state.carriage) {
+          if (!state.carriagePending) api.closeCarriage();
+        }
+        else if (state.situation) {
+          if (!state.situationPending) api.closeSituation();
+        } else if (state.dialogue) api.closeDialogue();
+        else if (state.selectedSlot !== null) api.selectSlot(null);
+        else if (state.inspection) api.closeInspection();
+        return;
+      }
+      if (isTextEntry) return;
 
       if (e.key.toLowerCase() === "j") {
         e.preventDefault();
         if (state.worldDrawerOpen) api.closeWorldDrawer();
-        else if (!state.lootReveal && !state.shop && !state.noticeboard && !state.carriage && !state.situation) api.openWorldDrawer();
+        else if (!state.chestOpenPending && !state.proximityOpenPending && !state.lootReveal && !state.shop && !state.noticeboard && !state.carriage && !state.situation) api.openWorldDrawer();
         return;
       }
 
       // The World is a reading surface, not a pause menu. It blocks local
       // controls while open, but the server-side world remains authoritative.
       if (state.worldDrawerOpen) {
-        if (e.key === "Escape") {
-          e.preventDefault();
-          api.closeWorldDrawer();
+        return;
+      }
+
+      if (state.chestOpenPending || state.proximityOpenPending) {
+        if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+          const key = e.key.toLowerCase();
+          if (
+            e.key === "Tab"
+            || e.key === " "
+            || e.key.startsWith("Arrow")
+            || /^[0-9]$/.test(e.key)
+            || ["w", "a", "s", "d", "e", "j", "home", "f2"].includes(key)
+          ) {
+            e.preventDefault();
+          }
         }
         return;
       }
 
-      // The counter is a modal interaction: no walking away while a purchase
-      // is being considered. The server still revalidates adjacency on Buy.
-      if (state.shop || state.noticeboard || state.carriage || state.situation) {
-        if (e.key === "Escape") {
-          e.preventDefault();
-          if (state.shop) api.closeShop();
-          else if (state.noticeboard) api.closeNoticeboard();
-          else if (state.carriage) api.closeCarriage();
-          else if (!state.situationPending) api.closeSituation();
-        }
+      // Proximity-bound overlays are modal interactions: no walking away
+      // while loot, a purchase, a notice, a route, or a consequence is open.
+      if (
+        state.lootReveal
+        || state.shop
+        || state.noticeboard
+        || state.carriage
+        || state.carriagePending === "travel"
+        || state.situation
+      ) {
         return;
       }
+
+      // Let native controls own Space/Enter/arrow keys. Without this guard,
+      // Space on an object or loot button also submitted a combat wait.
+      if (target?.closest(
+        "button, a[href], summary, [role='button'], [role='tab'], [role='option']",
+      )) return;
 
       const moves: Record<string, [number, number]> = {
         ArrowUp: [0, -1], w: [0, -1],
@@ -176,18 +234,11 @@ export default function App() {
       } else if (e.key === "F2" && LOCAL_FOOTPRINT_DEBUG) {
         e.preventDefault();
         window.dispatchEvent(new Event(TOGGLE_FOOTPRINTS_EVENT));
-      } else if (e.key === "Escape") {
-        // The loot reveal sits on top of everything, so it closes first;
-        // then chat — the thing you most often want out of the way.
-        if (state.lootReveal) api.closeLoot();
-        else if (state.dialogue) api.closeDialogue();
-        else if (state.selectedSlot !== null) api.selectSlot(null);
-        else if (state.inspection) api.closeInspection();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [api, state.screen, state.room, state.playerId, state.selectedSlot, state.dialogue, state.inspection, state.lootReveal, state.shop, state.noticeboard, state.carriage, state.situation, state.situationPending, state.worldDrawerOpen]);
+  }, [api, state.screen, state.room, state.playerId, state.selectedSlot, state.dialogue, state.inspection, state.chestOpenPending, state.proximityOpenPending, state.lootReveal, state.shop, state.shopPending, state.noticeboard, state.carriage, state.carriagePending, state.situation, state.situationPending, state.worldDrawerOpen]);
 
   if (state.screen === "login") {
     return (
@@ -226,6 +277,17 @@ export default function App() {
       </main>
 
       <Hotbar />
+      {proximityOpeningLabel && (
+        <div className="loot-veil">
+          <div
+            className="loot-modal interaction-opening-modal"
+            role="status"
+            aria-live="polite"
+          >
+            <div className="loot-title">{proximityOpeningLabel}</div>
+          </div>
+        </div>
+      )}
       <ChestLootModal />
       <ShopModal />
       <NoticeboardModal />

@@ -92,7 +92,7 @@ the minimum same-rarity purchase prices, preventing shop arbitrage.
 
 | Area | Function and evidence |
 |---|---|
-| Lantern Quays | Ferry arrival, Mudwheel stop, provisions, public notices, refugee bundles, and the temporary frontier entries |
+| Lantern Quays | Ferry arrival, Mudwheel stop, provisions, public notices, refugee bundles, the procedural gateway, and temporary Oakrun bridge |
 | Eel and Ember | Drina's inn, the uncensored arrival book, and a concealed path into the Low Lantern |
 | Reed Market | Salvage trade, Teo's fence operation, false provenance, and three routes into the city's upper and hidden layers |
 | Mud Crown | Crane platforms, skiffs, dry-line access, and an alternate thieves' lift |
@@ -129,12 +129,13 @@ instead of a generic sparkle, so an unillustrated rope, drain, bunk, or
 listening pipe is still readable at a glance.
 
 Regional combat is tuned around a visible equipment step. A fresh, healthy
-traveller can clear every ordinary Drazna approach, but the four bespoke
-flood enemies each take two unarmed strikes. A steel sword can finish any of
-them in one, making found or purchased equipment materially useful before
-Gate Seven. Odran and his two supporting enemies remain substantially more
-dangerous: a healthy unarmed traveller survives deterministic approach audits,
-while an already wounded traveller may not.
+traveller can clear each ordinary Drazna encounter, but the four bespoke flood
+enemies each take two unarmed strikes. A steel sword can finish any of them in
+one, making found or purchased equipment materially useful before Gate Seven.
+A standalone full-health unarmed Gate Seven audit is also survivable, but a
+bare, no-heal traversal of the representative first-clear hostile loop is
+expected to fail at the climax. One Floodwarden Repair Kit or a common
+equipment upgrade makes that cumulative audit survivable.
 
 Amber Quay Provisions uses Lantern Quays as its loot context. Its daily stock
 can therefore include Smoked Eel & Blackbread and the other Drazna items,
@@ -230,6 +231,12 @@ at the same time:
 The unattended failure path cannot overwrite a completed pacified, contained,
 or Odran-killed resolution.
 
+The automatic fourteen-name path requires Odran, Rada, and Luka to be alive,
+and Odran to remain at Gate Seven. Its atomic story turn gathers Rada and Luka
+at the gate. Active-room authority defers the entire turn while any
+participant's room or Gate Seven is being observed, preventing an offscreen
+update from moving a visible witness or allowing a dead participant to act.
+
 Once a flooded or cadence-expired failure is durable, the chain drum reports
 that terminal state and no longer offers the earlier pacification or brace
 choices. Killing Odran afterward remains a persistent NPC death, but it cannot
@@ -261,6 +268,42 @@ Five added rumors distinguish authored truth from belief:
 The noticeboard, room descriptions, NPC knowledge, rumor truth accounts, and
 climax facts all repeat the same epistemic boundary: **first verified public
 record is not proven birthplace**.
+
+## Release validation
+
+The frozen release candidate passed the complete 861-test backend suite and
+the production TypeScript/Vite build. A paired seed-42 simulation then ran
+two independently created worlds for 180 days, including a close/reopen at
+day 90. Both branches produced the same canonical hashes:
+
+- Day 90:
+  `4c464b50d24e79a1083b48caff9d3be734d2b0c4c6e16416a5d7f11f1ccd1d3c`
+- Day 180:
+  `61e6f7dee3d1c71e1225aeef2b1d96c1e8c1d01c3ee2b12cf9c20d074e175c9a`
+
+Historical replay, exact trigger replay, and exact service replay generated
+no duplicate work. At day 180 the world held 19,987 deliberations, or
+3.965675 per living NPC-day; 5,760 conversation turns; thirty-five pending
+events with none overdue; 15,515 memories; and 31,063 Chronicle entries.
+The scenario launched the Undertide expedition, returned Vasko with the
+closure payroll, opened the fourteen-name hearing without resolving the
+First Scar's origin, pacified Gate Seven, and stabilized Walking Ward.
+
+An additional adversarial audit forced eight synchronized four-way races
+between pacification, containment, Odran's defeat, and flooding. Every race
+committed exactly one canonical winner. Twelve simultaneous duplicate
+pacification answers likewise produced one durable fact and event while
+preserving all twelve player witnesses. Reopen, rollback injection,
+active-room deferral, dead-witness, and late-outcome checks stayed coherent.
+
+Long-history performance remains a watch item rather than a correctness
+failure. Days 1–90 averaged 5.66 seconds per simulated day, while days 91–180
+averaged 12.38 seconds, a 2.19× slowdown as per-NPC memory histories nearly
+doubled. The live queue stayed flat and overdue-free; future work should
+replace full memory-history loads in conversation candidate selection with
+bounded indexed queries. Conversation throughput also sat continuously at
+its configured thirty-two-turn daily cap and merits telemetry before further
+population growth.
 
 ## Runtime integration
 

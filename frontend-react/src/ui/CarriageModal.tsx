@@ -1,6 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+} from "react";
 import type { CarriageDestinationView } from "../net/types";
 import { useGame, useGameApi } from "../store/gameStore";
+import { usePointerSettle } from "./usePointerSettle";
 
 function travelTime(minutes: number | undefined): string | null {
   if (!minutes || minutes <= 0) return null;
@@ -33,7 +39,7 @@ function Destination({
   destination: CarriageDestinationView;
   pending: boolean;
   coins: number;
-  onTravel: () => void;
+  onTravel: (event: MouseEvent<HTMLButtonElement>) => void;
 }) {
   const roadTime = travelTime(destination.travel_minutes);
   const journeyTime = travelTime(destination.journey_minutes);
@@ -74,6 +80,11 @@ function Destination({
         <button
           disabled={pending || !canAfford || !boardsNow}
           onClick={onTravel}
+          aria-label={
+            boardsNow && canAfford
+              ? `Board for ${destination.name}${fare > 0 ? `, ${fare} coin${fare === 1 ? "" : "s"}` : ""}`
+              : `${destination.name}: ${!canAfford ? "fare too high" : "not boarding now"}`
+          }
         >
           {!canAfford ? "Fare too high" : !boardsNow ? "Not boarding" : "Board"}
         </button>
@@ -88,6 +99,7 @@ export function CarriageModal() {
   const [name, setName] = useState("");
   const modalRef = useRef<HTMLElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const pointerSettled = usePointerSettle(carriage?.stop.id);
 
   useEffect(() => {
     setName("");
@@ -101,9 +113,39 @@ export function CarriageModal() {
     const frame = window.requestAnimationFrame(() => closeRef.current?.focus());
     return () => {
       window.cancelAnimationFrame(frame);
-      previousFocus?.focus();
+      if (previousFocus?.isConnected) previousFocus.focus();
     };
   }, [carriage?.stop.id]);
+
+  useEffect(() => {
+    if (!carriage) return;
+    const frame = window.requestAnimationFrame(() => {
+      const modal = modalRef.current;
+      const active = document.activeElement;
+      if (!modal) return;
+      if (carriagePending === "travel") {
+        modal.focus();
+        return;
+      }
+      const activeControlIsDisabled = (
+        active instanceof HTMLButtonElement
+        || active instanceof HTMLInputElement
+      ) && active.disabled;
+      if (modal.contains(active) && !activeControlIsDisabled) return;
+      (
+        modal.querySelector<HTMLElement>(
+          ".carriage-close:not(:disabled), button:not(:disabled), input:not(:disabled), [tabindex='0']",
+        )
+        ?? modal
+      ).focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [
+    carriage?.stop.id,
+    carriage?.can_name,
+    carriage?.destinations,
+    carriagePending,
+  ]);
 
   if (!carriage) return null;
 
@@ -117,7 +159,13 @@ export function CarriageModal() {
     <div
       className="carriage-veil"
       onMouseDown={(event) => {
-        if (event.currentTarget === event.target && !carriagePending) api.closeCarriage();
+        if (
+          event.currentTarget === event.target
+          && !carriagePending
+          && pointerSettled(event)
+        ) {
+          api.closeCarriage();
+        }
       }}
     >
       <section
@@ -170,8 +218,10 @@ export function CarriageModal() {
           <button
             ref={closeRef}
             className="carriage-close"
-            onClick={() => api.closeCarriage()}
-            disabled={carriagePending === "travel"}
+            onClick={(event) => {
+              if (pointerSettled(event)) api.closeCarriage();
+            }}
+            disabled={carriagePending !== null}
             title="Step away (Esc)"
             aria-label="Close carriage routes"
           >
@@ -207,6 +257,9 @@ export function CarriageModal() {
               <button
                 type="submit"
                 disabled={!validName || carriagePending !== null}
+                onClick={(event) => {
+                  if (!pointerSettled(event)) event.preventDefault();
+                }}
               >
                 {carriagePending === "name" ? "Carving…" : "Name it"}
               </button>
@@ -255,7 +308,11 @@ export function CarriageModal() {
                 destination={destination}
                 pending={carriagePending !== null}
                 coins={coins}
-                onTravel={() => api.travelByCarriage(destination.stop_id)}
+                onTravel={(event) => {
+                  if (pointerSettled(event)) {
+                    api.travelByCarriage(destination.stop_id);
+                  }
+                }}
               />
             ))
           )}
@@ -263,7 +320,9 @@ export function CarriageModal() {
 
         <footer className="carriage-foot">
           <span>Carriages move through world time. People may not wait for you.</span>
-          {carriagePending === "travel" && <strong>The driver readies the horses…</strong>}
+          {carriagePending === "travel" && (
+            <strong role="status">The driver readies the horses…</strong>
+          )}
         </footer>
       </section>
     </div>
