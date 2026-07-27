@@ -238,13 +238,16 @@ Traversal splits cleanly between the pure engine and the async edge:
 2. `MoveHandler` appends a `PLAYER_ENTERED_DOOR` event — the engine stays
    sync and DB-free; it only announces intent.
 3. After the round resolves, `handle_round_events` in `main.py` reacts:
-   validate the destination fully (load it if dormant, check capacity and a
-   free spawn), and only then mutate — detach the player from the old
-   runtime, move their socket, attach them at the destination spawn.
+   validate the destination fully (load it if dormant, check capacity, and
+   reserve a free position for the player and every living follower), and
+   only then mutate — detach the party from the old runtime, move the
+   player's socket, and attach the party at the destination.
 4. The traveler gets a `room_changed` message; the old room's remaining
-   players see them slip away in the normal `state_update`.
-5. A denied traversal (room full, no free spawn, load failure) changes
-   nothing: the player stays on the door tile and gets an error.
+   players see them slip away in the normal `state_update`. Follower room
+   and position are persisted immediately.
+5. A denied traversal (room full, insufficient party positions, or load
+   failure) changes nothing: the whole party stays put and the player gets
+   an error.
 
 ```mermaid
 sequenceDiagram
@@ -256,9 +259,9 @@ sequenceDiagram
     P->>Old: move onto door tile
     Old->>Old: resolve round, emit PLAYER_ENTERED_DOOR
     Old->>Edge: round events
-    Edge->>New: get_or_load_room + capacity/spawn checks
-    Edge->>Old: detach player + socket
-    Edge->>New: attach player at free spawn
+    Edge->>New: load + reserve positions for whole party
+    Edge->>Old: detach party + player socket
+    Edge->>New: attach party at reserved positions
     New-->>P: room_changed + full state
     Old-->>Old: broadcast state (traveler gone), evict if empty
 ```

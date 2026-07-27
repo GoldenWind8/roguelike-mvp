@@ -78,6 +78,19 @@ def build_prompt(npc: NPC, player_name: str, text: str) -> list[dict]:
     # engine gate). Describing an effect the NPC can never grant just invites
     # proposals the validator will drop — wasted tokens and out-of-character offers.
     can_recruit = "join_party" in persona.get("grants", [])
+    knowledge = persona.get("knowledge", [])
+    relationships = persona.get("relationships", [])
+    knowledge_rules = (
+        "\nThings you personally know:\n- " + "\n- ".join(knowledge)
+        if knowledge else ""
+    )
+    relationship_rules = (
+        "\nPeople you know:\n- " + "\n- ".join(
+            f"{relation['name']}: {relation['connection']}"
+            for relation in relationships
+        )
+        if relationships else ""
+    )
     party_rules = ""
     if can_recruit:
         party_rules = (
@@ -95,6 +108,7 @@ def build_prompt(npc: NPC, player_name: str, text: str) -> list[dict]:
         f"Role: {persona.get('role', '')}\n"
         f"Voice and attitude: {persona.get('persona', '')}\n"
         f"Drives: {'; '.join(persona.get('drives', []))}\n"
+        f"{knowledge_rules}{relationship_rules}\n"
         f"Current disposition toward players: {npc.disposition.value}\n\n"
         "Rules:\n"
         "- Reply with a single JSON object and nothing else: "

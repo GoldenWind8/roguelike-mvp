@@ -1,0 +1,33 @@
+{
+  "id": "oakrun_fieldsite_verge",
+  "name": "The Severed Fieldsite",
+  "width": 17,
+  "height": 13,
+  "terrain": [
+    "#################",
+    "#...............#",
+    "#...............#",
+    "#...............#",
+    "#...###.........#",
+    "#...............#",
+    "+...............#",
+    "#.........###...#",
+    "#...............#",
+    "#...............#",
+    "#...............#",
+    "#...............#",
+    "########+########"
+  ],
+  "spawn_points": [[7, 11], [8, 11], [9, 11], [8, 10]],
+  "enemy_spawns": [
+    {"enemy_id": 10, "x": 4, "y": 3},
+    {"enemy_id": 11, "x": 12, "y": 4},
+    {"enemy_id": 12, "x": 8, "y": 8}
+  ],
+  "objects": [
+    {"id": "fieldsite_broken_apparatus", "type": "fieldsite_apparatus", "x": 6, "y": 2},
+    {"id": "fieldsite_black_cistern", "type": "blackened_cistern", "x": 12, "y": 8},
+    {"id": "fieldsite_supply_chest", "type": "chest", "x": 2, "y": 9},
+    {"id": "fieldsite_fire_barrel", "type": "fire_barrel", "x": 13, "y": 2, "hp": 3}
+  ]
+}

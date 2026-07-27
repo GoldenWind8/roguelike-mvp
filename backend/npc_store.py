@@ -56,7 +56,9 @@ async def load_npcs(session: AsyncSession, room_id: int) -> list[NPC]:
     return npcs
 
 
-async def save_npcs(session: AsyncSession, npcs: list[NPC]) -> None:
+async def save_npcs(
+    session: AsyncSession, npcs: list[NPC], room_id: int | None = None,
+) -> None:
     """Write live NPC state back to rows. Commits as one unit of work —
     either the whole room's individuals persist or none do."""
     for npc in npcs:
@@ -65,6 +67,8 @@ async def save_npcs(session: AsyncSession, npcs: list[NPC]) -> None:
             # The row vanished under us (hand-deleted db?). Losing one NPC
             # must not abort saving the rest.
             continue
+        if room_id is not None:
+            row.room_id = room_id
         row.x = npc.position.x
         row.y = npc.position.y
         row.hp = npc.hp

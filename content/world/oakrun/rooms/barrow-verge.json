@@ -1,0 +1,31 @@
+{
+  "id": "oakrun_barrow_verge",
+  "name": "Barrow Verge",
+  "width": 15,
+  "height": 11,
+  "terrain": [
+    "###############",
+    "#.............#",
+    "#.............#",
+    "#.............#",
+    "#.............#",
+    "+.............#",
+    "#.............#",
+    "#.............#",
+    "#.............#",
+    "#.............#",
+    "#######+#######"
+  ],
+  "spawn_points": [[1, 4], [1, 5], [1, 6], [2, 5]],
+  "enemy_spawns": [
+    {"enemy_id": 8, "x": 6, "y": 3},
+    {"enemy_id": 8, "x": 10, "y": 7},
+    {"enemy_id": 5, "x": 4, "y": 8}
+  ],
+  "objects": [
+    {"id": "barrow_verge_crowned_stone", "type": "barrow_stone", "x": 6, "y": 2},
+    {"id": "barrow_verge_west_grave", "type": "grave_marker", "x": 3, "y": 6},
+    {"id": "barrow_verge_east_grave", "type": "grave_marker", "x": 11, "y": 3},
+    {"id": "barrow_verge_chest", "type": "chest", "x": 12, "y": 8}
+  ]
+}

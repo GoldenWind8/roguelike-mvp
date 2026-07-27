@@ -13,7 +13,10 @@ content/
   buildings.json    large building/landmark definitions
   npcs.json         authored persistent NPC starting definitions
   world/
-    oakrun.json      rooms, placements, spawns, and connections
+    oakrun/
+      region.json    region metadata, room file list, and directed connections
+      rooms/
+        *.json       one room's terrain, placements, spawns, and encounters
 ```
 
 There is no asset lifecycle field. Presence in one of these runtime catalogues
@@ -35,8 +38,18 @@ Every authored room has a stable `content_id`. Startup synchronizes only the
 room-definition fields from JSON. Player state, NPC instances, dialogue memory,
 and object-instance state are not replaced.
 
+Region manifests refer to rooms and connections by stable content id, never by
+database row number. All rooms, enemy references, NPC placements, and
+connection endpoints are validated before synchronization. Authored outgoing
+connections are replaced as one set, so removing a door cannot leave a stale
+database edge.
+
 Every authored object placement has its own stable `id`. Persisted object state
 therefore survives reordering the room's object list.
+
+Authored persona voice, knowledge, relationships, and presentation are
+refreshed from JSON on startup. Played state—position, wounds, death,
+disposition, dialogue memory, and party owner—remains on the individual row.
 
 ## Persistent versus fungible characters
 

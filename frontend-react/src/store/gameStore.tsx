@@ -24,12 +24,16 @@ import type {
   GameEvent,
   InventorySlot,
   ItemView,
+  KnownNpcView,
   NoticeboardView,
   NpcState,
   ObjectDetail,
   RoomStatePayload,
+  RumorView,
   ServerMessage,
   ShopView,
+  WorldChronicleEntry,
+  WorldTimeView,
 } from "../net/types";
 import { ambient } from "../audio/ambient";
 
@@ -198,6 +202,8 @@ interface DialogueState {
   pending: boolean;
 }
 
+export type WorldDrawerTab = "rumors" | "chronicle" | "people";
+
 export interface GameState {
   screen: "login" | "game";
   username: string;
@@ -216,6 +222,14 @@ export interface GameState {
   lootReveal: { objectId: string; finds: LootFind[] } | null;
   shop: ShopView | null;
   noticeboard: NoticeboardView | null;
+  /** Player-private knowledge supplied by world_sync and its deltas. */
+  worldTime: WorldTimeView | null;
+  rumors: RumorView[];
+  worldChronicle: WorldChronicleEntry[];
+  knownPeople: KnownNpcView[];
+  worldUnread: number;
+  worldDrawerOpen: boolean;
+  worldDrawerTab: WorldDrawerTab;
   musicOn: boolean;
   /** Turn-based combat: your action is submitted; the round hasn't resolved. */
   actionLocked: boolean;
@@ -238,6 +252,13 @@ const initialState: GameState = {
   lootReveal: null,
   shop: null,
   noticeboard: null,
+  worldTime: null,
+  rumors: [],
+  worldChronicle: [],
+  knownPeople: [],
+  worldUnread: 0,
+  worldDrawerOpen: false,
+  worldDrawerTab: "rumors",
   musicOn: true,
   actionLocked: false,
   waitingFor: [],
@@ -256,6 +277,9 @@ type Action =
   | { type: "close_loot" }
   | { type: "close_shop" }
   | { type: "close_noticeboard" }
+  | { type: "open_world_drawer"; tab?: WorldDrawerTab }
+  | { type: "close_world_drawer" }
+  | { type: "set_world_drawer_tab"; tab: WorldDrawerTab }
   | { type: "select_slot"; index: number | null }
   | { type: "set_music"; on: boolean }
   | { type: "log"; kind: LogKind; text: string };
@@ -266,6 +290,14 @@ function appendLog(log: LogLine[], lines: (LogLine | null)[]): LogLine[] {
   const add = lines.filter((l): l is LogLine => l !== null);
   if (add.length === 0) return log;
   return [...log, ...add].slice(-MAX_LOG);
+}
+
+function upsertById<T>(items: T[], item: T, key: keyof T = "id" as keyof T): T[] {
+  const index = items.findIndex((candidate) => candidate[key] === item[key]);
+  if (index < 0) return [...items, item];
+  const next = [...items];
+  next[index] = item;
+  return next;
 }
 
 function reduce(state: GameState, action: Action): GameState {
@@ -302,6 +334,17 @@ function reduce(state: GameState, action: Action): GameState {
       return { ...state, shop: null };
     case "close_noticeboard":
       return { ...state, noticeboard: null };
+    case "open_world_drawer":
+      return {
+        ...state,
+        worldDrawerOpen: true,
+        worldDrawerTab: action.tab ?? state.worldDrawerTab,
+        worldUnread: 0,
+      };
+    case "close_world_drawer":
+      return { ...state, worldDrawerOpen: false };
+    case "set_world_drawer_tab":
+      return { ...state, worldDrawerTab: action.tab };
     case "select_slot": {
       // Clicking the held slot puts it away; empty slots can't be held.
       if (action.index !== null && !packOf(state.room, state.playerId)[action.index]) return state;
@@ -420,6 +463,47 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
         lootReveal: null,
         shop: null,
       };
+    case "world_sync":
+      return {
+        ...state,
+        worldTime: msg.time,
+        rumors: msg.rumors,
+        worldChronicle: msg.chronicle,
+        knownPeople: msg.known_people,
+        worldUnread: state.worldDrawerOpen
+          ? 0
+          : [
+              ...msg.rumors,
+              ...msg.chronicle,
+              ...msg.known_people,
+            ].filter((entry) => entry.unread).length,
+      };
+    case "world_time_updated":
+      return { ...state, worldTime: msg.time };
+    case "rumor_learned":
+      return {
+        ...state,
+        rumors: upsertById(state.rumors, msg.rumor),
+        worldUnread: state.worldDrawerOpen || !msg.rumor.unread
+          ? state.worldUnread
+          : state.worldUnread + 1,
+      };
+    case "chronicle_added":
+      return {
+        ...state,
+        worldChronicle: upsertById(state.worldChronicle, msg.entry),
+        worldUnread: state.worldDrawerOpen || !msg.entry.unread
+          ? state.worldUnread
+          : state.worldUnread + 1,
+      };
+    case "known_npc_updated":
+      return {
+        ...state,
+        knownPeople: upsertById(state.knownPeople, msg.npc, "world_id"),
+        worldUnread: state.worldDrawerOpen || !msg.npc.unread
+          ? state.worldUnread
+          : state.worldUnread + 1,
+      };
     case "error":
       return {
         ...state,
@@ -479,6 +563,9 @@ interface GameApi {
   closeLoot(): void;
   closeShop(): void;
   closeNoticeboard(): void;
+  openWorldDrawer(tab?: WorldDrawerTab): void;
+  closeWorldDrawer(): void;
+  setWorldDrawerTab(tab: WorldDrawerTab): void;
   talk(text: string): void;
   toggleMusic(): void;
   /** Local flavor/hint line in the chronicle; never touches the server. */
@@ -659,6 +746,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
       },
       closeNoticeboard() {
         dispatch({ type: "close_noticeboard" });
+      },
+      openWorldDrawer(tab) {
+        dispatch({ type: "open_world_drawer", tab });
+      },
+      closeWorldDrawer() {
+        dispatch({ type: "close_world_drawer" });
+      },
+      setWorldDrawerTab(tab) {
+        dispatch({ type: "set_world_drawer_tab", tab });
       },
       talk(text) {
         const d = stateRef.current.dialogue;

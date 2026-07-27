@@ -23,49 +23,49 @@ production cutouts go under `frontend-react/public/art/`.
 
 Shared contract: logical footprint `1x1`, visual footprint `1x2`, bottom-center.
 
-- [ ] `queen_mara_vey` — High Crown; ruler carrying the original cover-up
-- [ ] `ilya_sorn` — Crown Sluice; junior floodwarden who opened the channel
-- [ ] `nera_bell` — Birch Heights; keeper of the erased census
-- [ ] `olek_var` — Lantern Quays / Undertide; salvage captain and intermediary
-- [ ] `pava_mirek` — Walking Ward; roofwright and community organizer
-- [ ] `vasko_mirek` — Undertide; missing diver carrying evidence
-- [ ] `vesna_korr` — Undertide; Low Lantern organizer controlling dry routes
-- [ ] `alin_vey` — High Crown / Birch Heights; royal heir demanding disclosure
+- [x] `queen_mara_vey` — High Crown; ruler carrying the original cover-up
+- [x] `ilya_sorn` — Crown Sluice; junior floodwarden who opened the channel
+- [x] `nera_bell` — Birch Heights; keeper of the erased census
+- [x] `olek_var` — Lantern Quays / Undertide; salvage captain and intermediary
+- [x] `pava_mirek` — Walking Ward; roofwright and community organizer
+- [x] `vasko_mirek` — Undertide; missing diver carrying evidence
+- [x] `vesna_korr` — Undertide; Low Lantern organizer controlling dry routes
+- [x] `alin_vey` — High Crown / Birch Heights; royal heir demanding disclosure
 
 ## Interactive objects
 
-- [ ] `drazna_ferry_skiff` — transport and rescue; logical `3x1`, visual `4x2`
-- [ ] `amber_quay_stall` — Lantern Quays vendor; logical `2x2`, visual `3x3`
-- [ ] `sluice_control_wheel` — water-level interaction; logical `2x1`, visual `2x3`
-- [ ] `house_of_names_rack` — memorial clue surface; logical `2x1`, visual `2x3`
-- [ ] `roofwright_scaffold` — repair and traversal; logical `3x1`, visual `4x3`
-- [ ] `salvage_crane` — Mud Crown access; logical `2x2`, visual `3x4`
-- [ ] `low_lantern_cache` — criminal loot container; logical `1x1`, visual `2x2`
-- [ ] `floodline_memorial` — Birch Heights clue landmark; logical `2x1`, visual `2x3`
+- [x] `drazna_ferry_skiff` — transport and rescue; logical `3x1`, visual `4x2`
+- [x] `amber_quay_stall` — Lantern Quays vendor; logical `2x2`, visual `3x3`
+- [x] `sluice_control_wheel` — water-level interaction; logical `2x1`, visual `2x3`
+- [x] `house_of_names_rack` — memorial clue surface; logical `2x1`, visual `2x3`
+- [x] `roofwright_scaffold` — repair and traversal; logical `3x1`, visual `4x3`
+- [x] `salvage_crane` — Mud Crown access; logical `2x2`, visual `3x4`
+- [x] `low_lantern_cache` — criminal loot container; logical `1x1`, visual `2x2`
+- [x] `floodline_memorial` — Birch Heights clue landmark; logical `2x1`, visual `2x3`
 
 ## Inventory and quest-item icons
 
 Shared contract: square icon, isolated object, no rarity frame or label.
 
-- [ ] `odrans_black_key` — opens the forbidden lower sluice
-- [ ] `missing_census_tablet` — evidence for Nera's Uncounted Dead thread
-- [ ] `sealed_ledger_page` — evidence held by Olek
-- [ ] `low_lantern_token` — access marker for Undertide routes
-- [ ] `drowned_silver_ring` — identifies one missing diver
-- [ ] `floodwarden_repair_kit` — required for Ilya's pressure-station repairs
-- [ ] `smoked_eel_blackbread` — regional food and hunger item
-- [ ] `black_silt_sample` — early physical evidence of the rot
+- [x] `odrans_black_key` — opens the forbidden lower sluice
+- [x] `missing_census_tablet` — evidence for Nera's Uncounted Dead thread
+- [x] `sealed_ledger_page` — evidence held by Olek
+- [x] `low_lantern_token` — access marker for Undertide routes
+- [x] `drowned_silver_ring` — identifies one missing diver
+- [x] `floodwarden_repair_kit` — required for Ilya's pressure-station repairs
+- [x] `smoked_eel_blackbread` — regional food and hunger item
+- [x] `black_silt_sample` — early physical evidence of the rot
 
 ## Major landmarks
 
-- [ ] `palace_of_still_water` — High Crown; logical `6x3`, visual `7x6`
-- [ ] `crown_sluice_gatehouse` — High Crown / Undertide; logical `6x2`, visual `7x5`
-- [ ] `drowned_bell_tower` — Lantern Quays; logical `2x2`, visual `3x6`
-- [ ] `house_of_names` — Birch Heights; logical `5x2`, visual `5x4`
-- [ ] `eel_and_ember_inn` — Lantern Quays; logical `5x2`, visual `5x4`
-- [ ] `walking_bridge_houses` — Walking Ward; logical `7x2`, visual `8x4`
-- [ ] `dry_dock_entrance` — Undertide; logical `4x2`, visual `4x3`
-- [ ] `birch_stair_memorial_arch` — Birch Heights; logical `4x1`, visual `4x4`
+- [x] `palace_of_still_water` — High Crown; logical `6x3`, visual `7x6`
+- [x] `crown_sluice_gatehouse` — High Crown / Undertide; logical `6x2`, visual `7x5`
+- [x] `drowned_bell_tower` — Lantern Quays; logical `2x2`, visual `3x6`
+- [x] `house_of_names` — Birch Heights; logical `5x2`, visual `5x4`
+- [x] `eel_and_ember_inn` — Lantern Quays; logical `5x2`, visual `5x4`
+- [x] `walking_bridge_houses` — Walking Ward; logical `7x2`, visual `8x4`
+- [x] `dry_dock_entrance` — Undertide; logical `4x2`, visual `4x3`
+- [x] `birch_stair_memorial_arch` — Birch Heights; logical `4x1`, visual `4x4`
 
 ## Story connections
 
@@ -78,3 +78,21 @@ Shared contract: square icon, isolated object, no rarity frame or label.
 - The repair kit, control wheel, crane, scaffold, and skiff support actual
   traversal and rescue interactions rather than being decorative clutter.
 - The silt sample carries the wider black-rot story into Drazna.
+
+## Production QA
+
+- Built-in image generation with one call per distinct asset
+- Flat `#ff00ff` chroma sources retained beside the generation record
+- Backgrounds removed with the installed imagegen chroma-key helper using
+  soft matte and despill
+- All 32 production PNGs are RGBA with transparent corners
+- No opaque magenta residue detected
+- NPCs checked at the live `54x108` pixel `1x2`-cell presentation
+- Items checked near live hotbar scale
+- Objects and landmarks checked against their suggested visual footprints on
+  the live 54-pixel grid
+- Metadata records paths, footprints, districts, and story-role tags
+
+These are accepted production candidates, not yet registered in backend object,
+actor, or item definitions. Registration belongs to the later Drazna
+implementation pass so art acceptance does not silently create game logic.

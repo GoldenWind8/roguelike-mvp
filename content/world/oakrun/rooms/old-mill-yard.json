@@ -1,0 +1,33 @@
+{
+  "id": "oakrun_old_mill_yard",
+  "name": "Old Mill Yard",
+  "width": 17,
+  "height": 13,
+  "terrain": [
+    "########+########",
+    "#...............#",
+    "#...............#",
+    "#...............#",
+    "#...............#",
+    "#...###.........#",
+    "#...............+",
+    "#.........###...#",
+    "#...............#",
+    "#...............#",
+    "#...............#",
+    "#...............#",
+    "#################"
+  ],
+  "spawn_points": [[7, 1], [8, 1], [9, 1], [8, 2]],
+  "enemy_spawns": [
+    {"enemy_id": 9, "x": 4, "y": 9},
+    {"enemy_id": 10, "x": 12, "y": 4},
+    {"enemy_id": 6, "x": 11, "y": 10}
+  ],
+  "objects": [
+    {"id": "mill_ruined_wheelhouse", "type": "mill_ruin", "x": 6, "y": 3},
+    {"id": "mill_burned_stores", "type": "crate_barrel_cluster", "x": 2, "y": 7},
+    {"id": "mill_fire_barrel", "type": "fire_barrel", "x": 13, "y": 8, "hp": 3},
+    {"id": "mill_hidden_chest", "type": "chest", "x": 14, "y": 2}
+  ]
+}

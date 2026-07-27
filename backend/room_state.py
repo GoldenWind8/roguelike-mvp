@@ -110,6 +110,20 @@ class RoomState:
             self.grid[npc.position.y][npc.position.x] = npc.id
         return npc
 
+    def detach_npc(self, npc_id: str) -> NPC | None:
+        """Remove an individual without destroying it during traversal."""
+        npc = self.npcs.get(npc_id)
+        if npc is None:
+            return None
+        if npc.is_alive and self.grid[npc.position.y][npc.position.x] == npc_id:
+            self.grid[npc.position.y][npc.position.x] = None
+        del self.npcs[npc_id]
+        return npc
+
+    def attach_npc(self, npc: NPC, position: Position) -> NPC:
+        npc.position = position
+        return self.add_npc(npc)
+
     def remove_player(self, player_id: str):
         player = self.players.get(player_id)
         if not player:

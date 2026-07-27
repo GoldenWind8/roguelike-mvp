@@ -240,7 +240,7 @@ async def _save_individuals(runtime: RoomRuntime) -> None:
     try:
         async with SessionMaker() as session:
             if npcs:
-                await save_npcs(session, npcs)
+                await save_npcs(session, npcs, runtime.room_id)
             if players:
                 await save_players(session, players, runtime.room_id)
     except Exception:
@@ -397,18 +397,75 @@ async def _transfer_player(origin: RoomRuntime, player_id: str, to_room_id: int)
         await send_to(origin, player_id, {"type": "error", "message": "The way is blocked."})
         return
 
+    player_spawn = dest.engine.room.free_spawn()
     if (len(dest.engine.room.players) >= dest.engine.room.template.capacity
-            or dest.engine.room.free_spawn() is None):
+            or player_spawn is None):
         if not dest_was_loaded:
             await maybe_evict(dest)  # don't keep a room we loaded only to be denied
         await send_to(origin, player_id, {"type": "error", "message": "The way is blocked."})
         return
 
+    # Reserve space for the full party before changing either room.
+    followers = [
+        npc for npc in origin.engine.room.npcs.values()
+        if npc.is_alive and npc.party_owner_id == player_id
+    ]
+    reserved = {player_spawn}
+    follower_positions: list[tuple[int, int]] = []
+    candidates = sorted(
+        (
+            (x, y)
+            for y in range(dest.engine.room.template.height)
+            for x in range(dest.engine.room.template.width)
+            if dest.engine.room.is_valid_position(x, y)
+            and not dest.engine.room.is_occupied(x, y)
+        ),
+        key=lambda cell: (
+            abs(cell[0] - player_spawn[0]) + abs(cell[1] - player_spawn[1]),
+            cell[1],
+            cell[0],
+        ),
+    )
+    for candidate in candidates:
+        if len(follower_positions) == len(followers):
+            break
+        if candidate in reserved:
+            continue
+        follower_positions.append(candidate)
+        reserved.add(candidate)
+        if len(follower_positions) == len(followers):
+            break
+    if len(follower_positions) != len(followers):
+        if not dest_was_loaded:
+            await maybe_evict(dest)
+        await send_to(origin, player_id, {
+            "type": "error",
+            "message": "There is no room for your companions beyond the way.",
+        })
+        return
+
     # All checks passed — now mutate: detach from origin, rewire the socket,
-    # attach at the destination.
+    # and attach the full party at the destination.
     origin.engine.detach_player(player_id)
+    for follower in followers:
+        origin.engine.room.detach_npc(follower.id)
     ws = origin.connections.pop(player_id, None)
-    arrival_events = dest.engine.attach_player(player)
+    arrival_events = dest.engine.attach_player(
+        player, Position(player_spawn[0], player_spawn[1]),
+    )
+    for follower, position in zip(followers, follower_positions):
+        dest.engine.room.attach_npc(follower, Position(position[0], position[1]))
+    origin.engine.refresh_mode()
+    dest.engine.refresh_mode()
+    if followers:
+        try:
+            async with SessionMaker() as session:
+                await save_npcs(session, followers, dest.room_id)
+        except Exception:
+            logging.exception(
+                "failed to persist %d followers entering room %s",
+                len(followers), dest.room_id,
+            )
     if ws is not None:
         dest.connections[player_id] = ws
     player_room[player_id] = to_room_id

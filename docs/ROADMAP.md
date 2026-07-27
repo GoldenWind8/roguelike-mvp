@@ -66,6 +66,15 @@ limited to one active message per account, capped per board, author-removable,
 and lazily expired after seven days. See
 [Exploration Noticeboards](NOTICEBOARDS.md).
 
+## Now: Oakrun Starting Region
+
+Oakrun now spans eight authored rooms arranged as two connected exploration
+loops rather than a linear tutorial. Peaceful services and witnesses feed into
+the North Road, Barrow Verge, Old Mill Yard, and Severed Fieldsite encounters.
+The cast carries explicit personal knowledge and named relationships, while
+Edda and Wren can join a friendly player's party and cross rooms with them.
+See [Oakrun Starting Region](OAKRUN.md).
+
 ## Parallel Track: Room Generation
 
 Being built alongside the arc above (`backend/procgen/`, untracked until
@@ -85,7 +94,7 @@ deferrals carry named revisit-triggers in [Loot](LOOT.md):
 - Account hardening (password reset, email verification, login rate limiting,
   session expiry — deferred with named triggers in
   [Accounts & Identity](archive/ACCOUNTS.md)).
-- NPC traversal (followers crossing rooms) and per-player relationships.
+- Generalized per-player relationships and factions.
 - Redis routing and pub/sub.
 - Gateway/lobby service.
 - Multiple room workers.

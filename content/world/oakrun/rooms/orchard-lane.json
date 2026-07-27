@@ -1,0 +1,29 @@
+{
+  "id": "oakrun_orchard_lane",
+  "name": "Orchard Lane",
+  "width": 19,
+  "height": 13,
+  "terrain": [
+    "#########+#########",
+    "#.................#",
+    "#.................#",
+    "#....###..........#",
+    "#.................#",
+    "#...........###...#",
+    "#.................#",
+    "#...###...........#",
+    "#.................#",
+    "#............###..#",
+    "#.................#",
+    "#.................#",
+    "#########+#########"
+  ],
+  "spawn_points": [[8, 1], [9, 1], [10, 1], [9, 2]],
+  "enemy_spawns": [],
+  "objects": [
+    {"id": "orchard_cider_press", "type": "orchard_press", "x": 2, "y": 2},
+    {"id": "orchard_north_waystone", "type": "broken_waystone", "x": 14, "y": 2},
+    {"id": "orchard_hitching_post", "type": "hitching_post", "x": 3, "y": 9},
+    {"id": "orchard_store_chest", "type": "chest", "x": 16, "y": 10}
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "id": "oakrun_north_road",
+  "name": "The North Road",
+  "width": 15,
+  "height": 13,
+  "terrain": [
+    "#######+#######",
+    "#.............#",
+    "#.............#",
+    "#.............#",
+    "#.............#",
+    "#.............#",
+    "#.............+",
+    "#.............#",
+    "#.............#",
+    "#.............#",
+    "#.............#",
+    "#.............#",
+    "#######+#######"
+  ],
+  "spawn_points": [[6, 11], [7, 11], [8, 11], [7, 10]],
+  "enemy_spawns": [
+    {"enemy_id": 5, "x": 3, "y": 5},
+    {"enemy_id": 6, "x": 10, "y": 7},
+    {"enemy_id": 7, "x": 7, "y": 3}
+  ],
+  "objects": [
+    {"id": "north_road_stores", "type": "crate_barrel_cluster", "x": 2, "y": 8},
+    {"id": "north_road_waystone", "type": "broken_waystone", "x": 11, "y": 2},
+    {"id": "north_road_chest", "type": "chest", "x": 12, "y": 9}
+  ]
+}

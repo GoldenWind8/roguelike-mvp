@@ -27,6 +27,72 @@ def load_json(relative_path: str) -> dict | list:
         ) from exc
 
 
+def load_region(relative_manifest: str) -> dict:
+    """Load a version-controlled region manifest and its per-room files.
+
+    Manifests keep graph topology small while room terrain and placements live
+    one-room-per-file. The returned shape intentionally matches the former
+    monolithic world document so runtime synchronization stays format-agnostic.
+    """
+    manifest_path = Path(relative_manifest)
+    raw = load_json(relative_manifest)
+    if not isinstance(raw, dict):
+        raise RuntimeError(f"{relative_manifest} must contain an object")
+    if raw.get("schema_version") != 1:
+        raise RuntimeError(f"{relative_manifest} needs schema_version 1")
+    region_id = raw.get("id")
+    start_room = raw.get("start_room")
+    room_paths = raw.get("rooms")
+    connections = raw.get("connections")
+    if not isinstance(region_id, str) or not region_id:
+        raise RuntimeError(f"{relative_manifest}.id must be a non-empty string")
+    if not isinstance(start_room, str) or not start_room:
+        raise RuntimeError(f"{relative_manifest}.start_room must be a non-empty string")
+    if not isinstance(room_paths, list) or not room_paths:
+        raise RuntimeError(f"{relative_manifest}.rooms must be a non-empty list")
+    if not isinstance(connections, list):
+        raise RuntimeError(f"{relative_manifest}.connections must be a list")
+
+    rooms: dict[str, dict] = {}
+    base = manifest_path.parent
+    for index, room_relative in enumerate(room_paths):
+        if not isinstance(room_relative, str) or not room_relative:
+            raise RuntimeError(f"{relative_manifest}.rooms[{index}] must be a path")
+        path = base / room_relative
+        room = load_json(path.as_posix())
+        if not isinstance(room, dict):
+            raise RuntimeError(f"{path.as_posix()} must contain an object")
+        room_id = room.get("id")
+        if not isinstance(room_id, str) or not room_id:
+            raise RuntimeError(f"{path.as_posix()}.id must be a non-empty string")
+        if room_id in rooms:
+            raise RuntimeError(f"region {region_id!r} repeats room id {room_id!r}")
+        rooms[room_id] = room
+
+    if start_room not in rooms:
+        raise RuntimeError(
+            f"region {region_id!r} start_room {start_room!r} is not in its room list"
+        )
+    for index, connection in enumerate(connections):
+        if not isinstance(connection, dict):
+            raise RuntimeError(
+                f"{relative_manifest}.connections[{index}] must be an object"
+            )
+        source, target = connection.get("from"), connection.get("to")
+        if source not in rooms or target not in rooms:
+            raise RuntimeError(
+                f"region {region_id!r} connection {index} references an unknown room"
+            )
+
+    return {
+        "schema_version": 1,
+        "id": region_id,
+        "start_room": start_room,
+        "rooms": rooms,
+        "connections": connections,
+    }
+
+
 def load_catalog(relative_path: str, *, key_field: str = "id") -> dict[str, dict]:
     """Load a list of definitions and index it by a unique string key."""
     raw = load_json(relative_path)

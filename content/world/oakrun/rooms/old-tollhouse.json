@@ -1,0 +1,27 @@
+{
+  "id": "oakrun_old_tollhouse",
+  "name": "The Old Tollhouse",
+  "width": 17,
+  "height": 11,
+  "terrain": [
+    "########+########",
+    "#...............#",
+    "#...............#",
+    "#...............#",
+    "#...............#",
+    "#...............#",
+    "#...............#",
+    "#...............#",
+    "#...............#",
+    "#...............#",
+    "########+########"
+  ],
+  "spawn_points": [[7, 9], [8, 9], [9, 9], [8, 8]],
+  "enemy_spawns": [],
+  "objects": [
+    {"id": "tollhouse_ruin", "type": "tollhouse_ruin", "x": 6, "y": 2},
+    {"id": "tollhouse_ledger_hook", "type": "empty_ledger_hook", "x": 12, "y": 3},
+    {"id": "tollhouse_abandoned_stores", "type": "crate_barrel_cluster", "x": 2, "y": 6},
+    {"id": "tollhouse_chest", "type": "chest", "x": 14, "y": 8}
+  ]
+}

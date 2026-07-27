@@ -130,8 +130,8 @@ Why this matters concretely:
 8. **Party effects enter the closed vocabulary now, and membership
    persists.** `join_party`/`leave_party` are dialogue effects in v1;
    membership lives on the NPC row (`party_owner_id`) and survives room
-   resets and restarts. Followers remain room-bound until NPC traversal
-   exists (see "Followers").
+   resets and restarts. Living followers traverse with their owner as an
+   all-or-nothing room transfer (see "Followers").
 9. **NPCs are instance rows, not room design data.** Like players, an
    NPC's room + position live in its own DB row (`npcs` table); `rooms`
    never lists NPCs. Room load therefore has two occupant sources: design
@@ -238,7 +238,10 @@ schema at load — the persona lives in the instance row (see Storage Note),
 the schema lives with the content pipeline. v1 fields: `id`, `name`,
 `role`, `persona` (one paragraph of voice and attitude), `drives` (short
 list), `disposition`, `canned` (fallback lines, ≥1 required),
-`party_policy` (hint the LLM sees when deciding `join_party`).
+`party_policy` (hint the LLM sees when deciding `join_party`), `knowledge`
+(facts this individual can use), and `relationships` (named connections to
+other authored NPCs). Knowledge and relationships are prompt context, not
+omniscient world state or a player-reputation system.
 
 The schema exists because NPCs will eventually be **generated on the fly**:
 a generated persona must validate against the schema before it enters the
@@ -257,27 +260,23 @@ gate is how we know the gate works before pointing a generator at it.
   `leave_party` are entries in the closed vocabulary, validated by engine
   rules (disposition threshold, party-size cap). Declining is just text.
 
-**v1 membership persists** (Decisions 8–10). It is a column on the NPC row
-(`party_owner_id`) — the first per-player relationship datum, kept as party
-state rather than a generalized relationship system. The NPC fights
-alongside its player in that room, and membership survives room resets and
-server restarts. What it cannot do yet is *travel*: the follower stays in
-its room until NPC traversal exists, so the loop today is parley → recruit
-→ win fights in that room → your ally is still there when you return.
+**v1 membership and travel persist** (Decisions 8–10). Membership is a
+column on the NPC row (`party_owner_id`) — the first per-player relationship
+datum, kept as party state rather than a generalized relationship system.
+The NPC fights alongside its player, membership survives room resets and
+server restarts, and living followers cross doors with their owner.
 
-Two pieces of machinery still gate the **cross-room** version:
+Travel is atomic from the player's point of view. The destination resolves
+a player spawn and positions for every companion before either room is
+mutated. If the group cannot fit, nobody crosses. On success, follower room
+and position are written through immediately rather than waiting for room
+eviction.
 
-1. **Per-player relationships.** v1 disposition is global (toward players as
-   a class); party membership is disposition toward one player. The enum
-   must eventually grow into a relationship lookup — also the seed of
-   factions. Engine queries filter on data, so this migration stays local.
-2. **NPC traversal.** Only players cross rooms today. A follower must ride
-   through doors with its player (detach/attach points the way; sockets,
-   capacity, and spawn rules need answers).
-
-The third gate this section used to list — ownership of state — is resolved
-by Decision 9: an NPC is an instance row, not room-owned state, so resets
-can no longer vaporize a follower.
+The remaining social gate is **per-player relationships**. v1 disposition is
+global (toward players as a class); party membership is disposition toward
+one player. The enum must eventually grow into a relationship lookup — also
+the seed of factions. Authored NPC-to-NPC `relationships` supply dialogue
+context today, but deliberately do not stand in for that runtime system.
 
 v1 requirements that keep the door open (all already decided): NPCs are
 unique individuals, disposition is data, the effect vocabulary is closed and
@@ -317,7 +316,7 @@ flowchart TD
     A --> B["dialogue effects: closed vocabulary, set_disposition first"]
     B --> C["escalation: disposition flip -> room mode switch (FUTURE.md)"]
     B --> P["party effects: join_party/leave_party,<br/>persistent membership, follower brain"]
-    C --> D["much later: NPC traversal -> cross-room followers,<br/>relationships, generated personas + enemy defs"]
+    C --> D["much later: per-player relationships,<br/>generated personas + enemy defs"]
     P --> D
 ```
 
@@ -333,8 +332,8 @@ flowchart TD
 - A generalized relationship system or factions (the party map is the only
   per-player datum until then; v1 disposition stays global toward players as a
   class).
-- NPC traversal / cross-room followers (followers stay room-bound; the loop is
-  recruit → fight in this room → still here when you return).
+- ~~NPC traversal / cross-room followers~~ **Built:** living followers move
+  with their owner when the whole party fits at the destination.
 - On-the-fly persona generation (the schema gate must earn trust on
   hand-authored personas first).
 - Full unification of NPC actions onto the player `HANDLERS` (followers reuse

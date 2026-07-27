@@ -174,6 +174,9 @@ destruction). The official story gets the same authoring care as the truth.
   names (-burg, -au). Crucially **monarchy-centered, not church-centered**:
   the conspiracy lives in the court. Real-history anchor: Rudolf II's
   Prague, where the crown itself patronized alchemists.
+  **Drazna** is its distant lake-city and royal seat: the destination named
+  by Oakrun's erased east road, and a concrete long-term goal for travelers
+  such as Edda Marr and Wren.
 - **Kingdom B: French Gothic church country** — cathedrals, piety, clerical
   authority. The alchemy ban came from the pulpit: a culture that already
   distrusted the art needed only a push. Persecuted alchemists hide in

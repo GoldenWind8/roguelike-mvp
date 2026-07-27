@@ -134,9 +134,101 @@ export interface NoticeboardView {
   max_player_posts: number;
 }
 
+// --- player-known living-world context ------------------------------------
+//
+// These views are deliberately evidence-shaped. They may describe only what
+// this player has witnessed, heard, or learned; private NPC plans and hidden
+// simulation state never belong in this contract.
+
+export type WorldPhase = "deep_night" | "dawn" | "morning" | "afternoon" | "dusk" | "night";
+
+export interface WorldTimeView {
+  tick: number;
+  day: number;
+  phase: WorldPhase;
+  /** Server-authored display text, such as "Day 3, dusk". */
+  label: string;
+}
+
+export type NpcActivityKind =
+  | "idle"
+  | "working"
+  | "travelling"
+  | "resting"
+  | "talking"
+  | "fighting"
+  | "unknown";
+
+export interface NpcActivityView {
+  kind: NpcActivityKind;
+  /** An observable description only: "tending the orchard", not a hidden plan. */
+  label: string;
+  interruptible?: boolean;
+}
+
+export type KnowledgeProvenance = "witnessed" | "heard" | "found";
+
+/** An untracked clue or report. Rumors have no objectives, completion state,
+ * or implied promise that they lead to a quest. */
+export interface RumorView {
+  id: string;
+  title: string;
+  body: string;
+  provenance: KnowledgeProvenance;
+  learned_at: string;
+  source?: string;
+  place?: string;
+  related_npc_ids?: string[];
+  unread: boolean;
+}
+
+export interface WorldChronicleEntry {
+  id: string;
+  world_tick: number;
+  happened_at: string;
+  title: string;
+  body: string;
+  provenance: KnowledgeProvenance;
+  place?: string;
+  actor_world_ids?: string[];
+  /** True when included in the bounded catch-up since this player's last visit. */
+  while_away: boolean;
+  unread: boolean;
+}
+
+export type KnownNpcAvailability = "present" | "travelling" | "away" | "unknown" | "dead";
+export type RelationshipTone =
+  | "hostile"
+  | "wary"
+  | "unfamiliar"
+  | "cordial"
+  | "trusting"
+  | "devoted";
+
+export interface KnownNpcView {
+  world_id: string;
+  name: string;
+  role: string;
+  image: string | null;
+  relationship: RelationshipTone;
+  relationship_note?: string;
+  availability: KnownNpcAvailability;
+  activity?: NpcActivityView;
+  last_seen?: {
+    room_name: string;
+    at: string;
+    note?: string;
+  };
+  unread: boolean;
+}
+
 export interface NpcState extends ActorState {
   role: string;
   party_owner_id: string | null;
+  /** Stable authored identity and observable activity arrive with the living
+   * world protocol. Optional while older servers provide the compact shape. */
+  world_id?: string;
+  activity?: NpcActivityView;
 }
 
 export interface ObjectSummary {
@@ -205,6 +297,19 @@ export type ServerMessage =
   | { type: "join_ack"; player_id: string; username: string; state: RoomStatePayload }
   | { type: "state_update"; state: RoomStatePayload; events: GameEvent[] }
   | { type: "room_changed"; state: RoomStatePayload; events: GameEvent[] }
+  // Player-private living-world knowledge. These messages must never contain
+  // NPC secrets, unrevealed plans, or omniscient locations.
+  | {
+      type: "world_sync";
+      time: WorldTimeView;
+      rumors: RumorView[];
+      chronicle: WorldChronicleEntry[];
+      known_people: KnownNpcView[];
+    }
+  | { type: "world_time_updated"; time: WorldTimeView }
+  | { type: "rumor_learned"; rumor: RumorView }
+  | { type: "chronicle_added"; entry: WorldChronicleEntry }
+  | { type: "known_npc_updated"; npc: KnownNpcView }
   | { type: "action_locked" }
   | { type: "waiting_for"; player_ids: string[] }
   | { type: "object_inspection"; object: ObjectDetail }

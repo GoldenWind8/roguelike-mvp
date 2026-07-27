@@ -10,9 +10,9 @@ town so a newly authenticated player wakes at its south road.
 Terrain is an ASCII grid (one char per tile, see TileType):
     #  wall      .  floor      +  door      O  portal
 """
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
-from backend.content import load_catalog, load_json
+from backend.content import load_catalog, load_json, load_region
 from backend.persona import validate_persona
 from backend.room_validation import (
     validate_connection,
@@ -92,9 +92,13 @@ SECOND_ROOM = {
 
 # --- Oakrun: the actual player-facing starting slice -------------------------
 
-_OAKRUN_CONTENT = load_json("world/oakrun.json")
-OAKRUN_ROOM = _OAKRUN_CONTENT["rooms"]["oakrun"]
-NORTH_ROAD_ROOM = _OAKRUN_CONTENT["rooms"]["north_road"]
+_OAKRUN_CONTENT = load_region("world/oakrun/region.json")
+OAKRUN_ROOMS = _OAKRUN_CONTENT["rooms"]
+OAKRUN_ROOM = OAKRUN_ROOMS[_OAKRUN_CONTENT["start_room"]]
+NORTH_ROAD_ROOM = OAKRUN_ROOMS["oakrun_north_road"]
+_OAKRUN_ROOM_NAMES = {
+    room_id: data["name"] for room_id, data in OAKRUN_ROOMS.items()
+}
 
 
 # The first individual (NPCS.md Decision 9): seeded ONCE as an instance row
@@ -210,6 +214,26 @@ _OAKRUN_CONNECTIONS = [
 ]
 
 
+def _validate_oakrun_content() -> None:
+    """Validate the complete authored region before any database mutation."""
+    known_enemy_ids = {definition["id"] for definition in ENEMY_DEFS}
+    for data in OAKRUN_ROOMS.values():
+        validate_room(data)
+        validate_enemy_refs(data, known_enemy_ids)
+    connection_tiles: set[tuple[str, int, int]] = set()
+    for from_key, _to, fx, fy in _OAKRUN_CONNECTIONS:
+        tile = (from_key, fx, fy)
+        if tile in connection_tiles:
+            raise ValueError(
+                f"Oakrun room {from_key!r} has more than one connection at ({fx}, {fy})"
+            )
+        connection_tiles.add(tile)
+        validate_connection(OAKRUN_ROOMS[from_key], {"from_x": fx, "from_y": fy})
+    for room_key, persona, x, y, _hp, _defense, _atk in OAKRUN_NPC_SEEDS:
+        validate_persona(persona)
+        validate_npc_placement(OAKRUN_ROOMS[room_key], x, y)
+
+
 async def seed_default_rooms(session) -> Room:
     """Validate, insert, and link the enemy catalog + default + second room.
     Returns the default Room (the one the game starts in)."""
@@ -274,17 +298,8 @@ async def seed_oakrun_world(session) -> Room:
     rows remain intact, while characters saved in those unreachable demo rooms
     are moved to Oakrun with no preferred tile so login chooses a valid spawn.
     """
-    rooms = {"oakrun": OAKRUN_ROOM, "north_road": NORTH_ROAD_ROOM}
-    known_enemy_ids = {d["id"] for d in ENEMY_DEFS}
-
-    for data in rooms.values():
-        validate_room(data)
-        validate_enemy_refs(data, known_enemy_ids)
-    for from_key, _to, fx, fy in _OAKRUN_CONNECTIONS:
-        validate_connection(rooms[from_key], {"from_x": fx, "from_y": fy})
-    for room_key, persona, x, y, _hp, _defense, _atk in OAKRUN_NPC_SEEDS:
-        validate_persona(persona)
-        validate_npc_placement(rooms[room_key], x, y)
+    rooms = OAKRUN_ROOMS
+    _validate_oakrun_content()
 
     await _ensure_enemy_defs(session)
 
@@ -321,12 +336,12 @@ async def seed_oakrun_world(session) -> Room:
             select(PlayerRow).where(PlayerRow.room_id.in_(legacy_ids))
         )).scalars().all()
         for player in players:
-            player.room_id = models["oakrun"].id
+            player.room_id = models[_OAKRUN_CONTENT["start_room"]].id
             player.x = None
             player.y = None
 
     await session.commit()
-    return models["oakrun"]
+    return models[_OAKRUN_CONTENT["start_room"]]
 
 
 def _npc_row(persona: dict, room_id: int, x: int, y: int, hp: int, defense: int, attack_damage: int) -> NPCRow:
@@ -368,9 +383,21 @@ def _persona_id(row: NPCRow) -> str | None:
 
 
 async def seed_npcs_if_missing(session) -> None:
-    """Backfill any authored individual whose stable persona id is absent."""
+    """Backfill missing individuals and refresh authored persona knowledge.
+
+    Position, wounds, disposition, memory, and party ownership remain
+    play-owned. Voice, relationships, knowledge, and art remain content-owned.
+    """
     existing_rows = (await session.execute(select(NPCRow))).scalars().all()
-    existing_ids = {_persona_id(row) for row in existing_rows}
+    rows_by_persona_id = {_persona_id(row): row for row in existing_rows}
+    existing_ids = set(rows_by_persona_id)
+    for _room_key, persona, *_rest in [*NPC_SEEDS, *OAKRUN_NPC_SEEDS]:
+        validate_persona(persona)
+        row = rows_by_persona_id.get(persona["id"])
+        if row is not None:
+            row.name = persona["name"]
+            # Whole JSON assignment is required for SQLAlchemy change tracking.
+            row.persona = dict(persona)
     inserted = 0
     inserted += await _insert_npc_seeds(
         session,
@@ -382,11 +409,10 @@ async def seed_npcs_if_missing(session) -> None:
     inserted += await _insert_npc_seeds(
         session,
         OAKRUN_NPC_SEEDS,
-        {"oakrun": OAKRUN_ROOM["name"], "north_road": NORTH_ROAD_ROOM["name"]},
+        _OAKRUN_ROOM_NAMES,
         existing_ids=existing_ids,
     )
-    if inserted:
-        await session.commit()
+    await session.commit()
 
 
 async def reset_npcs(session) -> None:
@@ -400,7 +426,7 @@ async def reset_npcs(session) -> None:
     await _insert_npc_seeds(
         session,
         OAKRUN_NPC_SEEDS,
-        {"oakrun": OAKRUN_ROOM["name"], "north_road": NORTH_ROAD_ROOM["name"]},
+        _OAKRUN_ROOM_NAMES,
     )
     await session.commit()
 
@@ -532,6 +558,7 @@ async def get_or_seed_default_room(session) -> Room:
     Only definition-owned fields are updated. NPC lives, player positions,
     dialogue memory, and object-instance state remain database-owned.
     """
+    _validate_oakrun_content()
     start_content_id = OAKRUN_ROOM["id"]
     existing = (await session.execute(
         select(Room).where(
@@ -565,22 +592,17 @@ async def get_or_seed_default_room(session) -> Room:
         rows_by_key[key] = row
 
     await session.flush()
+    # Authored outgoing graph edges are source-controlled as one set. Rebuild
+    # them atomically so removing or moving a door cannot leave a stale exit.
+    await session.execute(delete(RoomConnection).where(
+        RoomConnection.from_room_id.in_([row.id for row in rows_by_key.values()])
+    ))
     for from_key, to_key, x, y in _OAKRUN_CONNECTIONS:
         source = rows_by_key[from_key]
         target = rows_by_key[to_key]
-        connection = (await session.execute(
-            select(RoomConnection).where(
-                RoomConnection.from_room_id == source.id,
-                RoomConnection.from_x == x,
-                RoomConnection.from_y == y,
-            )
-        )).scalars().first()
-        if connection is None:
-            session.add(RoomConnection(
-                from_room_id=source.id, to_room_id=target.id, from_x=x, from_y=y,
-            ))
-        else:
-            connection.to_room_id = target.id
+        session.add(RoomConnection(
+            from_room_id=source.id, to_room_id=target.id, from_x=x, from_y=y,
+        ))
 
     await _ensure_enemy_defs(session)
     await seed_npcs_if_missing(session)

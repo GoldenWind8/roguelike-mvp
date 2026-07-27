@@ -15,7 +15,7 @@ import backend.main as main
 from backend.db import Base
 from backend.entities import Position
 from backend.seeds import seed_default_rooms
-from backend.models import Room
+from backend.models import NPCRow, Room
 
 
 @pytest_asyncio.fixture
@@ -145,6 +145,26 @@ async def test_traversal_round_trip(world_db):
     back = main.active_rooms[hall.id].engine.room.get_player(player.id)
     assert back is player and back.hp == 5
     assert (back.position.x, back.position.y) == (3, 8)  # hall's first spawn
+
+
+async def test_owned_follower_travels_and_persists_with_player(world_db):
+    hall, ante = world_db
+    runtime, player = await join_room(hall.id, "Hero")
+    mara = next(npc for npc in runtime.engine.room.npcs.values() if npc.name == "Mara")
+    mara.party_owner_id = player.id
+
+    await main._transfer_player(runtime, player.id, ante.id)
+
+    destination = main.active_rooms[ante.id]
+    assert mara.id not in runtime.engine.room.npcs
+    assert destination.engine.room.npcs[mara.id] is mara
+    assert abs(mara.position.x - player.position.x) + abs(
+        mara.position.y - player.position.y
+    ) == 1
+    async with main.SessionMaker() as session:
+        saved = await session.get(NPCRow, mara.db_id)
+        assert saved.room_id == ante.id
+        assert (saved.x, saved.y) == (mara.position.x, mara.position.y)
 
 
 async def test_traversal_denied_when_destination_full(world_db):

@@ -1,0 +1,27 @@
+{
+  "id": "oakrun_pilgrims_hollow",
+  "name": "Pilgrim's Hollow",
+  "width": 15,
+  "height": 11,
+  "terrain": [
+    "#######+#######",
+    "#.............#",
+    "#.............#",
+    "#.............#",
+    "#.............#",
+    "#.............+",
+    "#.............#",
+    "#.............#",
+    "#.............#",
+    "#.............#",
+    "###############"
+  ],
+  "spawn_points": [[13, 4], [13, 5], [13, 6], [12, 5]],
+  "enemy_spawns": [],
+  "objects": [
+    {"id": "pilgrims_hollow_shrine", "type": "roadside_shrine", "x": 6, "y": 2},
+    {"id": "pilgrims_hollow_waystone", "type": "broken_waystone", "x": 2, "y": 7},
+    {"id": "pilgrims_hollow_hitching_post", "type": "hitching_post", "x": 10, "y": 8},
+    {"id": "pilgrims_hollow_stores", "type": "crate_barrel_cluster", "x": 2, "y": 2}
+  ]
+}

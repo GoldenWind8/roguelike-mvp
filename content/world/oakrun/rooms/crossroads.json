@@ -1,0 +1,40 @@
+{
+  "id": "oakrun_crossroads",
+  "name": "Oakrun Crossroads",
+  "width": 25,
+  "height": 19,
+  "terrain": [
+    "############+############",
+    "#.......................#",
+    "#.......................#",
+    "#.......................#",
+    "#.......................#",
+    "#.......................#",
+    "#.......................#",
+    "#.......................#",
+    "#.......................#",
+    "+.......................#",
+    "#.......................#",
+    "#.......................#",
+    "#.......................#",
+    "#.......................#",
+    "#.......................#",
+    "#.......................#",
+    "#.......................#",
+    "#.......................#",
+    "############+############"
+  ],
+  "spawn_points": [[11, 17], [12, 17], [13, 17], [12, 16]],
+  "enemy_spawns": [],
+  "objects": [
+    {"id": "oakrun_wayfarers_rest", "type": "wayfarers_rest_exterior", "x": 2, "y": 2},
+    {"id": "oakrun_general_goods_shop", "type": "general_goods_shop_exterior", "x": 8, "y": 2},
+    {"id": "oakrun_basils_cures", "type": "basils_cures_exterior", "x": 18, "y": 2},
+    {"id": "oakrun_great_oak", "type": "great_oak", "x": 12, "y": 8},
+    {"id": "oakrun_stone_well", "type": "stone_well", "x": 7, "y": 10},
+    {"id": "oakrun_covered_carriage", "type": "covered_carriage", "x": 18, "y": 11},
+    {"id": "oakrun_yard_stores", "type": "crate_barrel_cluster", "x": 21, "y": 12},
+    {"id": "oakrun_noticeboard", "type": "noticeboard", "x": 10, "y": 13},
+    {"id": "oakrun_hitching_post", "type": "hitching_post", "x": 17, "y": 15}
+  ]
+}

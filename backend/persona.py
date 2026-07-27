@@ -37,6 +37,9 @@ Optional:
                 tier: most NPCs are tavern filler.
   art_id        accepted world-art id from actor_defs.py. Presentation is
                 trusted catalogue data; personas never carry arbitrary URLs.
+  knowledge     short authored facts this individual can actually know
+  relationships named connections to other stable NPC ids; these shape
+                dialogue but do not create shared telepathic memory
 """
 from backend.actor_defs import get_actor_art, known_actor_art_ids
 from backend.entities import Disposition
@@ -111,8 +114,42 @@ def validate_persona(doc: dict) -> None:
             f"persona 'art_id' must be one of {list(known_actor_art_ids())}, got {art_id!r}"
         )
 
+    knowledge = doc.get("knowledge", [])
+    if not isinstance(knowledge, list) or len(knowledge) > MAX_LIST_ITEMS:
+        raise ValueError(
+            f"persona 'knowledge' must be a list of at most {MAX_LIST_ITEMS} strings"
+        )
+    for index, fact in enumerate(knowledge):
+        if not isinstance(fact, str) or not fact.strip() or len(fact) > MAX_TEXT_LEN:
+            raise ValueError(f"persona 'knowledge[{index}]' must be a non-empty string")
+
+    relationships = doc.get("relationships", [])
+    if not isinstance(relationships, list) or len(relationships) > MAX_LIST_ITEMS:
+        raise ValueError(
+            f"persona 'relationships' must be a list of at most {MAX_LIST_ITEMS} objects"
+        )
+    seen_relationships: set[str] = set()
+    for index, relationship in enumerate(relationships):
+        if not isinstance(relationship, dict) or set(relationship) != {
+            "npc_id", "name", "connection",
+        }:
+            raise ValueError(
+                f"persona 'relationships[{index}]' must contain exactly "
+                "npc_id, name, and connection"
+            )
+        for fieldname in ("npc_id", "name", "connection"):
+            value = relationship.get(fieldname)
+            if not isinstance(value, str) or not value.strip() or len(value) > MAX_TEXT_LEN:
+                raise ValueError(
+                    f"persona 'relationships[{index}].{fieldname}' must be a non-empty string"
+                )
+        target = relationship["npc_id"]
+        if target in seen_relationships:
+            raise ValueError(f"persona relationships repeat npc_id {target!r}")
+        seen_relationships.add(target)
+
     unknown = set(doc) - set(_REQUIRED_STR) - set(_REQUIRED_STR_LIST) - {
-        "disposition", "grants", "tier", "art_id",
+        "disposition", "grants", "tier", "art_id", "knowledge", "relationships",
     }
     if unknown:
         # Closed for now, like the effect vocabulary: a generator inventing

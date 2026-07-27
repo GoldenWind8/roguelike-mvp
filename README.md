@@ -13,9 +13,9 @@ ideas stay separate.
 ## Current Build
 
 - Browser client served by FastAPI.
-- Oakrun Crossroads is the account starting room: a peaceful handcrafted town
-  hub with the Great Oak, Wayfarer's Rest, Basil's Cures, carriage yard,
-  named residents, and a connected hostile North Road encounter.
+- Oakrun is an eight-room handcrafted starting region. Its peaceful crossroads,
+  orchard, hollow, and tollhouse connect through two loops to the hostile north
+  road, old mill, barrow, and severed fieldsite.
 - Authored raster art is used for meaningful actors, enemies, landmarks, and
   placed objects; floors and walls keep the same neutral renderer-owned tiles
   used by generated rooms.
@@ -48,7 +48,11 @@ ideas stay separate.
   uses. AI proposes, the engine disposes.
 - Party members: recruit an NPC through dialogue; followers fight beside you
   (the `Brain` seam — chase and follower behaviors picked from actor data)
-  and persist across room resets and restarts.
+  and persist across room resets and restarts. Living owned followers travel
+  through room connections with their player.
+- Authored NPC knowledge and relationships: Oakrun residents know specific
+  people and facts rather than receiving omniscient lore. Edda and Wren are
+  recruitable travellers whose goals point toward Drazna and the fieldsite.
 - Escalation: insult the caretaker and his room flips to combat live; kill or
   parley the last hostile and it returns to exploration.
 - Accounts & identity (M8): register/login with username + password (optional
@@ -146,6 +150,8 @@ Each doc has one job:
   production workflow, and first Oakrun region plan.
 - [Authored Content](docs/CONTENT.md): version-controlled catalogues, database
   ownership, and persistent-versus-respawnable character rules.
+- [Oakrun Starting Region](docs/OAKRUN.md): room graph, evidence threads,
+  interconnected cast, and content ownership.
 - [Exploration Noticeboards](docs/NOTICEBOARDS.md): authored notices, persistent
   player posts, expiry, ownership, and protocol boundaries.
 - [World Object Assets](docs/OBJECT_ASSETS.md): the small data contract for

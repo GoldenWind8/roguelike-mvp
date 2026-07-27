@@ -129,6 +129,6 @@ async def test_get_or_seed_is_idempotent(session):
 
     assert first.id == again.id
     assert first.name == "Oakrun Crossroads"
-    # Exactly one starting slice (town + north road), never duplicated.
+    # Exactly one copy of the complete authored Oakrun region, never duplicated.
     count = (await session.execute(select(func.count()).select_from(Room))).scalar_one()
-    assert count == 2
+    assert count == 8

@@ -83,6 +83,34 @@ def test_persona_missing_field_rejected():
         validate_persona(doc)
 
 
+def test_persona_relationships_and_knowledge_are_closed_structured_context():
+    doc = make_persona(
+        knowledge=["The east road was erased from newer maps."],
+        relationships=[{
+            "npc_id": "friend-1",
+            "name": "Friend",
+            "connection": "A trusted witness with an inconvenient ledger.",
+        }],
+    )
+    validate_persona(doc)
+    npc = make_npc(persona=doc)
+
+    system = build_prompt(npc, "Hero", "Who do you know?")[0]["content"]
+
+    assert "The east road was erased" in system
+    assert "Friend: A trusted witness" in system
+
+
+@pytest.mark.parametrize("relationships", [
+    [{"npc_id": "friend", "name": "Friend"}],
+    [{"npc_id": "friend", "name": "Friend", "connection": "one", "secret": "x"}],
+    [{"npc_id": "friend", "name": "Friend", "connection": ""}],
+])
+def test_malformed_persona_relationships_are_rejected(relationships):
+    with pytest.raises(ValueError, match="relationships"):
+        validate_persona(make_persona(relationships=relationships))
+
+
 # --- placement ----------------------------------------------------------------
 
 

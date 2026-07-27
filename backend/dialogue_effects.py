@@ -93,10 +93,8 @@ def _validate_join_party(*, npc: NPC, room: RoomState, player: Player | None) ->
     # Already committed — to this player or another. Idempotent, no thrash.
     if npc.party_owner_id is not None:
         return None
-    # Party-size cap, counted among THIS room's loaded followers of this owner.
-    # Room-scoped because followers are room-bound in v1; a global cap needs an
-    # owner-centric query across evicted rooms, which waits for the players
-    # table (identity decision, NPCS.md / DB_SCHEMA.md).
+    # Party-size cap for the active group. Living followers traverse with their
+    # owner, so that group is co-located and represented by this room.
     owned_here = sum(
         1 for n in room.npcs.values() if n.party_owner_id == player.id
     )

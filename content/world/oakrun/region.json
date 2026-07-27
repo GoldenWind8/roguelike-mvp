@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "oakrun",
+  "start_room": "oakrun_crossroads",
+  "rooms": [
+    "rooms/crossroads.json",
+    "rooms/north-road.json",
+    "rooms/orchard-lane.json",
+    "rooms/old-mill-yard.json",
+    "rooms/pilgrims-hollow.json",
+    "rooms/old-tollhouse.json",
+    "rooms/barrow-verge.json",
+    "rooms/fieldsite-verge.json"
+  ],
+  "connections": [
+    {"from": "oakrun_crossroads", "to": "oakrun_north_road", "x": 12, "y": 0},
+    {"from": "oakrun_north_road", "to": "oakrun_crossroads", "x": 7, "y": 12},
+
+    {"from": "oakrun_crossroads", "to": "oakrun_orchard_lane", "x": 12, "y": 18},
+    {"from": "oakrun_orchard_lane", "to": "oakrun_crossroads", "x": 9, "y": 0},
+    {"from": "oakrun_orchard_lane", "to": "oakrun_old_mill_yard", "x": 9, "y": 12},
+    {"from": "oakrun_old_mill_yard", "to": "oakrun_orchard_lane", "x": 8, "y": 0},
+
+    {"from": "oakrun_crossroads", "to": "oakrun_pilgrims_hollow", "x": 0, "y": 9},
+    {"from": "oakrun_pilgrims_hollow", "to": "oakrun_crossroads", "x": 14, "y": 5},
+
+    {"from": "oakrun_north_road", "to": "oakrun_old_tollhouse", "x": 7, "y": 0},
+    {"from": "oakrun_old_tollhouse", "to": "oakrun_north_road", "x": 8, "y": 10},
+    {"from": "oakrun_old_tollhouse", "to": "oakrun_fieldsite_verge", "x": 8, "y": 0},
+    {"from": "oakrun_fieldsite_verge", "to": "oakrun_old_tollhouse", "x": 8, "y": 12},
+
+    {"from": "oakrun_north_road", "to": "oakrun_barrow_verge", "x": 14, "y": 6},
+    {"from": "oakrun_barrow_verge", "to": "oakrun_north_road", "x": 0, "y": 5},
+    {"from": "oakrun_barrow_verge", "to": "oakrun_pilgrims_hollow", "x": 7, "y": 10},
+    {"from": "oakrun_pilgrims_hollow", "to": "oakrun_barrow_verge", "x": 7, "y": 0},
+
+    {"from": "oakrun_old_mill_yard", "to": "oakrun_fieldsite_verge", "x": 16, "y": 6},
+    {"from": "oakrun_fieldsite_verge", "to": "oakrun_old_mill_yard", "x": 0, "y": 6}
+  ]
+}

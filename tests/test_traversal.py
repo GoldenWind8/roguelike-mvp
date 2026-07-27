@@ -3,7 +3,7 @@
 No DB here — worlds are built from the synthetic `make_template` fixture. The
 async edge (socket rewiring, room loading) is covered in test_rooms.py.
 """
-from backend.entities import Position
+from backend.entities import Disposition, NPC, Position
 from backend.events import EventType
 from backend.room_engine import RoomEngine
 from backend.room_state import RoomState
@@ -73,6 +73,26 @@ def test_detach_player_preserves_object_and_clears_grid(make_template):
     assert player.id not in room.players
     assert player.id not in room.pending_actions
     assert room.detach_player("player_nope") is None
+
+
+def test_detach_and_attach_npc_preserve_individual(make_template):
+    origin = RoomState(make_template(), seed=1)
+    npc = NPC(
+        id="npc_44", db_id=44, name="Companion", position=Position(2, 2),
+        hp=9, max_hp=10, defense=1, attack_damage=2,
+        disposition=Disposition.FRIENDLY, party_owner_id="player_1",
+    )
+    origin.add_npc(npc)
+    destination = RoomState(make_template(), seed=2)
+
+    moved = origin.detach_npc(npc.id)
+    destination.attach_npc(moved, Position(3, 2))
+
+    assert moved is npc
+    assert npc.id not in origin.npcs
+    assert origin.grid[2][2] is None
+    assert destination.npcs[npc.id] is npc
+    assert destination.grid[2][3] == npc.id
 
 
 def test_attach_player_places_and_preserves_state(make_template):
