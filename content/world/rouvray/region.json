@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "id": "rouvray",
+  "start_room": "hollow_bells_post",
+  "rooms": [
+    "rooms/hollow-bells-post.json",
+    "rooms/bellifont.json",
+    "rooms/orison-fields.json"
+  ],
+  "connections": [
+    {"from": "hollow_bells_post", "to": "bellifont", "x": 16, "y": 6},
+    {"from": "bellifont", "to": "hollow_bells_post", "x": 0, "y": 6},
+    {"from": "bellifont", "to": "orison_fields", "x": 8, "y": 12},
+    {"from": "orison_fields", "to": "bellifont", "x": 8, "y": 0}
+  ]
+}

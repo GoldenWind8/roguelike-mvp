@@ -1,0 +1,28 @@
+{
+  "id": "drazna_reed_market",
+  "name": "The Reed Market",
+  "width": 17,
+  "height": 13,
+  "terrain": [
+    "########+########",
+    "#...............#",
+    "#...............#",
+    "#..###.....###..#",
+    "#...............#",
+    "#...............#",
+    "+...............#",
+    "#...............#",
+    "#...............#",
+    "#...............+",
+    "#..###.....###..#",
+    "#...............#",
+    "#################"
+  ],
+  "spawn_points": [[1, 5], [1, 6], [1, 7], [2, 6]],
+  "enemy_spawns": [],
+  "objects": [
+    {"id": "drazna_reed_brazier", "type": "black_reed_brazier", "x": 8, "y": 5},
+    {"id": "drazna_market_stores", "type": "crate_barrel_cluster", "x": 12, "y": 7},
+    {"id": "drazna_market_chest", "type": "chest", "x": 4, "y": 9}
+  ]
+}

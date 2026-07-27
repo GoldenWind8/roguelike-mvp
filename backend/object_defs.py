@@ -45,7 +45,7 @@ def _definition(entry: dict) -> ObjectDefinition:
         image = require_art_path(image, f"object {entry.get('id')!r}")
     if not isinstance(details, list) or not all(isinstance(item, str) for item in details):
         raise RuntimeError(f"object {entry.get('id')!r} has invalid details")
-    if interaction not in (None, "shop", "noticeboard"):
+    if interaction not in (None, "shop", "noticeboard", "carriage"):
         raise RuntimeError(f"object {entry.get('id')!r} has invalid interaction {interaction!r}")
     return ObjectDefinition(
         id=entry["id"], label=entry["label"], description=entry["description"],

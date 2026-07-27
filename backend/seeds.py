@@ -13,6 +13,7 @@ Terrain is an ASCII grid (one char per tile, see TileType):
 from sqlalchemy import delete, select
 
 from backend.content import load_catalog, load_json, load_region
+from backend.carriage_store import ensure_carriage_stop
 from backend.persona import validate_persona
 from backend.room_validation import (
     validate_connection,
@@ -20,7 +21,14 @@ from backend.room_validation import (
     validate_npc_placement,
     validate_room,
 )
-from backend.models import EnemyDef, NPCRow, PlayerRow, Room, RoomConnection
+from backend.models import (
+    EnemyDef,
+    FrontierExit,
+    NPCRow,
+    PlayerRow,
+    Room,
+    RoomConnection,
+)
 
 
 # Reusable enemy catalog. Stable, explicit ids so rooms can reference them.
@@ -96,6 +104,14 @@ _OAKRUN_CONTENT = load_region("world/oakrun/region.json")
 OAKRUN_ROOMS = _OAKRUN_CONTENT["rooms"]
 OAKRUN_ROOM = OAKRUN_ROOMS[_OAKRUN_CONTENT["start_room"]]
 NORTH_ROAD_ROOM = OAKRUN_ROOMS["oakrun_north_road"]
+_DRAZNA_CONTENT = load_region("world/drazna/region.json")
+_ROUVRAY_CONTENT = load_region("world/rouvray/region.json")
+AUTHORED_REGIONS = {
+    "oakrun": _OAKRUN_CONTENT,
+    "drazna": _DRAZNA_CONTENT,
+    "rouvray": _ROUVRAY_CONTENT,
+}
+SECONDARY_REGIONS = (_DRAZNA_CONTENT, _ROUVRAY_CONTENT)
 _OAKRUN_ROOM_NAMES = {
     room_id: data["name"] for room_id, data in OAKRUN_ROOMS.items()
 }
@@ -234,6 +250,28 @@ def _validate_oakrun_content() -> None:
         validate_npc_placement(OAKRUN_ROOMS[room_key], x, y)
 
 
+def _validate_authored_region(content: dict) -> None:
+    """Validate one authored kingdom without assuming it owns NPC spawns."""
+    known_enemy_ids = {definition["id"] for definition in ENEMY_DEFS}
+    for data in content["rooms"].values():
+        validate_room(data)
+        validate_enemy_refs(data, known_enemy_ids)
+    connection_tiles: set[tuple[str, int, int]] = set()
+    for connection in content["connections"]:
+        from_key = connection["from"]
+        tile = (from_key, connection["x"], connection["y"])
+        if tile in connection_tiles:
+            raise ValueError(
+                f"Region {content['id']!r} repeats a connection at "
+                f"({connection['x']}, {connection['y']}) in {from_key!r}"
+            )
+        connection_tiles.add(tile)
+        validate_connection(
+            content["rooms"][from_key],
+            {"from_x": connection["x"], "from_y": connection["y"]},
+        )
+
+
 async def seed_default_rooms(session) -> Room:
     """Validate, insert, and link the enemy catalog + default + second room.
     Returns the default Room (the one the game starts in)."""
@@ -327,6 +365,18 @@ async def seed_oakrun_world(session) -> Room:
             from_x=fx,
             from_y=fy,
         ))
+
+    await _sync_authored_frontier_exits(session, models)
+    await _sync_secondary_regions(session)
+    await ensure_carriage_stop(
+        session,
+        stop_key="stop:oakrun-exchange",
+        room_id=models[_OAKRUN_CONTENT["start_room"]].id,
+        biome="amberfall_fields",
+        world_minute=0,
+        public_name="Oakrun Exchange",
+        metadata={"authored": True},
+    )
 
     for room_key, persona, x, y, hp, defense, atk in OAKRUN_NPC_SEEDS:
         session.add(_npc_row(persona, models[room_key].id, x, y, hp, defense, atk))
@@ -609,8 +659,140 @@ async def get_or_seed_default_room(session) -> Room:
         session.add(RoomConnection(
             from_room_id=source.id, to_room_id=target.id, from_x=x, from_y=y,
         ))
+    # Generated connections from an authored frontier door are play-owned.
+    # Rebuilding the authored graph above must not sever a road players have
+    # already discovered.
+    await _sync_authored_frontier_exits(session, rows_by_key)
+    await _sync_secondary_regions(session)
+    await ensure_carriage_stop(
+        session,
+        stop_key="stop:oakrun-exchange",
+        room_id=rows_by_key[_OAKRUN_CONTENT["start_room"]].id,
+        biome="amberfall_fields",
+        world_minute=0,
+        public_name="Oakrun Exchange",
+        metadata={"authored": True},
+    )
 
     await _ensure_enemy_defs(session)
     await seed_npcs_if_missing(session)
     await session.commit()
     return rows_by_key[_OAKRUN_CONTENT["start_room"]]
+
+
+async def _sync_secondary_regions(session) -> dict[str, dict[str, Room]]:
+    """Upsert the distant authored kingdoms without revealing their roads.
+
+    The rooms exist so a frontier discovery can connect atomically to a real
+    gateway. Their external gateway doors remain disconnected until the
+    rising-luck frontier resolver reaches them.
+    """
+    synced: dict[str, dict[str, Room]] = {}
+    carriage_stops = {
+        "drazna": (
+            "stop:drazna-lantern-quays",
+            "Drazna Lantern Quays",
+            "drazna_marches",
+        ),
+        "rouvray": (
+            "stop:rouvray-hollow-bells",
+            "Hollow Bells Post",
+            "deep_frontier",
+        ),
+    }
+    for content in SECONDARY_REGIONS:
+        _validate_authored_region(content)
+        rows: dict[str, Room] = {}
+        for room_key, data in content["rooms"].items():
+            row = (await session.execute(
+                select(Room).where(Room.content_id == data["id"])
+            )).scalars().first()
+            if row is None:
+                row = Room(content_id=data["id"])
+                session.add(row)
+            row.name = data["name"]
+            row.width = data["width"]
+            row.height = data["height"]
+            row.terrain = data["terrain"]
+            row.objects = data.get("objects", [])
+            row.spawn_points = data["spawn_points"]
+            row.enemy_spawns = data.get("enemy_spawns", [])
+            rows[room_key] = row
+        await session.flush()
+
+        # Only touch coordinates owned by the authored manifest. The unused
+        # gateway door is runtime-owned once a generated frontier reaches it.
+        for connection in content["connections"]:
+            source = rows[connection["from"]]
+            target = rows[connection["to"]]
+            edge = (await session.execute(
+                select(RoomConnection).where(
+                    RoomConnection.from_room_id == source.id,
+                    RoomConnection.from_x == connection["x"],
+                    RoomConnection.from_y == connection["y"],
+                )
+            )).scalars().first()
+            if edge is None:
+                session.add(RoomConnection(
+                    from_room_id=source.id,
+                    to_room_id=target.id,
+                    from_x=connection["x"],
+                    from_y=connection["y"],
+                ))
+            else:
+                edge.to_room_id = target.id
+
+        stop_key, public_name, biome = carriage_stops[content["id"]]
+        await ensure_carriage_stop(
+            session,
+            stop_key=stop_key,
+            room_id=rows[content["start_room"]].id,
+            biome=biome,
+            world_minute=0,
+            public_name=public_name,
+            metadata={"authored": True, "region_id": content["id"]},
+            status="closed",
+        )
+        synced[content["id"]] = rows
+    return synced
+
+
+async def _sync_authored_frontier_exits(session, rooms_by_key) -> None:
+    """Seed frontier doors and restore any already-discovered connections."""
+    for room_key, data in _OAKRUN_CONTENT["rooms"].items():
+        source = rooms_by_key[room_key]
+        for definition in data.get("frontier_exits", []):
+            x, y = definition["x"], definition["y"]
+            row = (await session.execute(
+                select(FrontierExit).where(
+                    FrontierExit.source_room_id == source.id,
+                    FrontierExit.source_x == x,
+                    FrontierExit.source_y == y,
+                )
+            )).scalars().first()
+            if row is None:
+                # Stable seed derived without Python's process-randomized hash.
+                seed_material = f"{data['id']}:{x}:{y}".encode("utf-8")
+                import hashlib
+                roll_seed = int.from_bytes(
+                    hashlib.blake2b(seed_material, digest_size=4).digest(),
+                    "big",
+                )
+                row = FrontierExit(
+                    source_room_id=source.id,
+                    source_x=x,
+                    source_y=y,
+                    status="frontier",
+                    roll_seed=roll_seed,
+                    biome_hint=definition.get("biome_hint"),
+                    generator_hint={"label": definition.get("label", "Uncharted road")},
+                    created_at_minute=0,
+                )
+                session.add(row)
+            elif row.status == "connected" and row.target_room_id is not None:
+                session.add(RoomConnection(
+                    from_room_id=source.id,
+                    to_room_id=row.target_room_id,
+                    from_x=x,
+                    from_y=y,
+                ))

@@ -10,6 +10,12 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from backend import auth
+from backend.carriage_store import (
+    CarriageError,
+    carriage_view,
+    name_carriage_stop,
+    resolve_carriage_travel,
+)
 from backend.config import (
     DEV_MODE,
     NPC_TRANSCRIPT_LIMIT,
@@ -54,6 +60,11 @@ from backend.shop_store import (
     next_restock_at,
     purchase,
     utc_day,
+)
+from backend.procgen.frontier_store import (
+    available_authored_gateways,
+    ensure_world_state,
+    materialize_frontier_exit,
 )
 
 
@@ -370,14 +381,71 @@ async def handle_round_events(runtime: RoomRuntime, events) -> None:
     BEFORE the old room's state broadcast so a traveling player never renders
     the old room's post-round state ahead of their room_changed message."""
     for event in events:
-        if event.event_type is not EventType.PLAYER_ENTERED_DOOR:
-            continue
-        await _transfer_player(
-            runtime,
-            event.data["player_id"],
-            event.data["to_room_id"],
-        )
+        if event.event_type is EventType.PLAYER_ENTERED_DOOR:
+            await _transfer_player(
+                runtime,
+                event.data["player_id"],
+                event.data["to_room_id"],
+            )
+        elif event.event_type is EventType.PLAYER_ENTERED_FRONTIER:
+            await _expand_and_transfer_frontier(runtime, event)
     await maybe_evict(runtime)
+
+
+async def _expand_and_transfer_frontier(
+    origin: RoomRuntime,
+    event: GameEvent,
+) -> None:
+    """Materialize an unexplored door once, then use ordinary traversal."""
+    player_id = event.data["player_id"]
+    position = event.data.get("position")
+    if (
+        not isinstance(position, list)
+        or len(position) != 2
+        or not all(isinstance(value, int) for value in position)
+    ):
+        await send_to(origin, player_id, {
+            "type": "error",
+            "message": "The uncharted road has lost its shape.",
+        })
+        return
+    x, y = position
+    try:
+        async with SessionMaker() as session:
+            gateways = await available_authored_gateways(session)
+            expansion = await materialize_frontier_exit(
+                session,
+                source_room_id=origin.room_id,
+                source_x=x,
+                source_y=y,
+                authored_gateways=gateways,
+            )
+    except Exception:
+        logging.exception(
+            "failed to expand frontier from room %s at (%s, %s)",
+            origin.room_id,
+            x,
+            y,
+        )
+        await send_to(origin, player_id, {
+            "type": "error",
+            "message": "The uncharted road refuses to settle. Try again.",
+        })
+        return
+
+    # The room is live, so update its in-memory template immediately. The
+    # durable rows are already committed; a reload would discover the same
+    # connection.
+    origin.engine.room.template.frontier_exits.pop((x, y), None)
+    origin.engine.room.template.connections[(x, y)] = expansion.target_room_id
+    await send_to(origin, player_id, {
+        "type": "frontier_discovered",
+        "name": expansion.label,
+        "depth": expansion.depth,
+        "biome": expansion.biome,
+        "major_region": expansion.discovered_region_id,
+    })
+    await _transfer_player(origin, player_id, expansion.target_room_id)
 
 
 async def _transfer_player(origin: RoomRuntime, player_id: str, to_room_id: int) -> None:
@@ -1044,6 +1112,168 @@ async def handle_equip_toggle(websocket: WebSocket, player_id: str, data: dict,
         )])
 
 
+# --- shared carriage network -------------------------------------------------
+
+
+def _adjacent_carriage(room, player, object_id):
+    if not player or not player.is_alive:
+        return None, "The dead take no carriage."
+    obj = room.get_object(object_id) if isinstance(object_id, str) else None
+    if obj is None or obj.interaction != "carriage":
+        return None, "There is no carriage service there."
+    if obj.distance_from(player.position.x, player.position.y) > 1:
+        return None, "You are too far from the carriage stop."
+    return obj, None
+
+
+async def _current_world_minute(session) -> int:
+    world = await ensure_world_state(session)
+    return world.world_minute
+
+
+async def handle_open_carriage(
+    websocket: WebSocket,
+    player_id: str,
+    data: dict,
+) -> None:
+    async with state_lock:
+        runtime = runtime_for(player_id)
+        room = runtime.engine.room if runtime else None
+        player = room.get_player(player_id) if room else None
+        obj, error = (
+            _adjacent_carriage(room, player, data.get("object_id"))
+            if room else (None, "Not in a room")
+        )
+        if error:
+            await websocket.send_json({"type": "error", "message": error})
+            return
+        try:
+            async with SessionMaker() as session:
+                view = await carriage_view(
+                    session,
+                    room_id=runtime.room_id,
+                    player_id=player_id,
+                    world_minute=await _current_world_minute(session),
+                )
+        except CarriageError as exc:
+            await websocket.send_json({"type": "error", "message": str(exc)})
+            return
+        await websocket.send_json({
+            "type": "carriage_opened",
+            "object_id": obj.id,
+            **view,
+        })
+
+
+async def handle_name_carriage_stop(
+    websocket: WebSocket,
+    player_id: str,
+    data: dict,
+) -> None:
+    async with state_lock:
+        runtime = runtime_for(player_id)
+        room = runtime.engine.room if runtime else None
+        player = room.get_player(player_id) if room else None
+        obj, error = (
+            _adjacent_carriage(room, player, data.get("object_id"))
+            if room else (None, "Not in a room")
+        )
+        if error:
+            await websocket.send_json({"type": "error", "message": error})
+            return
+        try:
+            async with SessionMaker() as session:
+                minute = await _current_world_minute(session)
+                current = await carriage_view(
+                    session,
+                    room_id=runtime.room_id,
+                    player_id=player_id,
+                    world_minute=minute,
+                )
+                stop = await name_carriage_stop(
+                    session,
+                    player_id=player_id,
+                    stop_id=current["stop"]["id"],
+                    proposed_name=data.get("name"),
+                    world_minute=minute,
+                )
+                await session.commit()
+                refreshed = await carriage_view(
+                    session,
+                    room_id=runtime.room_id,
+                    player_id=player_id,
+                    world_minute=minute,
+                )
+        except CarriageError as exc:
+            await websocket.send_json({"type": "error", "message": str(exc)})
+            return
+        await broadcast(runtime, {
+            "type": "carriage_stop_named",
+            "stop_id": stop.id,
+            "name": stop.public_name,
+            "named_by": player.name,
+        })
+        await websocket.send_json({
+            "type": "carriage_opened",
+            "object_id": obj.id,
+            **refreshed,
+        })
+
+
+async def handle_carriage_travel(
+    websocket: WebSocket,
+    player_id: str,
+    data: dict,
+) -> None:
+    async with state_lock:
+        origin = runtime_for(player_id)
+        room = origin.engine.room if origin else None
+        player = room.get_player(player_id) if room else None
+        _obj, error = (
+            _adjacent_carriage(room, player, data.get("object_id"))
+            if room else (None, "Not in a room")
+        )
+        if error:
+            await websocket.send_json({"type": "error", "message": error})
+            return
+        try:
+            async with SessionMaker() as session:
+                destination = await resolve_carriage_travel(
+                    session,
+                    from_room_id=origin.room_id,
+                    destination_stop_id=data.get("stop_id"),
+                )
+        except CarriageError as exc:
+            await websocket.send_json({"type": "error", "message": str(exc)})
+            return
+        if player.coins < destination.fare:
+            await websocket.send_json({
+                "type": "error",
+                "message": f"The fare is {destination.fare} coins.",
+            })
+            return
+
+        await _transfer_player(origin, player_id, destination.room_id)
+        if player_room.get(player_id) != destination.room_id:
+            return
+        player.coins -= destination.fare
+        destination_runtime = runtime_for(player_id)
+        async with SessionMaker() as session:
+            view = await carriage_view(
+                session,
+                room_id=destination.room_id,
+                player_id=player_id,
+                world_minute=await _current_world_minute(session),
+            )
+        await send_to(destination_runtime, player_id, {
+            "type": "carriage_arrived",
+            "stop": view["stop"],
+            "travel_minutes": destination.travel_minutes,
+            "fare": destination.fare,
+        })
+        await broadcast_state_and_events(destination_runtime, [])
+
+
 # --- dev affordances ------------------------------------------------------------
 
 
@@ -1269,6 +1499,24 @@ async def websocket_endpoint(websocket: WebSocket):
                     await websocket.send_json({"type": "error", "message": "Join first"})
                     continue
                 await handle_delete_notice(websocket, player_id, data)
+
+            elif msg_type == "open_carriage":
+                if not player_id:
+                    await websocket.send_json({"type": "error", "message": "Join first"})
+                    continue
+                await handle_open_carriage(websocket, player_id, data)
+
+            elif msg_type == "name_carriage_stop":
+                if not player_id:
+                    await websocket.send_json({"type": "error", "message": "Join first"})
+                    continue
+                await handle_name_carriage_stop(websocket, player_id, data)
+
+            elif msg_type == "travel_by_carriage":
+                if not player_id:
+                    await websocket.send_json({"type": "error", "message": "Join first"})
+                    continue
+                await handle_carriage_travel(websocket, player_id, data)
 
             elif msg_type in ("equip", "unequip"):
                 if not player_id:

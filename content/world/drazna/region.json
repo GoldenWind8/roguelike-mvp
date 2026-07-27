@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "drazna",
+  "start_room": "drazna_lantern_quays",
+  "rooms": [
+    "rooms/lantern-quays.json",
+    "rooms/reed-market.json",
+    "rooms/high-crown.json",
+    "rooms/first-scar.json"
+  ],
+  "connections": [
+    {"from": "drazna_lantern_quays", "to": "drazna_reed_market", "x": 16, "y": 6},
+    {"from": "drazna_reed_market", "to": "drazna_lantern_quays", "x": 0, "y": 6},
+    {"from": "drazna_reed_market", "to": "drazna_high_crown", "x": 8, "y": 0},
+    {"from": "drazna_high_crown", "to": "drazna_reed_market", "x": 8, "y": 12},
+    {"from": "drazna_reed_market", "to": "drazna_first_scar", "x": 16, "y": 9},
+    {"from": "drazna_first_scar", "to": "drazna_reed_market", "x": 0, "y": 6}
+  ]
+}

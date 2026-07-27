@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.actor_defs import enemy_art
-from backend.models import EnemyDef, Room, RoomConnection, TileType
+from backend.models import EnemyDef, FrontierExit, Room, RoomConnection, TileType
 from backend.object_defs import get_object_definition
 from backend.object_store import apply_object_states
 
@@ -134,6 +134,9 @@ class RoomTemplate:
     # The same exits with client-safe destination names. Presentation only;
     # movement never trusts or consults these labels.
     exits: list[RoomExit] = field(default_factory=list)
+    # Door/portal tile -> player-safe label for an exit whose destination has
+    # not been generated or discovered yet.
+    frontier_exits: dict[tuple[int, int], str] = field(default_factory=dict)
     # Note: no `mode` field. A room's timing model is DERIVED live from who is
     # present (modes.derive_mode, M7) — a template with enemies wakes up combat
     # because those enemies are hostile, not because a stored flag says so.
@@ -218,6 +221,19 @@ async def load_room(session: AsyncSession, room_id: int) -> RoomTemplate:
         )
         for connection in connection_rows
     ]
+    frontier_rows = (await session.execute(
+        select(FrontierExit)
+        .where(
+            FrontierExit.source_room_id == room_id,
+            FrontierExit.status == "frontier",
+        )
+        .order_by(FrontierExit.id)
+    )).scalars().all()
+    frontier_exits = {
+        (frontier.source_x, frontier.source_y):
+            str((frontier.generator_hint or {}).get("label") or "Uncharted road")
+        for frontier in frontier_rows
+    }
 
     return RoomTemplate(
         room_id=room.id,
@@ -231,4 +247,5 @@ async def load_room(session: AsyncSession, room_id: int) -> RoomTemplate:
         capacity=room.capacity,
         connections=connections,
         exits=exits,
+        frontier_exits=frontier_exits,
     )

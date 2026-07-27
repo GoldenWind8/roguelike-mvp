@@ -733,3 +733,96 @@ class FrontierExit(Base):
     generator_hint: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at_minute: Mapped[int] = mapped_column(Integer, default=0)
     last_attempt_minute: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
+class CarriageStop(Base):
+    """A shared fast-travel stop, often discovered in generated wilderness."""
+    __tablename__ = "carriage_stops"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('unnamed', 'operating', 'damaged', 'closed')",
+            name="ck_carriage_stop_status",
+        ),
+        CheckConstraint(
+            "created_at_minute >= 0",
+            name="ck_carriage_stop_created_minute_nonnegative",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    stop_key: Mapped[str] = mapped_column(String, unique=True, index=True)
+    room_id: Mapped[int] = mapped_column(
+        ForeignKey("rooms.id"), unique=True, index=True,
+    )
+    public_name: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    named_by_player_id: Mapped[str | None] = mapped_column(
+        ForeignKey("players.id"), nullable=True, index=True,
+    )
+    biome: Mapped[str] = mapped_column(String, default="frontier", index=True)
+    status: Mapped[str] = mapped_column(String, default="unnamed", index=True)
+    created_at_minute: Mapped[int] = mapped_column(Integer, default=0)
+    named_at_minute: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    details: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class CarriageRoute(Base):
+    """A directed scheduled journey between two shared stops."""
+    __tablename__ = "carriage_routes"
+    __table_args__ = (
+        UniqueConstraint(
+            "from_stop_id", "to_stop_id",
+            name="uq_carriage_route_direction",
+        ),
+        CheckConstraint(
+            "from_stop_id != to_stop_id",
+            name="ck_carriage_route_not_self",
+        ),
+        CheckConstraint(
+            "status IN ('operating', 'delayed', 'dangerous', 'closed')",
+            name="ck_carriage_route_status",
+        ),
+        CheckConstraint(
+            "travel_minutes > 0 AND fare >= 0 AND danger >= 0",
+            name="ck_carriage_route_costs_nonnegative",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    route_key: Mapped[str] = mapped_column(String, unique=True, index=True)
+    from_stop_id: Mapped[int] = mapped_column(
+        ForeignKey("carriage_stops.id"), index=True,
+    )
+    to_stop_id: Mapped[int] = mapped_column(
+        ForeignKey("carriage_stops.id"), index=True,
+    )
+    travel_minutes: Mapped[int] = mapped_column(Integer)
+    fare: Mapped[int] = mapped_column(Integer, default=0)
+    danger: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String, default="operating", index=True)
+    departures: Mapped[list] = mapped_column(JSON, default=list)
+    details: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class PlayerCarriageStop(Base):
+    """A stop this player has personally reached and may select."""
+    __tablename__ = "player_carriage_stops"
+    __table_args__ = (
+        UniqueConstraint(
+            "player_id", "stop_id",
+            name="uq_player_carriage_stop",
+        ),
+        CheckConstraint(
+            "first_arrived_minute >= 0 AND last_arrived_minute >= 0",
+            name="ck_player_carriage_stop_minutes_nonnegative",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    player_id: Mapped[str] = mapped_column(
+        ForeignKey("players.id"), index=True,
+    )
+    stop_id: Mapped[int] = mapped_column(
+        ForeignKey("carriage_stops.id"), index=True,
+    )
+    first_arrived_minute: Mapped[int] = mapped_column(Integer, default=0)
+    last_arrived_minute: Mapped[int] = mapped_column(Integer, default=0)

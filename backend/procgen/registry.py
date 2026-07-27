@@ -8,7 +8,7 @@ what lets an AI config-picker later choose any of them safely.
 """
 import random
 
-from backend.procgen import cave, dungeon, house, keep, overworld, wfc
+from backend.procgen import cave, dungeon, frontier_wilds, house, keep, overworld, wfc
 from backend.procgen.base import GenResult, Preset, validate
 
 # How many times to re-roll (new seed) if a generator emits an invalid room.
@@ -18,6 +18,16 @@ _MAX_ATTEMPTS = 8
 
 
 REGISTRY: dict[str, Preset] = {
+    "frontier_wilds": Preset(
+        key="frontier_wilds",
+        label="Story-Shaped Frontier",
+        technique="Compositional landscape grammar + constructive paths",
+        description="Long-road wilderness built around a recognizable travel "
+                    "problem: braided water, ravines, battlefields, rotwood, "
+                    "grave moors, and ruined caravan circles.",
+        generator=frontier_wilds.generate,
+        params=frontier_wilds.PARAMS,
+    ),
     "dungeon": Preset(
         key="dungeon",
         label="Dungeon Hall",

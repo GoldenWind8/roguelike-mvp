@@ -33,6 +33,10 @@ class EventType(Enum):
     INVALID_ACTION = "invalid_action"
     PLAYER_LEFT = "player_left"
     PLAYER_ENTERED_DOOR = "player_entered_door"
+    # An unmaterialized frontier exit. The async edge grows the persistent
+    # world graph, then transfers the player through the same validated path
+    # as an ordinary connection.
+    PLAYER_ENTERED_FRONTIER = "player_entered_frontier"
     # --- loot system (docs/LOOT.md) ---
     # A chest's contents were rolled (first-to-open): `items` is the list of
     # finds `[{item, minted}]`, all still IN the chest — the opener's client

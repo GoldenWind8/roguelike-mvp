@@ -241,6 +241,10 @@ class RoomState:
             "grid": self.grid,
             "walls": list(self.walls),
             "exits": [exit.to_dict() for exit in self.template.exits],
+            "frontier_exits": [
+                {"position": [x, y], "label": label}
+                for (x, y), label in sorted(self.template.frontier_exits.items())
+            ],
             "objects": [obj.to_summary_dict() for obj in self.objects],
             "players": {pid: p.to_dict() for pid, p in self.players.items()},
             "enemies": {eid: e.to_dict() for eid, e in self.enemies.items()},

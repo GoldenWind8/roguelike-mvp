@@ -109,6 +109,17 @@ class MoveHandler(ActionHandler):
                  "position": [nx, ny], "to_room_id": to_room_id},
                 room.round,
             ))
+        elif (nx, ny) in room.template.frontier_exits:
+            events.append(GameEvent(
+                EventType.PLAYER_ENTERED_FRONTIER,
+                {
+                    "player_id": action.player_id,
+                    "name": player.name,
+                    "position": [nx, ny],
+                    "label": room.template.frontier_exits[(nx, ny)],
+                },
+                room.round,
+            ))
 
         return events
 

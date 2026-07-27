@@ -4,6 +4,7 @@ from backend.models import NPCRow, PlayerRow, Room
 from backend.npc_store import load_npcs
 from backend.room_loader import load_room
 from backend.seeds import (
+    AUTHORED_REGIONS,
     DEFAULT_ROOM,
     NORTH_ROAD_ROOM,
     OAKRUN_ROOM,
@@ -21,7 +22,7 @@ async def test_oakrun_is_the_seeded_login_destination(session):
     assert oakrun.name == OAKRUN_ROOM["name"]
     assert (oakrun.width, oakrun.height) == (25, 19)
     count = (await session.execute(select(func.count()).select_from(Room))).scalar_one()
-    assert count == 8
+    assert count == sum(len(region["rooms"]) for region in AUTHORED_REGIONS.values())
 
     template = await load_room(session, oakrun.id)
     assert template.enemies == []
