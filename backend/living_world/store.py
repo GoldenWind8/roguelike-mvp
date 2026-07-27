@@ -34,6 +34,22 @@ from backend.models import (
 )
 
 
+# Authored social locations can share one playable grid room until that
+# district earns its own map. The simulation still reasons in stable location
+# ids; this adapter resolves them to present geometry without inventing
+# disconnected placeholder rooms.
+_LOCATION_ROOM_ALIASES = {
+    "alderwick": "oakrun_crossroads",
+    "briarwash_fields": "oakrun_orchard_lane",
+    "hollowmere_post": "oakrun_fieldsite_verge",
+    "drazna_birch_heights": "drazna_high_crown",
+    "drazna_crown_sluice": "drazna_first_scar",
+    "drazna_walking_ward": "drazna_reed_market",
+    "drazna_undertide": "drazna_first_scar",
+    "saint-oree-hospice": "bellifont",
+}
+
+
 def epoch_datetime(value: float) -> datetime:
     """Convert a wall-clock epoch to the UTC type persisted by WorldState."""
     return datetime.fromtimestamp(float(value), tz=timezone.utc)
@@ -454,7 +470,12 @@ async def room_id_by_content(
         .where(Room.content_id.is_not(None))
         .order_by(Room.content_id)
     )).all()
-    return {content_id: room_id for content_id, room_id in rows}
+    result = {content_id: room_id for content_id, room_id in rows}
+    for location_id, room_content_id in _LOCATION_ROOM_ALIASES.items():
+        room_id = result.get(room_content_id)
+        if room_id is not None:
+            result[location_id] = room_id
+    return result
 
 
 async def route_edges(

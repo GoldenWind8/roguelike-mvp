@@ -826,3 +826,66 @@ class PlayerCarriageStop(Base):
     )
     first_arrived_minute: Mapped[int] = mapped_column(Integer, default=0)
     last_arrived_minute: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class PlayerWorldState(Base):
+    """Per-player boundary for bounded offline catch-up presentation."""
+    __tablename__ = "player_world_state"
+    __table_args__ = (
+        CheckConstraint(
+            "last_seen_world_minute >= 0",
+            name="ck_player_world_state_minute_nonnegative",
+        ),
+    )
+
+    player_id: Mapped[str] = mapped_column(
+        ForeignKey("players.id"), primary_key=True,
+    )
+    last_seen_world_minute: Mapped[int] = mapped_column(Integer, default=0)
+    last_seen_event_id: Mapped[int] = mapped_column(Integer, default=0)
+    preferences: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class PlayerKnowledge(Base):
+    """Evidence a player actually witnessed, heard, or found.
+
+    This is deliberately not a journal of objectives. A row is an untracked
+    clue, a remembered person, or a rumor with provenance.
+    """
+    __tablename__ = "player_knowledge"
+    __table_args__ = (
+        UniqueConstraint(
+            "player_id", "kind", "knowledge_key",
+            name="uq_player_knowledge_key",
+        ),
+        CheckConstraint(
+            "kind IN ('rumor', 'person', 'clue')",
+            name="ck_player_knowledge_kind",
+        ),
+        CheckConstraint(
+            "provenance IN ('witnessed', 'heard', 'found')",
+            name="ck_player_knowledge_provenance",
+        ),
+        CheckConstraint(
+            "learned_at_minute >= 0",
+            name="ck_player_knowledge_minute_nonnegative",
+        ),
+        Index(
+            "ix_player_knowledge_feed",
+            "player_id", "kind", "learned_at_minute", "id",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    player_id: Mapped[str] = mapped_column(
+        ForeignKey("players.id"), index=True,
+    )
+    kind: Mapped[str] = mapped_column(String, index=True)
+    knowledge_key: Mapped[str] = mapped_column(String, index=True)
+    title: Mapped[str] = mapped_column(String)
+    body: Mapped[str] = mapped_column(Text)
+    provenance: Mapped[str] = mapped_column(String)
+    learned_at_minute: Mapped[int] = mapped_column(Integer, index=True)
+    source: Mapped[str | None] = mapped_column(String, nullable=True)
+    place: Mapped[str | None] = mapped_column(String, nullable=True)
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)

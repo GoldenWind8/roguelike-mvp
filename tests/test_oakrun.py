@@ -91,20 +91,31 @@ async def test_oakrun_residents_and_north_road_use_accepted_art(session):
     assert enemies["Road Bandit"].image == "/art/world/enemies/road-bandit-v1.png"
 
     all_rows = (await session.execute(select(NPCRow))).scalars().all()
+    oakrun_room_ids = set((await session.execute(
+        select(Room.id).where(Room.content_id.in_(OAKRUN_ROOMS))
+    )).scalars())
     oakrun_rows = [
         row for row in all_rows
-        if row.persona.get("id") not in {"gorrik-antechamber", "mara-pillared-hall"}
+        if row.room_id in oakrun_room_ids
     ]
     assert {row.name for row in oakrun_rows} == {
         "Basil", "Elowen Pike", "Tom Weller", "Hester Vale", "Rowan Hale",
         "Maud Bell", "Alys Ward", "Fen Alder", "Edda Marr", "Wren",
+        "Jory Rusk",
     }
     recruitable = {
         row.name for row in oakrun_rows
         if "join_party" in row.persona.get("grants", [])
     }
     assert recruitable == {"Edda Marr", "Wren"}
-    assert all(row.persona.get("relationships") for row in oakrun_rows)
+    # Legacy Oakrun residents retain their hand-authored persona links. Jory
+    # belongs to the living-world system, whose relationships are mutable
+    # database records rather than frozen persona JSON.
+    assert all(
+        row.persona.get("relationships")
+        for row in oakrun_rows
+        if row.name != "Jory Rusk"
+    )
 
 
 async def test_adding_oakrun_migrates_characters_out_of_legacy_demo_rooms(session):

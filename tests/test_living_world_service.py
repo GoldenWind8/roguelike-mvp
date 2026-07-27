@@ -31,6 +31,7 @@ from backend.seeds import (
 class FakeContent:
     npc_profiles: dict = field(default_factory=dict)
     rumors: dict = field(default_factory=dict)
+    kingdoms: dict = field(default_factory=dict)
 
 
 def _config(**overrides) -> LivingWorldConfig:
@@ -158,6 +159,29 @@ async def test_bounded_clock_catchup_is_durable_and_idempotent(session):
             WorldEvent.kind == "quiet_interval"
         )
     )).scalar_one() == quiet_count == 1
+
+
+async def test_explicit_journey_advances_full_time_without_consuming_wall_clock(session):
+    await _clock_at_zero(session)
+    service = LivingWorldService(
+        config=_config(catchup_cap_minutes=120),
+        content=FakeContent(),
+    )
+    before = (await session.get(WorldState, 1)).last_real_at
+
+    journey = await service.advance(
+        session,
+        wall_now=0,
+        active_room_ids=(),
+        forced_minutes=24 * 60,
+    )
+
+    state = await session.get(WorldState, 1)
+    assert journey.from_minute == 0
+    assert journey.to_minute == 24 * 60
+    assert journey.simulated_minutes == 24 * 60
+    assert journey.coalesced_minutes == 0
+    assert state.last_real_at == before
 
 
 async def test_profileless_npc_deliberates_only_three_to_six_times_per_day(session):
@@ -425,6 +449,39 @@ async def test_goals_remain_private_world_state_not_player_quests(session):
     assert goal.goal_key == "private-direction"
     assert goal.context["authored"]["desire"].startswith("Follow a private")
     assert "quest_states" not in NPCGoal.metadata.tables
+
+
+async def test_kingdom_goal_resolves_to_its_capital_room(session):
+    hall, _ante, gorrik, _mara = await _prototype_world(session)
+    await _clock_at_zero(session)
+    content = FakeContent(
+        kingdoms={
+            "far-kingdom": {"capital_location_id": hall.content_id},
+        },
+        npc_profiles={
+            gorrik.content_id: _profile(
+                gorrik.content_id,
+                home="test-ante",
+                windows=(10, 500, 1_000),
+                target_kind="kingdom",
+                target_id="far-kingdom",
+                goal_priority=5,
+            ),
+        },
+    )
+
+    await LivingWorldService(
+        config=_config(),
+        content=content,
+    ).advance(session, wall_now=20 * 60, active_room_ids=())
+
+    goal = (await session.execute(
+        select(NPCGoal).where(
+            NPCGoal.npc_content_id == gorrik.content_id,
+            NPCGoal.goal_key == "private-direction",
+        )
+    )).scalar_one()
+    assert goal.context["current_intention"]["target_room_id"] == hall.id
 
 
 async def test_complete_authored_catalogue_survives_a_dormant_day(session):

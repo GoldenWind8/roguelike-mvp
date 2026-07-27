@@ -44,8 +44,22 @@ class DialogueReply:
     proposals: list[dict] = field(default_factory=list)
 
 
+@dataclass(frozen=True)
+class DialogueContext:
+    """Retrieved lived experience for one reply, never global world truth."""
+    memories: tuple[str, ...] = ()
+    relationship: str = "unfamiliar"
+
+
 class DialogueProvider(Protocol):
-    async def reply(self, npc: NPC, player_name: str, text: str) -> DialogueReply:
+    async def reply(
+        self,
+        npc: NPC,
+        player_name: str,
+        text: str,
+        *,
+        context: DialogueContext | None = None,
+    ) -> DialogueReply:
         """One in-world response to `text` spoken by `player_name`."""
         ...
 
@@ -55,13 +69,26 @@ class CannedProvider:
     this NPC has already given — deterministic (same transcript, same line)
     without storing extra state anywhere. Canned lines never propose effects."""
 
-    async def reply(self, npc: NPC, player_name: str, text: str) -> DialogueReply:
+    async def reply(
+        self,
+        npc: NPC,
+        player_name: str,
+        text: str,
+        *,
+        context: DialogueContext | None = None,
+    ) -> DialogueReply:
         lines = npc.persona.get("canned") or ["..."]
         replies_so_far = sum(1 for entry in npc.transcript if entry.get("speaker") == "npc")
         return DialogueReply(lines[replies_so_far % len(lines)])
 
 
-def build_prompt(npc: NPC, player_name: str, text: str) -> list[dict]:
+def build_prompt(
+    npc: NPC,
+    player_name: str,
+    text: str,
+    *,
+    context: DialogueContext | None = None,
+) -> list[dict]:
     """Chat messages, stable-prefix layout (NPCS.md "Prompt layout"):
     system framing + guardrails -> persona -> transcript -> current text.
     The stable segments contain no timestamps or random ids, so identical
@@ -91,6 +118,14 @@ def build_prompt(npc: NPC, player_name: str, text: str) -> list[dict]:
         )
         if relationships else ""
     )
+    lived_memory_rules = (
+        "\nRelevant things you personally remember:\n- "
+        + "\n- ".join(context.memories)
+        if context and context.memories else ""
+    )
+    player_relationship = (
+        context.relationship if context else "unfamiliar"
+    )
     party_rules = ""
     if can_recruit:
         party_rules = (
@@ -108,7 +143,8 @@ def build_prompt(npc: NPC, player_name: str, text: str) -> list[dict]:
         f"Role: {persona.get('role', '')}\n"
         f"Voice and attitude: {persona.get('persona', '')}\n"
         f"Drives: {'; '.join(persona.get('drives', []))}\n"
-        f"{knowledge_rules}{relationship_rules}\n"
+        f"{knowledge_rules}{relationship_rules}{lived_memory_rules}\n"
+        f"Your current relationship with this traveler: {player_relationship}\n"
         f"Current disposition toward players: {npc.disposition.value}\n\n"
         "Rules:\n"
         "- Reply with a single JSON object and nothing else: "
@@ -163,14 +199,21 @@ class GridProvider:
         # Live, clients come from the per-tier cache in backend/llm.py.
         self.client = client
 
-    async def reply(self, npc: NPC, player_name: str, text: str) -> DialogueReply:
+    async def reply(
+        self,
+        npc: NPC,
+        player_name: str,
+        text: str,
+        *,
+        context: DialogueContext | None = None,
+    ) -> DialogueReply:
         # WHICH model answers is the NPC's tier — content data, validated by
         # the persona gate. Everything else here (token budget, timeout, the
         # degrade-to-canned policy) is dialogue policy, identical across tiers.
         tier = npc.persona.get("tier", DEFAULT_TIER)
         try:
             content = await complete_tier(
-                tier, build_prompt(npc, player_name, text),
+                tier, build_prompt(npc, player_name, text, context=context),
                 max_tokens=DIALOGUE_MAX_TOKENS, timeout=DIALOGUE_TIMEOUT,
                 client=self.client,
             )
@@ -187,7 +230,7 @@ class GridProvider:
                 # Genuinely unexpected — network down, HTTP error, malformed
                 # body. Worth a traceback, since it may need investigation.
                 logging.warning("dialogue provider errored for %s; using canned line", npc.id, exc_info=True)
-            return await self._fallback(npc, player_name, text)
+            return await self._fallback(npc, player_name, text, context=context)
 
         # A completion arrived: this is a SUCCESS. Parsing the effect envelope
         # out of it may still fail (a weak model returns bare prose) — that
@@ -195,8 +238,17 @@ class GridProvider:
         # away a real reply.
         return _parse_envelope(content)
 
-    async def _fallback(self, npc: NPC, player_name: str, text: str) -> DialogueReply:
-        reply = await self.fallback.reply(npc, player_name, text)
+    async def _fallback(
+        self,
+        npc: NPC,
+        player_name: str,
+        text: str,
+        *,
+        context: DialogueContext | None = None,
+    ) -> DialogueReply:
+        reply = await self.fallback.reply(
+            npc, player_name, text, context=context,
+        )
         return DialogueReply(reply.text)  # never propose from a fallback
 
 

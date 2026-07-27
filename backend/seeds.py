@@ -14,6 +14,7 @@ from sqlalchemy import delete, select
 
 from backend.content import load_catalog, load_json, load_region
 from backend.carriage_store import ensure_carriage_stop
+from backend.living_world_content import load_living_world_content
 from backend.persona import validate_persona
 from backend.room_validation import (
     validate_connection,
@@ -112,6 +113,14 @@ AUTHORED_REGIONS = {
     "rouvray": _ROUVRAY_CONTENT,
 }
 SECONDARY_REGIONS = (_DRAZNA_CONTENT, _ROUVRAY_CONTENT)
+_ALL_AUTHORED_ROOMS = {
+    room_id: room
+    for region in AUTHORED_REGIONS.values()
+    for room_id, room in region["rooms"].items()
+}
+_ALL_AUTHORED_ROOM_NAMES = {
+    room_id: data["name"] for room_id, data in _ALL_AUTHORED_ROOMS.items()
+}
 _OAKRUN_ROOM_NAMES = {
     room_id: data["name"] for room_id, data in OAKRUN_ROOMS.items()
 }
@@ -180,6 +189,7 @@ MARA_PERSONA = {
 # Production NPC definitions live in content/npcs.json. The old prototype
 # personas (Gorrik and Mara) remain local test fixtures.
 _AUTHORED_NPCS = load_catalog("npcs.json")
+_LIVING_WORLD_CONTENT = load_living_world_content()
 
 
 def _persona_from_content(entry: dict) -> dict:
@@ -214,6 +224,165 @@ for _entry in _AUTHORED_NPCS.values():
         _spawn["room"], _persona_from_content(_entry), _spawn["x"], _spawn["y"],
         _stats["hp"], _stats["defense"], _stats["attack_damage"],
     ))
+
+
+_LIVING_NPC_PLACEMENTS = {
+    "mara-vey": ("drazna_high_crown", (8, 5)),
+    "ilya-sorn": ("drazna_first_scar", (5, 5)),
+    "nera-bell": ("drazna_high_crown", (10, 6)),
+    "olek-var": ("drazna_lantern_quays", (13, 8)),
+    "pava-mirek": ("drazna_reed_market", (5, 5)),
+    "vasko-mirek": ("drazna_first_scar", (11, 10)),
+    "vesna-korr": ("drazna_lantern_quays", (13, 4)),
+    "alin-vey": ("drazna_high_crown", (6, 6)),
+    "jory-rusk": ("oakrun_fieldsite_verge", (5, 10)),
+    "sabine-vauclair": ("bellifont", (5, 5)),
+    "matthieu-orne": ("orison_fields", (10, 5)),
+    "lina-pell": ("drazna_lantern_quays", (8, 9)),
+}
+
+_LIVING_NPC_VOICES = {
+    "mara-vey": (
+        "Regal without ceremony, exhausted by ceremonies that outlived the wards they named. "
+        "She speaks in exact decisions and treats every euphemism as a leak in a wall.",
+        ["A crown is only useful if it keeps rain off someone.", "Drazna recorded the wound. We did not confess to making it."],
+        "The remaining wards and their people are her party; she will not abandon them.",
+        "town_watch",
+    ),
+    "ilya-sorn": (
+        "A young floodwarden whose hands never stop measuring pressure, distance, and blame. "
+        "He is direct until guilt makes him suddenly formal.",
+        ["Water keeps no secret. People build gates and call that secrecy.", "If the lower gauge rises again, run uphill before you ask why."],
+        "He will not leave while the sluices can still be repaired.",
+        "stablehand",
+    ),
+    "nera-bell": (
+        "A patient archivist who believes an omitted name is a second death. "
+        "She corrects comforting falsehoods softly and dates every certainty.",
+        ["First recorded is not first begun. Write that down exactly.", "The dead do not need praise. They need their names restored."],
+        "The House of Names is her vigil and she will not desert it.",
+        "innkeeper",
+    ),
+    "olek-var": (
+        "A salvage captain with a dockworker's humor and a priest's respect for drowned rooms. "
+        "He prices danger honestly and dislikes heroes who make crews carry their bodies home.",
+        ["Everything below the tide belongs to someone. Mostly the dead.", "Coin first, rope second, courage a distant third."],
+        "He travels only with a contracted salvage crew.",
+        "travelling_peddler",
+    ),
+    "pava-mirek": (
+        "A master roofwright who reads buildings as other people read faces. "
+        "Blunt, maternal, and furious at officials who call preventable collapse weather.",
+        ["That beam did not fail. Someone stopped listening to it.", "Find my brother before you bring me another theory."],
+        "Her crews and the Walking Ward keep her in Drazna.",
+        "orchard_keeper",
+    ),
+    "vasko-mirek": (
+        "A missing diver returned wrong-footed from the Undertide, laconic and alert to sounds beneath floors. "
+        "He jokes when frightened and refuses to explain where he learned certain drowned names.",
+        ["There are doors underwater that open toward dry rooms.", "Pava will hit me before she hugs me. Fair order."],
+        "He may join someone willing to descend carefully and keep faith with the drowned.",
+        "road_weary_traveller",
+    ),
+    "vesna-korr": (
+        "A night-route keeper whose calm comes from having already imagined the axle breaking. "
+        "She gives warnings as practical gifts and never calls a road safe, only passable.",
+        ["Low Lantern leaves when the third wick gutters.", "A road can be open and still mean you harm."],
+        "She travels with her carriage service, not as an ordinary follower.",
+        "carriage_driver",
+    ),
+    "alin-vey": (
+        "A reformist heir who speaks too quickly when angry and too carefully near the Crown. "
+        "He wants truth made public but has not yet learned what panic costs.",
+        ["Silence did not save the drowned ward. It only saved reputations.", "My mother calls delay prudence. The water calls it time."],
+        "He will not leave while the Crown can still be changed from within.",
+        "road_courier",
+    ),
+    "jory-rusk": (
+        "Driver of the Grey Heron, broad-shouldered and superstitious about bells. "
+        "He remembers passengers by luggage, lies by wheel-ruts, and danger by what horses refuse.",
+        ["Grey Heron goes where the road admits it exists.", "Never trust a milestone cleaner than your wheels."],
+        "He belongs to his carriage route and will not join a wandering party.",
+        "carriage_driver",
+    ),
+    "sabine-vauclair": (
+        "A Rouvrain field physician with immaculate manners and mud permanently under her cuffs. "
+        "She separates observed symptoms from rumor and kindness from reassurance.",
+        ["I can promise attention. A cure would be a lie.", "Drazna kept records. That is not the same as causing what they recorded."],
+        "Her patients determine her road; she will not become a mercenary companion.",
+        "basil",
+    ),
+    "matthieu-orne": (
+        "A bell-road driver who speaks to his team more readily than to passengers. "
+        "Dryly devout, he hears omens in bad bearings but trusts maintenance over prayer.",
+        ["Bell and Reed leaves at dawn, unless the bells object.", "A named stop is a promise that somebody can find you again."],
+        "He travels only with the Bell and Reed service.",
+        "carriage_driver",
+    ),
+    "lina-pell": (
+        "A Draznan refugee who rebuilt a ruined wagon into the Mudwheel carriage. "
+        "Fiercely hospitable, suspicious of borders, and unwilling to let strangers simplify what happened to her home.",
+        ["We were people before we were evidence.", "Mudwheel takes anyone who helps push when the road sinks."],
+        "She may join briefly when protecting refugees or reopening a stranded road demands it.",
+        "road_weary_traveller",
+    ),
+}
+
+
+def _living_persona(profile: dict) -> dict:
+    voice, canned, party_policy, art_id = _LIVING_NPC_VOICES[profile["id"]]
+    beliefs = []
+    for reference in profile["belief_refs"]:
+        rumor = _LIVING_WORLD_CONTENT.rumors[reference["rumor_id"]]
+        belief = next(
+            item for item in rumor["beliefs"]
+            if item["id"] == reference["belief_id"]
+        )
+        beliefs.append(belief["claim"])
+    persona = {
+        "id": profile["id"],
+        "name": profile["name"],
+        "role": profile["role"],
+        "persona": voice,
+        "drives": [
+            goal["desire"] for goal in profile["private_goals"][:3]
+        ],
+        "knowledge": beliefs,
+        "relationships": [],
+        "disposition": (
+            "friendly" if profile["id"] in {"sabine-vauclair", "lina-pell"}
+            else "neutral"
+        ),
+        "canned": canned,
+        "party_policy": party_policy,
+        "art_id": art_id,
+    }
+    if profile["id"] in {"vasko-mirek", "lina-pell"}:
+        persona["grants"] = ["join_party"]
+    return persona
+
+
+LIVING_NPC_SEEDS = []
+for _profile in _LIVING_WORLD_CONTENT.npc_profiles.values():
+    if _profile["id"] not in _LIVING_NPC_PLACEMENTS:
+        continue
+    _room_id, (_x, _y) = _LIVING_NPC_PLACEMENTS[_profile["id"]]
+    _hp = 32 if _profile["kind"] == "official" else 26
+    LIVING_NPC_SEEDS.append((
+        _room_id,
+        _living_persona(_profile),
+        _x,
+        _y,
+        _hp,
+        2,
+        3 if _profile["id"] in {"ilya-sorn", "olek-var", "vasko-mirek"} else 1,
+    ))
+
+
+def _validate_living_npc_seeds() -> None:
+    for room_key, persona, x, y, *_stats in LIVING_NPC_SEEDS:
+        validate_persona(persona)
+        validate_npc_placement(_ALL_AUTHORED_ROOMS[room_key], x, y)
 
 
 # Edges of the world graph: (from_room_key, to_room_key, from_x, from_y).
@@ -380,6 +549,13 @@ async def seed_oakrun_world(session) -> Room:
 
     for room_key, persona, x, y, hp, defense, atk in OAKRUN_NPC_SEEDS:
         session.add(_npc_row(persona, models[room_key].id, x, y, hp, defense, atk))
+    _validate_living_npc_seeds()
+    await _insert_npc_seeds(
+        session,
+        LIVING_NPC_SEEDS,
+        _ALL_AUTHORED_ROOM_NAMES,
+        existing_ids={persona["id"] for _, persona, *_ in OAKRUN_NPC_SEEDS},
+    )
 
     if legacy_ids:
         players = (await session.execute(
@@ -444,7 +620,12 @@ async def seed_npcs_if_missing(session) -> None:
     existing_rows = (await session.execute(select(NPCRow))).scalars().all()
     rows_by_persona_id = {_persona_id(row): row for row in existing_rows}
     existing_ids = set(rows_by_persona_id)
-    for _room_key, persona, *_rest in [*NPC_SEEDS, *OAKRUN_NPC_SEEDS]:
+    _validate_living_npc_seeds()
+    for _room_key, persona, *_rest in [
+        *NPC_SEEDS,
+        *OAKRUN_NPC_SEEDS,
+        *LIVING_NPC_SEEDS,
+    ]:
         validate_persona(persona)
         row = rows_by_persona_id.get(persona["id"])
         if row is not None:
@@ -468,6 +649,13 @@ async def seed_npcs_if_missing(session) -> None:
         _OAKRUN_ROOM_NAMES,
         existing_ids=existing_ids,
     )
+    existing_ids.update(persona["id"] for _, persona, *_ in OAKRUN_NPC_SEEDS)
+    inserted += await _insert_npc_seeds(
+        session,
+        LIVING_NPC_SEEDS,
+        _ALL_AUTHORED_ROOM_NAMES,
+        existing_ids=existing_ids,
+    )
     await session.commit()
 
 
@@ -483,6 +671,11 @@ async def reset_npcs(session) -> None:
         session,
         OAKRUN_NPC_SEEDS,
         _OAKRUN_ROOM_NAMES,
+    )
+    await _insert_npc_seeds(
+        session,
+        LIVING_NPC_SEEDS,
+        _ALL_AUTHORED_ROOM_NAMES,
     )
     await session.commit()
 

@@ -118,6 +118,18 @@ def generate(params: dict, rng: random.Random) -> dict:
         rng,
         [*entries, *secret_tiles],
     )
+    # A shape-only generation is the blank canvas used by the optional AI
+    # population seam. Preserve that contract; normal frontier rooms still
+    # receive one archetype-specific landmark alongside their contents.
+    if any(params[name] > 0 for name in ("enemies", "chests", "barrels")):
+        _place_landmark(
+            objects,
+            usable,
+            occupied,
+            entries,
+            archetype,
+            rng,
+        )
 
     return {
         "name": _name(archetype, rng),
@@ -383,3 +395,42 @@ _NAMES = {
 
 def _name(archetype, rng):
     return rng.choice(_NAMES[archetype])
+
+
+_LANDMARKS = {
+    "pilgrim_road": "frontier_candle_stone",
+    "braided_river": "frontier_drowned_bell",
+    "ravine_crossing": "frontier_rope_throne",
+    "old_battlefield": "frontier_soldier_cairn",
+    "rotwood": "frontier_root_mirror",
+    "black_marsh": "frontier_reed_door",
+    "grave_moor": "frontier_blank_grave",
+    "caravan_remains": "frontier_last_manifest",
+}
+
+
+def _place_landmark(objects, usable, occupied, entries, archetype, rng):
+    candidates = [
+        tile
+        for tile in usable
+        if tile not in occupied
+        and all(abs(tile[0] - x) + abs(tile[1] - y) >= 5 for x, y in entries)
+    ]
+    if not candidates:
+        return
+    # Prefer a memorable side-space over the center of the mandatory road.
+    rng.shuffle(candidates)
+    x, y = max(
+        candidates[: min(30, len(candidates))],
+        key=lambda tile: min(
+            abs(tile[0] - ex) + abs(tile[1] - ey)
+            for ex, ey in entries
+        ),
+    )
+    objects.append({
+        "id": f"generated_landmark_{archetype}",
+        "type": _LANDMARKS[archetype],
+        "x": x,
+        "y": y,
+    })
+    occupied.add((x, y))

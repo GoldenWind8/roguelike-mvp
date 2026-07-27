@@ -154,9 +154,17 @@ class NPC(Actor):
     # of the player this NPC follows, or None. Kept as party state, NOT a
     # generalized relationship system. Persists on the row across resets.
     party_owner_id: str | None = None
+    # Observable surface only. Private goals stay in NPCGoal; clients receive
+    # a broad activity such as travelling or tending a stall.
+    activity: dict = field(default_factory=lambda: {
+        "kind": "idle",
+        "label": "Following their ordinary routine",
+    })
 
     def to_dict(self) -> dict:
         d = super().to_dict()
         d["role"] = self.persona.get("role", "")
         d["party_owner_id"] = self.party_owner_id
+        d["world_id"] = self.persona.get("id")
+        d["activity"] = dict(self.activity)
         return d

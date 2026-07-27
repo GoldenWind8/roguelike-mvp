@@ -4,7 +4,7 @@ from sqlalchemy import func, select
 
 from backend.room_engine import RoomEngine
 from backend.room_loader import load_room
-from backend.seeds import get_or_seed_default_room, seed_default_rooms
+from backend.seeds import AUTHORED_REGIONS, get_or_seed_default_room, seed_default_rooms
 from backend.models import Room
 from backend.room_state import RoomState
 
@@ -129,6 +129,6 @@ async def test_get_or_seed_is_idempotent(session):
 
     assert first.id == again.id
     assert first.name == "Oakrun Crossroads"
-    # Exactly one copy of the complete authored Oakrun region, never duplicated.
+    # Exactly one copy of every authored kingdom, never duplicated.
     count = (await session.execute(select(func.count()).select_from(Room))).scalar_one()
-    assert count == 8
+    assert count == sum(len(region["rooms"]) for region in AUTHORED_REGIONS.values())

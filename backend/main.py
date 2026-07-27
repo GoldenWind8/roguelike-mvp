@@ -1,5 +1,8 @@
 import asyncio
+import hashlib
+import inspect
 import logging
+import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -8,6 +11,7 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from sqlalchemy import select
 
 from backend import auth
 from backend.carriage_store import (
@@ -24,13 +28,23 @@ from backend.config import (
     WORLD_TICK_INTERVAL,
 )
 from backend.db import SessionMaker, init_db
-from backend.dialogue import build_provider
+from backend.dialogue import DialogueContext, build_provider
 from backend.entities import NPC, Player, Position
 from backend.events import EventType, GameEvent
 from backend.hunger import tick_room_hunger
 from backend.inventory import add_item, equip, prune_expired, unequip
 from backend.loot import roll_item_count, spawn_loot
-from backend.models import ObjectType
+from backend.models import NPCGoal, ObjectType
+from backend.living_world import store as living_store
+from backend.living_world.movement import shortest_route
+from backend.living_world.player_knowledge import (
+    dialogue_memory_context,
+    record_player_conversation,
+    world_sync,
+    world_time_view,
+)
+from backend.living_world.service import advance as advance_living_world
+from backend.living_world.trigger_runtime import advance_authored_triggers
 from backend.notice_store import (
     NOTICE_TEXT_LIMIT,
     NoticeError,
@@ -95,12 +109,28 @@ async def lifespan(app: FastAPI):
         # The global item pool (docs/LOOT.md): backfilled only when the items
         # table has never held a row — LLM-grown pools are never diluted.
         await seed_items_if_missing(session)
+        # Catch up while no room is active, so dormant lives settle before the
+        # first player can observe them.
+        initial_advance = await advance_living_world(
+            session,
+            wall_now=time.time(),
+            active_room_ids=(),
+        )
+        await advance_authored_triggers(
+            session,
+            from_minute=initial_advance.from_minute,
+            to_minute=initial_advance.to_minute,
+            active_room_ids=(),
+        )
     # The world-clock sweep (docs/LOOT.md Decision 3): expiry is checked
     # lazily at every stat read, so this ticker only bounds how long a
     # lapsed buff can linger on screen before clients hear about it.
     ticker = asyncio.create_task(world_ticker())
+    living_ticker = asyncio.create_task(living_world_ticker())
     yield
     ticker.cancel()
+    living_ticker.cancel()
+    await asyncio.gather(ticker, living_ticker, return_exceptions=True)
     # Shutdown: rooms still live (players connected) never went through
     # eviction, so their individuals must be saved here or a restart would
     # be the one remaining way to destroy an NPC's state.
@@ -126,6 +156,8 @@ dialogue_provider = build_provider()
 # Players with an LLM call in flight: one talk at a time per player, so a
 # spamming client can't fan out provider calls (the grid caps 30 req/min/IP).
 talking_players: set[str] = set()
+_last_active_npc_step_at = 0.0
+_active_npc_step_index = 0
 # Daily item generation may await an LLM, so it never holds state_lock. A
 # per-shop lock prevents two first-openers from doing the same refresh.
 shop_locks: dict[str, asyncio.Lock] = {}
@@ -543,6 +575,9 @@ async def _transfer_player(origin: RoomRuntime, player_id: str, to_room_id: int)
         "state": dest.engine.get_state(),
         "events": [e.to_dict() for e in arrival_events],
     })
+    asyncio.create_task(_send_world_sync_safely(
+        dest, player_id, dest.room_id,
+    ))
     await broadcast_state_and_events(dest, arrival_events)
     await broadcast_waiting(dest)
 
@@ -587,9 +622,37 @@ async def handle_talk(websocket: WebSocket, player_id: str, data: dict) -> None:
             return
         talking_players.add(player_id)
         player_name = player.name
+        npc_content_id = npc.persona.get("id") or npc.id
+        room_id = runtime.room_id
 
     try:
-        reply = await dialogue_provider.reply(npc, player_name, text)
+        context = DialogueContext()
+        try:
+            async with SessionMaker() as session:
+                minute = await _current_world_minute(session)
+                retrieved = await dialogue_memory_context(
+                    session,
+                    npc_content_id=npc_content_id,
+                    player_id=player_id,
+                    text=text,
+                    world_minute=minute,
+                )
+                await session.commit()
+                context = DialogueContext(
+                    memories=tuple(retrieved["memories"]),
+                    relationship=retrieved["relationship"],
+                )
+        except Exception:
+            logging.exception("failed to retrieve dialogue memory for %s", npc_content_id)
+        reply_parameters = inspect.signature(dialogue_provider.reply).parameters
+        if "context" in reply_parameters:
+            reply = await dialogue_provider.reply(
+                npc, player_name, text, context=context,
+            )
+        else:
+            # Preserve the lightweight three-argument provider seam used by
+            # local test doubles and third-party dialogue providers.
+            reply = await dialogue_provider.reply(npc, player_name, text)
     finally:
         talking_players.discard(player_id)
 
@@ -629,6 +692,25 @@ async def handle_talk(websocket: WebSocket, player_id: str, data: dict) -> None:
         if effect_events:
             await broadcast_state_and_events(runtime, effect_events)
 
+    learned_rumor = None
+    try:
+        async with SessionMaker() as session:
+            minute = await _current_world_minute(session)
+            learned_rumor = await record_player_conversation(
+                session,
+                player_id=player_id,
+                player_name=player_name,
+                npc_content_id=npc_content_id,
+                npc_name=npc.name,
+                room_id=room_id,
+                player_text=text,
+                npc_text=reply.text,
+                world_minute=minute,
+            )
+            await session.commit()
+    except Exception:
+        logging.exception("failed to persist conversation memory for %s", npc_content_id)
+
     # Text channel: prose to the talking player only, always shown regardless
     # of whether any proposal was accepted — dialogue is one-on-one.
     await websocket.send_json({
@@ -638,6 +720,8 @@ async def handle_talk(websocket: WebSocket, player_id: str, data: dict) -> None:
         "player_text": text,
         "text": reply.text,
     })
+    if learned_rumor is not None:
+        await websocket.send_json(await _world_sync_for(player_id, room_id))
 
 
 # --- loot: chests, packs, the world tick (docs/LOOT.md) --------------------------
@@ -652,6 +736,7 @@ async def world_ticker() -> None:
         await asyncio.sleep(WORLD_TICK_INTERVAL)
         try:
             async with state_lock:
+                npc_step_index = _next_active_npc_step_index()
                 for runtime in list(active_rooms.values()):
                     events = [
                         GameEvent(EventType.EFFECT_EXPIRED,
@@ -664,6 +749,16 @@ async def world_ticker() -> None:
                     hunger_events, hunger_visible = tick_room_hunger(
                         runtime.engine.room, WORLD_TICK_INTERVAL)
                     events.extend(hunger_events)
+                    if npc_step_index is not None:
+                        async with SessionMaker() as session:
+                            steering = await _active_npc_steering(
+                                session, runtime,
+                            )
+                        events.extend(_step_active_npcs(
+                            runtime,
+                            npc_step_index,
+                            steering=steering,
+                        ))
                     if events or hunger_visible:
                         await broadcast_state_and_events(runtime, events)
         except asyncio.CancelledError:
@@ -671,6 +766,274 @@ async def world_ticker() -> None:
         except Exception:
             # The clock must keep ticking whatever one sweep hits.
             logging.exception("world ticker sweep failed")
+
+
+async def living_world_ticker() -> None:
+    """Advance dormant lives on one coarse shared clock.
+
+    NPCs only deliberate at their sparse authored windows. The 15-second
+    sweep merely drains cheap due work; it does not make everyone think every
+    15 seconds and it never calls an LLM.
+    """
+    while True:
+        await asyncio.sleep(15.0)
+        try:
+            async with state_lock:
+                active_ids = tuple(active_rooms)
+                async with SessionMaker() as session:
+                    result = await advance_living_world(
+                        session,
+                        wall_now=time.time(),
+                        active_room_ids=active_ids,
+                    )
+                    trigger_result = await advance_authored_triggers(
+                        session,
+                        from_minute=result.from_minute,
+                        to_minute=result.to_minute,
+                        active_room_ids=active_ids,
+                    )
+                players = [
+                    (player_id, room_id, active_rooms[room_id].connections.get(player_id))
+                    for player_id, room_id in player_room.items()
+                    if room_id in active_rooms
+                ]
+            if (
+                result.simulated_minutes <= 0
+                and result.processed_events <= 0
+                and trigger_result.fired <= 0
+                and trigger_result.missed <= 0
+                and trigger_result.effects_applied <= 0
+            ):
+                continue
+            time_message = {
+                "type": "world_time_updated",
+                "time": world_time_view(result.to_minute),
+            }
+            for player_id, room_id, websocket in players:
+                if websocket is None:
+                    continue
+                try:
+                    await websocket.send_json(time_message)
+                    if (
+                        result.movements
+                        or result.conversations
+                        or result.memories_created
+                        or trigger_result.fired
+                        or trigger_result.missed
+                    ):
+                        await websocket.send_json(
+                            await _world_sync_for(player_id, room_id)
+                        )
+                except Exception:
+                    logging.exception(
+                        "failed to publish living-world update to %s",
+                        player_id,
+                    )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logging.exception("living-world sweep failed")
+
+
+def _next_active_npc_step_index() -> int | None:
+    global _last_active_npc_step_at, _active_npc_step_index
+    now = time.monotonic()
+    if now - _last_active_npc_step_at < 8.0:
+        return None
+    _last_active_npc_step_at = now
+    _active_npc_step_index += 1
+    return _active_npc_step_index
+
+
+def _step_active_npcs(
+    runtime: RoomRuntime,
+    step_index: int,
+    *,
+    steering: dict[str, tuple[int, int]] | None = None,
+) -> list[GameEvent]:
+    """Give visible NPCs cheap programmatic motion between deliberations.
+
+    The expensive/private simulator decides which room a person is trying to
+    reach. While players can see them, this local steering layer only makes a
+    cautious adjacent step; it never invokes a language model and never walks
+    an NPC through a door behind the runtime's back.
+    """
+    room = runtime.engine.room
+    if runtime.engine.turn_based:
+        return []
+    events: list[GameEvent] = []
+    steering = steering or {}
+    entry_tiles = set(room.template.connections) | set(room.template.frontier_exits)
+    for npc in sorted(room.living_npcs(), key=lambda actor: actor.id):
+        if npc.party_owner_id is not None or npc.disposition.value == "hostile":
+            continue
+        # People hold position while somebody is speaking face-to-face.
+        if any(
+            abs(player.position.x - npc.position.x)
+            + abs(player.position.y - npc.position.y) == 1
+            for player in room.living_players()
+        ):
+            npc.activity = {"kind": "talking", "label": "Speaking with a traveller"}
+            continue
+        identity = npc.persona.get("id", npc.id)
+        digest = hashlib.blake2b(
+            f"{identity}:{step_index}".encode("utf-8"),
+            digest_size=2,
+        ).digest()
+        directions = [(1, 0), (0, 1), (-1, 0), (0, -1)]
+        start = int.from_bytes(digest, "big") % len(directions)
+        target = steering.get(str(identity))
+        if target is not None:
+            distance = (
+                abs(npc.position.x - target[0])
+                + abs(npc.position.y - target[1])
+            )
+            if distance <= 1:
+                npc.activity = {
+                    "kind": "idle",
+                    "label": "Waiting at the road with purpose",
+                    "interruptible": True,
+                }
+                continue
+            direction_rank = {
+                direction: (index - start) % len(directions)
+                for index, direction in enumerate(directions)
+            }
+            directions.sort(key=lambda direction: (
+                abs(npc.position.x + direction[0] - target[0])
+                + abs(npc.position.y + direction[1] - target[1]),
+                direction_rank[direction],
+            ))
+            ordered_directions = directions
+        else:
+            ordered_directions = [
+                directions[(start + offset) % len(directions)]
+                for offset in range(len(directions))
+            ]
+        moved = False
+        for dx, dy in ordered_directions:
+            nx, ny = npc.position.x + dx, npc.position.y + dy
+            if (
+                not room.is_valid_position(nx, ny)
+                or room.is_occupied(nx, ny)
+                or (nx, ny) in entry_tiles
+            ):
+                continue
+            old = [npc.position.x, npc.position.y]
+            room.move_entity(npc.id, Position(nx, ny))
+            npc.activity = {
+                "kind": "travelling" if target is not None else "working",
+                "label": (
+                    "Making deliberately for the road"
+                    if target is not None
+                    else _visible_activity(npc)
+                ),
+                "interruptible": True,
+            }
+            events.append(GameEvent(
+                EventType.NPC_MOVED,
+                {
+                    "npc_id": npc.id,
+                    "name": npc.name,
+                    "from": old,
+                    "to": [nx, ny],
+                },
+                room.round,
+            ))
+            moved = True
+            break
+        if not moved:
+            npc.activity = {
+                "kind": "idle",
+                "label": "Watching the road",
+                "interruptible": True,
+            }
+    return events
+
+
+async def _active_npc_steering(
+    session,
+    runtime: RoomRuntime,
+) -> dict[str, tuple[int, int]]:
+    """Resolve durable broad intentions into local, non-omniscient targets.
+
+    Deliberation decides only a destination room or person. This adapter uses
+    the authored room graph to select the next visible doorway; the movement
+    loop still owns collision checks and each individual grid step.
+    """
+    room = runtime.engine.room
+    people = {
+        str(npc.persona.get("id", npc.id)): npc
+        for npc in room.living_npcs()
+        if npc.party_owner_id is None
+    }
+    if not people:
+        return {}
+    goals = (await session.execute(
+        select(NPCGoal).where(
+            NPCGoal.npc_content_id.in_(tuple(people)),
+            NPCGoal.status == "active",
+        ).order_by(
+            NPCGoal.npc_content_id,
+            NPCGoal.priority.desc(),
+            NPCGoal.id,
+        )
+    )).scalars().all()
+    location_rooms = await living_store.room_id_by_content(session)
+    route_edges = await living_store.route_edges(session, travel_minutes=10)
+    targets: dict[str, tuple[int, int]] = {}
+    for goal in goals:
+        if goal.npc_content_id in targets:
+            continue
+        context = dict(goal.context or {})
+        authored = dict(context.get("authored") or {})
+        intention = dict(context.get("current_intention") or {})
+        target_room_id = intention.get("target_room_id")
+        target_kind = authored.get("target_kind")
+        if target_room_id is None and target_kind == "location":
+            target_room_id = location_rooms.get(goal.target_id or "")
+        if target_kind == "npc" and goal.target_id in people:
+            other = people[goal.target_id]
+            targets[goal.npc_content_id] = (
+                other.position.x,
+                other.position.y,
+            )
+            continue
+        if not isinstance(target_room_id, int) or target_room_id == runtime.room_id:
+            continue
+        plan = shortest_route(
+            route_edges,
+            from_room_id=runtime.room_id,
+            to_room_id=target_room_id,
+        )
+        if plan is None or not plan.edges:
+            continue
+        next_room_id = plan.edges[0].to_room_id
+        exits = sorted(
+            tile
+            for tile, destination_id in room.template.connections.items()
+            if destination_id == next_room_id
+        )
+        if exits:
+            targets[goal.npc_content_id] = exits[0]
+    return targets
+
+
+def _visible_activity(npc: NPC) -> str:
+    role = npc.persona.get("role", "").lower()
+    if "driver" in role or "carriage" in role:
+        return "Checking harness, wheels, and the road"
+    if "apothecary" in role or "physician" in role:
+        return "Sorting remedies and watching for symptoms"
+    if "watch" in role or "constable" in role or "warden" in role:
+        return "Making a measured patrol"
+    if "innkeeper" in role:
+        return "Tending to the needs of the room"
+    if "archiv" in role or "names" in role:
+        return "Reordering notes and remembered names"
+    if "queen" in role or "heir" in role:
+        return "Moving between difficult conversations"
+    return "Going about their own business"
 
 
 def _adjacent_chest(room, player, object_id):
@@ -1131,6 +1494,47 @@ async def _current_world_minute(session) -> int:
     return world.world_minute
 
 
+async def _world_sync_for(player_id: str, room_id: int) -> dict:
+    async with SessionMaker() as session:
+        return await world_sync(
+            session,
+            player_id=player_id,
+            current_room_id=room_id,
+        )
+
+
+async def _send_world_sync_safely(
+    runtime: RoomRuntime,
+    player_id: str,
+    room_id: int,
+) -> None:
+    """Publish knowledge without holding the mutation lock during socket I/O."""
+    try:
+        payload = await _world_sync_for(player_id, room_id)
+        await send_to(runtime, player_id, payload)
+    except Exception:
+        logging.exception("failed to synchronize world knowledge for %s", player_id)
+
+
+async def _send_forced_world_advance_safely(
+    runtime: RoomRuntime,
+    player_id: str,
+    room_id: int,
+    world_minute: int,
+) -> None:
+    """Publish a journey's shared time jump and the resulting known world."""
+    try:
+        await send_to(runtime, player_id, {
+            "type": "world_time_updated",
+            "time": world_time_view(world_minute),
+        })
+        await _send_world_sync_safely(runtime, player_id, room_id)
+    except Exception:
+        logging.exception(
+            "failed to publish forced world advance to %s", player_id,
+        )
+
+
 async def handle_open_carriage(
     websocket: WebSocket,
     player_id: str,
@@ -1253,6 +1657,24 @@ async def handle_carriage_travel(
             })
             return
 
+        # A carriage is fast travel for the player, not a teleport for the
+        # world. Everyone's shared clock advances through the entire journey,
+        # and dormant NPCs may deliberate, move, converse, or miss a window
+        # during it. Active rooms remain protected by the in-memory engines.
+        async with SessionMaker() as session:
+            journey = await advance_living_world(
+                session,
+                wall_now=time.time(),
+                active_room_ids=tuple(active_rooms),
+                forced_minutes=destination.travel_minutes,
+            )
+            await advance_authored_triggers(
+                session,
+                from_minute=journey.from_minute,
+                to_minute=journey.to_minute,
+                active_room_ids=tuple(active_rooms),
+            )
+
         await _transfer_player(origin, player_id, destination.room_id)
         if player_room.get(player_id) != destination.room_id:
             return
@@ -1272,6 +1694,16 @@ async def handle_carriage_travel(
             "fare": destination.fare,
         })
         await broadcast_state_and_events(destination_runtime, [])
+        for known_player_id, known_room_id in list(player_room.items()):
+            known_runtime = active_rooms.get(known_room_id)
+            if known_runtime is None:
+                continue
+            asyncio.create_task(_send_forced_world_advance_safely(
+                known_runtime,
+                known_player_id,
+                known_room_id,
+                journey.to_minute,
+            ))
 
 
 # --- dev affordances ------------------------------------------------------------
@@ -1418,6 +1850,9 @@ async def websocket_endpoint(websocket: WebSocket):
                         "username": row.username,
                         "state": runtime.engine.get_state(),
                     })
+                    asyncio.create_task(_send_world_sync_safely(
+                        runtime, player_id, runtime.room_id,
+                    ))
 
                     await broadcast_state_and_events(runtime, events)
 

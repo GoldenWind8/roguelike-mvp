@@ -16,10 +16,15 @@ from typing import Any, Collection, Mapping
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import RNG_SEED
-from backend.living_world.clock import MINUTES_PER_DAY, compute_clock_advance
+from backend.living_world.clock import (
+    ClockAdvance,
+    MINUTES_PER_DAY,
+    compute_clock_advance,
+)
 from backend.living_world.memory import (
     Memory,
     select_conversation_memories,
+    synthesize_reflection,
     transmit_rumour,
 )
 from backend.living_world.movement import RouteEdge, shortest_route
@@ -113,13 +118,17 @@ class LivingWorldService:
         session: AsyncSession,
         wall_now: float,
         active_room_ids: Collection[int],
+        *,
+        forced_minutes: int | None = None,
     ) -> AdvanceResult:
         """Advance and commit one atomic slice of the dormant world.
 
-        Repeating the same call after it commits is idempotent: the clock has
-        consumed the same wall interval and every derived write has a stable
-        deduplication key.  Active rooms are read only from this service; their
-        in-memory runtime remains authoritative.
+        Repeating the same wall-clock call after it commits is idempotent: the
+        clock has consumed that interval and every derived write has a stable
+        deduplication key. ``forced_minutes`` represents a new explicit
+        in-world duration (such as a carriage ride), so each such call is a
+        deliberate new advance. Active rooms are read only from this service;
+        their in-memory runtime remains authoritative.
         """
         active_rooms = frozenset(int(room_id) for room_id in active_room_ids)
         counters = _Counters()
@@ -151,15 +160,30 @@ class LivingWorldService:
                 state.last_real_at = store.epoch_datetime(last_wall)
                 counters.writes += 1
 
-            clock = compute_clock_advance(
-                current_minute=from_minute,
-                last_wall_at=last_wall,
-                wall_now=float(wall_now),
-                game_minutes_per_real_minute=(
-                    self.config.game_minutes_per_real_minute
-                ),
-                catchup_cap_minutes=self.config.catchup_cap_minutes,
-            )
+            if forced_minutes is not None:
+                if forced_minutes < 0:
+                    raise ValueError("forced_minutes must be non-negative")
+                # Travel and other explicit in-world durations advance the
+                # shared simulation without consuming (or fabricating) wall
+                # time. Unlike offline catch-up, a journey is never coalesced:
+                # its full duration can contain deliberations and encounters.
+                clock = ClockAdvance(
+                    from_minute=from_minute,
+                    to_minute=from_minute + forced_minutes,
+                    simulated_minutes=forced_minutes,
+                    coalesced_minutes=0,
+                    wall_seconds=0.0,
+                )
+            else:
+                clock = compute_clock_advance(
+                    current_minute=from_minute,
+                    last_wall_at=last_wall,
+                    wall_now=float(wall_now),
+                    game_minutes_per_real_minute=(
+                        self.config.game_minutes_per_real_minute
+                    ),
+                    catchup_cap_minutes=self.config.catchup_cap_minutes,
+                )
 
             npcs = await store.living_npcs(session)
             sync_signature = self._sync_signature(npcs)
@@ -204,12 +228,13 @@ class LivingWorldService:
 
             if clock.simulated_minutes or clock.coalesced_minutes:
                 state.world_minute = clock.to_minute
-                state.last_real_at = self._consumed_wall_time(
-                    last_wall=last_wall,
-                    wall_now=float(wall_now),
-                    simulated_minutes=clock.simulated_minutes,
-                    coalesced_minutes=clock.coalesced_minutes,
-                )
+                if forced_minutes is None:
+                    state.last_real_at = self._consumed_wall_time(
+                        last_wall=last_wall,
+                        wall_now=float(wall_now),
+                        simulated_minutes=clock.simulated_minutes,
+                        coalesced_minutes=clock.coalesced_minutes,
+                    )
                 counters.writes += 1
             if counters.writes:
                 variables = dict(state.variables or {})
@@ -717,6 +742,14 @@ class LivingWorldService:
             }
             selected_goal.context = context
 
+        reflection_inserted = await self._reflect_if_ready(
+            session,
+            actor.content_id,
+            event.due_minute,
+        )
+        counters.memories_created += reflection_inserted
+        counters.writes += reflection_inserted
+
         intention_name = (
             chosen.kind.value.replace("_", " ") if chosen is not None else "wait"
         )
@@ -773,6 +806,30 @@ class LivingWorldService:
         counters.processed_events += 1
         counters.writes += 1
 
+    async def _reflect_if_ready(
+        self,
+        session: AsyncSession,
+        npc_content_id: str,
+        world_minute: int,
+    ) -> int:
+        rows = await store.memory_rows(session, npc_content_id)
+        reflection = synthesize_reflection(
+            (store.memory_from_row(row) for row in rows),
+            owner_id=npc_content_id,
+            world_minute=world_minute,
+        )
+        if reflection is None:
+            return 0
+        _row, inserted = await store.remember_once(
+            session,
+            reflection,
+            payload={
+                "derived": True,
+                "source_memory_id": reflection.source_memory_id,
+            },
+        )
+        return int(inserted)
+
     async def _goal_candidates(
         self,
         session: AsyncSession,
@@ -815,6 +872,14 @@ class LivingWorldService:
             target_room: int | None = None
             if target_kind == "location":
                 target_room = room_ids.get(goal.target_id or "")
+            elif target_kind == "kingdom" and self.content is not None:
+                kingdom = getattr(self.content, "kingdoms", {}).get(
+                    goal.target_id or "",
+                )
+                if kingdom is not None:
+                    target_room = room_ids.get(
+                        str(kingdom.get("capital_location_id", "")),
+                    )
             elif target_kind == "npc" and goal.target_id:
                 target_npc = await store.npc_by_content_id(
                     session, goal.target_id,
@@ -1476,12 +1541,18 @@ async def advance(
     *,
     config: LivingWorldConfig = DEFAULT_CONFIG,
     content: LivingWorldContent | Any | None = None,
+    forced_minutes: int | None = None,
 ) -> AdvanceResult:
     """Convenience API used by the application-level world ticker."""
     return await LivingWorldService(
         config=config,
         content=content,
-    ).advance(session, wall_now, active_room_ids)
+    ).advance(
+        session,
+        wall_now,
+        active_room_ids,
+        forced_minutes=forced_minutes,
+    )
 
 
 def _stable_u64(*parts: object) -> int:
