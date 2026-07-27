@@ -72,6 +72,12 @@ function objectIcon(obj: ObjectSummary): string {
   return OBJECT_ICONS[obj.type] ?? "✨";
 }
 
+function objectActionLabel(obj: ObjectSummary): string {
+  return obj.interaction === "carriage"
+    ? `Open carriage routes at ${obj.label}`
+    : `Inspect ${obj.label}`;
+}
+
 // The server's targeting rule for attack AND talk: orthogonally adjacent
 // (Manhattan distance 1) — diagonals don't count. Mirrored here only to give
 // a friendly hint instead of a server error.
@@ -341,6 +347,10 @@ export function RoomGrid() {
       api.openNoticeboard(obj.id);
       return;
     }
+    if (obj.interaction === "carriage" && me && distanceToObject(me.position, obj) <= 1) {
+      api.openCarriage(obj.id);
+      return;
+    }
     api.inspect(obj.id);
   };
 
@@ -497,8 +507,8 @@ export function RoomGrid() {
           <button
             className="object-art-button"
             type="button"
-            title={`Inspect ${obj.label}`}
-            aria-label={`Inspect ${obj.label}`}
+            title={objectActionLabel(obj)}
+            aria-label={objectActionLabel(obj)}
             style={{
               width: `${(bounds.visualWidth / bounds.logicalWidth) * 100}%`,
               height: `${(bounds.visualHeight / bounds.logicalHeight) * 100}%`,
@@ -521,8 +531,8 @@ export function RoomGrid() {
           <button
             className="object-art-button object-fallback-button"
             type="button"
-            title={`Inspect ${obj.label}`}
-            aria-label={`Inspect ${obj.label}`}
+            title={objectActionLabel(obj)}
+            aria-label={objectActionLabel(obj)}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
