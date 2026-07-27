@@ -1,6 +1,8 @@
 import pytest
 
 from backend.actions import Action, ActionType
+from backend.living_world.store import arrival_position
+from backend.models import Room, RoomConnection
 from backend.room_loader import _object_payload
 from backend.room_state import RoomState
 from backend.room_validation import validate_npc_placement, validate_room
@@ -94,3 +96,73 @@ def test_npc_overlap_checks_the_whole_object_footprint():
 
     with pytest.raises(ValueError, match="overlaps object"):
         validate_npc_placement(room, 3, 2)
+
+
+async def test_dormant_arrival_excludes_complete_authored_object_footprint(
+    session,
+):
+    source = Room(
+        content_id="test-arrival-source",
+        name="Arrival Source",
+        width=5,
+        height=5,
+        terrain=["#####", "#...#", "#...+#", "#...#", "#####"],
+        objects=[],
+        spawn_points=[[1, 1]],
+        enemy_spawns=[],
+    )
+    lantern_quays = Room(
+        content_id="test-lantern-quays-arrival",
+        name="The Lantern Quays",
+        width=17,
+        height=13,
+        terrain=[
+            "########+########",
+            "#...............#",
+            "#...............#",
+            "#...............#",
+            "#...............#",
+            "#...............#",
+            "+...............+",
+            "#...............#",
+            "#...............#",
+            "+...............+",
+            "#...............#",
+            "#...............#",
+            "########+########",
+        ],
+        objects=[{
+            "id": "drazna_quay_notice",
+            "type": "noticeboard",
+            "x": 6,
+            "y": 10,
+        }, {
+            # In the authored room this nearer tile is occupied by Lina. A
+            # static blocker keeps this focused persistence test independent
+            # from NPC persona setup while preserving the same candidate set.
+            "id": "test-nearby-blocker",
+            "type": "chest",
+            "x": 8,
+            "y": 9,
+        }],
+        spawn_points=[[7, 11], [8, 11], [9, 11], [8, 10]],
+        enemy_spawns=[],
+    )
+    session.add_all((source, lantern_quays))
+    await session.flush()
+    session.add(RoomConnection(
+        from_room_id=lantern_quays.id,
+        to_room_id=source.id,
+        from_x=8,
+        from_y=12,
+    ))
+    await session.commit()
+
+    position = await arrival_position(
+        session,
+        room_id=lantern_quays.id,
+        from_room_id=source.id,
+    )
+
+    # (7, 10) ties for nearest but is the noticeboard's non-anchor cell.
+    assert position == (9, 10)

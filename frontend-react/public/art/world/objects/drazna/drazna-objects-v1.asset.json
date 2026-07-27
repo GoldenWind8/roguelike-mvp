@@ -63,6 +63,20 @@
       "suggested_logical_size": [3, 2],
       "suggested_visual_size": [3, 3],
       "role_tags": ["mechanism", "climax", "gate_seven", "evidence"]
+    },
+    {
+      "id": "crown_ledger_plinth",
+      "image": "/art/world/objects/drazna/crown-ledger-plinth-v1.webp",
+      "suggested_logical_size": [1, 1],
+      "suggested_visual_size": [2, 2],
+      "role_tags": ["archive", "crown", "palace", "evidence"]
+    },
+    {
+      "id": "first_rot_memorial",
+      "image": "/art/world/objects/drazna/first-record-memorial-v1.webp",
+      "suggested_logical_size": [1, 1],
+      "suggested_visual_size": [2, 3],
+      "role_tags": ["memorial", "first_record", "first_scar", "evidence"]
     }
   ]
 }

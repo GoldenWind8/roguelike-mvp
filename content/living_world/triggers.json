@@ -116,7 +116,7 @@
       "window": {"opens_day": 0, "closes_day": null, "cooldown_minutes": 4320, "max_firings": 10},
       "conditions": [
         {"kind": "co_located", "npc_ids": ["maud-oakrun-orchard", "wren-no-house"]},
-        {"kind": "npc_at", "npc_id": "maud-oakrun-orchard", "location_id": "oakrun_orchard_lane"}
+        {"kind": "npc_at", "npc_id": "maud-oakrun-orchard", "location_id": "oakrun_pilgrims_hollow"}
       ],
       "effects": [
         {
@@ -135,7 +135,7 @@
       ],
       "conversation": {
         "opening_speaker_npc_id": "maud-oakrun-orchard",
-        "opening_line": "You need not remember this tree. Tell me whether its root smells wrong now.",
+        "opening_line": "You need not remember this root. Tell me whether its cut end smells wrong now.",
         "mode": "continuous",
         "max_turns": 5,
         "topics": ["black_rot", "medicine", "family"],
@@ -400,44 +400,10 @@
       "aftermath_clues": []
     },
     {
-      "id": "olek-vasko-ledger-return",
-      "kind": "conversation",
-      "participants": ["olek-var", "vasko-mirek"],
-      "window": {"opens_day": 2, "closes_day": null, "cooldown_minutes": 10080, "max_firings": 4},
-      "conditions": [
-        {"kind": "co_located", "npc_ids": ["olek-var", "vasko-mirek"]},
-        {"kind": "trigger_fired", "trigger_id": "vasko-low-water-return"}
-      ],
-      "effects": [
-        {
-          "kind": "share_rumor",
-          "speaker_npc_id": "vasko-mirek",
-          "listener_npc_id": "olek-var",
-          "rumor_id": "drazna-crown-drowned-ward"
-        },
-        {
-          "kind": "relationship_shift",
-          "from_npc_id": "vasko-mirek",
-          "to_npc_id": "olek-var",
-          "axis": "trust",
-          "delta": -4
-        }
-      ],
-      "conversation": {
-        "opening_speaker_npc_id": "vasko-mirek",
-        "opening_line": "You sold the dive as salvage. The ledger says those rooms were sealed with families inside.",
-        "mode": "continuous",
-        "max_turns": 8,
-        "topics": ["flood", "missing_people", "family"],
-        "stop_when": ["danger", "separated", "speaker_refuses", "topic_exhausted"],
-        "followup_trigger_ids": []
-      },
-      "missed_consequences": [],
-      "aftermath_clues": []
-    },
-    {
       "id": "fen-takes-grey-heron",
       "kind": "story",
+      "chronicle_summary": "A lone passenger stepped from the Grey Heron with one small bag, a folded tally corner, and a westbound return chit.",
+      "chronicle_location_id": "drazna_lantern_quays",
       "participants": ["fen-alder", "jory-rusk"],
       "window": {"opens_day": 4, "closes_day": 14, "cooldown_minutes": 0, "max_firings": 1},
       "conditions": [
@@ -455,12 +421,12 @@
           "kind": "set_direction",
           "npc_id": "fen-alder",
           "location_id": "drazna_birch_heights",
-          "reason": "Fen wants to compare his impossible count against Drazna's oldest surviving road rolls."
+          "reason": "Fen compares his impossible count against Drazna's oldest road rolls before returning to the tollhouse with a copied sequence."
         },
         {
           "kind": "remember",
           "npc_id": "jory-rusk",
-          "summary": "Fen boarded with one small bag and kept a folded tally inside his coat.",
+          "summary": "Fen boarded with one small bag, kept a folded tally inside his coat, and paid for a westbound return mark.",
           "importance": 7,
           "tags": ["person", "departure", "carriage"]
         }
@@ -482,7 +448,7 @@
       "aftermath_clues": [
         {
           "location_id": "oakrun_old_tollhouse",
-          "description": "A Grey Heron fare coin lies beneath Fen's chair although he never boarded.",
+          "description": "A Grey Heron fare coin lies beneath an unused tollhouse chair.",
           "discoverable_for_days": 30
         },
         {
@@ -495,10 +461,12 @@
     {
       "id": "wren-leaves-for-drazna",
       "kind": "story",
+      "chronicle_summary": "Two passengers stepped from the Grey Heron with one shared bag and no forwarding mark.",
+      "chronicle_location_id": "drazna_lantern_quays",
       "participants": ["wren-no-house", "edda-marr", "jory-rusk"],
       "window": {"opens_day": 6, "closes_day": 21, "cooldown_minutes": 0, "max_firings": 1},
       "conditions": [
-        {"kind": "co_located", "npc_ids": ["wren-no-house", "edda-marr", "jory-rusk"]},
+        {"kind": "co_located", "npc_ids": ["wren-no-house", "edda-marr"]},
         {"kind": "carriage_arrives", "carriage_id": "grey-heron", "location_id": "oakrun_pilgrims_hollow"},
         {"kind": "believes", "npc_id": "wren-no-house", "rumor_id": "rot-speaks-in-dreams", "minimum_confidence": 80}
       ],
@@ -526,16 +494,18 @@
       "conversation": null,
       "missed_consequences": [
         {
-          "kind": "set_direction",
+          "kind": "remember",
           "npc_id": "edda-marr",
-          "location_id": "hollowmere_post",
-          "reason": "Edda leaves on foot when the final affordable Grey Heron departure passes."
+          "summary": "The final affordable Grey Heron departure passed before Wren was ready, and Edda chose not to abandon them at the hitching post.",
+          "importance": 8,
+          "tags": ["person", "promise", "departure", "carriage"]
         },
         {
-          "kind": "set_direction",
+          "kind": "remember",
           "npc_id": "wren-no-house",
-          "location_id": "oakrun_fieldsite_verge",
-          "reason": "Without Edda's departure, Wren follows the nearer remembered machinery instead of the eastern road."
+          "summary": "Wren let the eastbound coach pass and kept the nearer fieldsite sketch, unsure whether either remembered place was truly theirs.",
+          "importance": 8,
+          "tags": ["person", "departure", "road", "carriage"]
         },
         {
           "kind": "relationship_shift",
@@ -548,12 +518,12 @@
       "aftermath_clues": [
         {
           "location_id": "oakrun_pilgrims_hollow",
-          "description": "Edda's sleeping place is swept clean; one half of her route map remains tucked beneath Wren's blanket.",
+          "description": "A packed route-reader's bag remains beneath one sleeping place; half a road map is tucked under the neighboring blanket.",
           "discoverable_for_days": 45
         },
         {
-          "location_id": "oakrun_fieldsite_verge",
-          "description": "Wren's careful footprints stop where the old apparatus begins.",
+          "location_id": "oakrun_pilgrims_hollow",
+          "description": "A careful fieldsite sketch is folded beside an unused eastbound fare chit.",
           "discoverable_for_days": 15
         }
       ]
@@ -561,6 +531,8 @@
     {
       "id": "vasko-low-water-return",
       "kind": "story",
+      "chronicle_summary": "Fresh doubled salvage knots climb from Undertide toward a crimson signal above the quay.",
+      "chronicle_location_id": "drazna_undertide",
       "participants": ["vasko-mirek", "pava-mirek", "vesna-korr"],
       "window": {"opens_day": 2, "closes_day": 7, "cooldown_minutes": 0, "max_firings": 1},
       "conditions": [
@@ -606,7 +578,7 @@
       "aftermath_clues": [
         {
           "location_id": "drazna_lantern_quays",
-          "description": "Pava keeps an unlit crimson wrist strip tied to the salvage crane.",
+          "description": "An unlit crimson wrist strip remains tied to the salvage crane.",
           "discoverable_for_days": 90
         },
         {
@@ -619,6 +591,8 @@
     {
       "id": "lina-carries-names-uphill",
       "kind": "story",
+      "chronicle_summary": "Another canvas-bound bundle of refugee names and return addresses rests beside the public flood rolls.",
+      "chronicle_location_id": "drazna_high_crown",
       "participants": ["lina-pell", "nera-bell"],
       "window": {"opens_day": 0, "closes_day": null, "cooldown_minutes": 4320, "max_firings": 100},
       "conditions": [
@@ -648,6 +622,8 @@
     {
       "id": "matthieu-turns-from-zealots",
       "kind": "story",
+      "chronicle_summary": "The Bell and Reed's wheel tracks turn back before the armed inspection while one set of bootprints continues west.",
+      "chronicle_location_id": "orison_fields",
       "participants": ["matthieu-orne", "sabine-vauclair"],
       "window": {"opens_day": 3, "closes_day": 10, "cooldown_minutes": 0, "max_firings": 1},
       "conditions": [
@@ -708,6 +684,8 @@
     {
       "id": "mara-ilya-sluice-choice",
       "kind": "story",
+      "chronicle_summary": "A second river-key is signed out beside an unanswered inspection request for the lower sluice.",
+      "chronicle_location_id": "drazna_crown_sluice",
       "participants": ["mara-vey", "ilya-sorn"],
       "window": {"opens_day": 3, "closes_day": 12, "cooldown_minutes": 0, "max_firings": 1},
       "conditions": [
@@ -756,7 +734,7 @@
       "aftermath_clues": [
         {
           "location_id": "drazna_crown_sluice",
-          "description": "Ilya's junior river-key hangs beside an unanswered inspection request.",
+          "description": "A junior river-key hangs beside an unanswered inspection request.",
           "discoverable_for_days": 40
         }
       ]
@@ -800,6 +778,8 @@
     {
       "id": "mudwheel-names-at-ember",
       "kind": "story",
+      "chronicle_summary": "A fresh Mudwheel bundle behind the inn counter is indexed by return address instead of fare.",
+      "chronicle_location_id": "drazna_eel_and_ember",
       "participants": ["drina-sable", "lina-pell"],
       "window": {"opens_day": 0, "closes_day": null, "cooldown_minutes": 4320, "max_firings": 100},
       "conditions": [
@@ -829,6 +809,8 @@
     {
       "id": "teo-sells-low-lantern-list",
       "kind": "story",
+      "chronicle_summary": "A Crown receipt pays for four passenger names; the arrest copy returned with seven circled.",
+      "chronicle_location_id": "drazna_reed_market",
       "participants": ["teo-latch", "drina-sable", "rada-velic"],
       "window": {"opens_day": 1, "closes_day": 3, "cooldown_minutes": 0, "max_firings": 1},
       "conditions": [
@@ -885,18 +867,18 @@
         {
           "kind": "leave_evidence",
           "location_id": "drazna_low_lantern_den",
-          "description": "An unsold passenger list lies under Teo's false manifest, its four selected names never circled."
+          "description": "An unsold passenger list lies under a false manifest, its four selected names never circled."
         }
       ],
       "aftermath_clues": [
         {
           "location_id": "drazna_reed_market",
-          "description": "A crown receipt in Teo's stall pays for four names while a later arrest copy circles seven.",
+          "description": "An unsigned crown receipt offers payment for four names; the broker's side of the paper remains blank.",
           "discoverable_for_days": 40
         },
         {
           "location_id": "drazna_low_lantern_den",
-          "description": "Three wicks burn beneath a wall scratched with the words FOUR SOLD, SEVEN TAKEN.",
+          "description": "Four selected names are scored into candle wax, then crossed through before any arrest marks were added.",
           "discoverable_for_days": 18
         }
       ]
@@ -947,6 +929,8 @@
     {
       "id": "sima-bridge-injury",
       "kind": "story",
+      "chronicle_summary": "A blood-marked roofwright sling hangs beside the doubled brace that now holds a Walking Ward span.",
+      "chronicle_location_id": "drazna_walking_ward",
       "participants": ["sima-dren"],
       "window": {"opens_day": 2, "closes_day": 4, "cooldown_minutes": 0, "max_firings": 1},
       "conditions": [
@@ -958,7 +942,7 @@
           "kind": "wound_npc",
           "npc_id": "sima-dren",
           "damage": 12,
-          "summary": "A moving bridge brace snapped across Sima's ribs while she held the span for a trapped household."
+          "summary": "A moving bridge brace snapped across a roofwright's ribs while the span held for a trapped household."
         },
         {
           "kind": "set_fact",
@@ -995,7 +979,7 @@
       "aftermath_clues": [
         {
           "location_id": "drazna_walking_ward",
-          "description": "A blood-marked roofwright sling hangs beside a newly doubled bridge brace.",
+          "description": "An unused roofwright sling hangs beside the newly doubled brace that kept the old span from failing.",
           "discoverable_for_days": 25
         }
       ]
@@ -1003,6 +987,8 @@
     {
       "id": "sima-joins-undertide-descent",
       "kind": "story",
+      "chronicle_summary": "Blue roof-thread now knots a Crown pressure key to an Undertide line.",
+      "chronicle_location_id": "drazna_crown_sluice",
       "participants": ["sima-dren", "rada-velic"],
       "window": {"opens_day": 2, "closes_day": 6, "cooldown_minutes": 0, "max_firings": 1},
       "conditions": [
@@ -1050,7 +1036,7 @@
       "aftermath_clues": [
         {
           "location_id": "drazna_crown_sluice",
-          "description": "A junior pressure key is missing from Rada's board; its hook carries Sima's blue roof-thread.",
+          "description": "A junior pressure key remains on the floodwarden board; blue roof-thread is tied around the untouched hook.",
           "discoverable_for_days": 20
         }
       ]
@@ -1058,6 +1044,8 @@
     {
       "id": "luka-confronts-teo",
       "kind": "story",
+      "chronicle_summary": "A copied passenger list now bears seven arrest marks against five uncounted bunks.",
+      "chronicle_location_id": "drazna_undertide",
       "participants": ["luka-nen", "teo-latch"],
       "window": {"opens_day": 2, "closes_day": 5, "cooldown_minutes": 0, "max_firings": 1},
       "conditions": [
@@ -1110,7 +1098,7 @@
       "aftermath_clues": [
         {
           "location_id": "drazna_undertide",
-          "description": "Wet footprints from a market shoe end beside Luka's copied list and turn back uphill alone.",
+          "description": "A copied passenger list lies beside a survivor bunk without the expected wet market-shoe prints.",
           "discoverable_for_days": 15
         }
       ]
@@ -1118,6 +1106,8 @@
     {
       "id": "luka-testifies-names",
       "kind": "story",
+      "chronicle_summary": "A copied closure roll is gone from its oilskin sleeve; fourteen thumb-smudged name lines remain on the backing sheet.",
+      "chronicle_location_id": "drazna_house_of_names",
       "participants": ["luka-nen", "nera-bell"],
       "window": {"opens_day": 3, "closes_day": 7, "cooldown_minutes": 0, "max_firings": 1},
       "conditions": [
@@ -1152,6 +1142,11 @@
           "goal_id": "restore-uncounted-names",
           "status": "active",
           "reason": "Luka's testimony supplies the missing closure-crew sequence."
+        },
+        {
+          "kind": "leave_evidence",
+          "location_id": "drazna_house_of_names",
+          "description": "Freshly cut numerals count to fourteen beneath a public tablet that still stops at nine."
         }
       ],
       "conversation": null,
@@ -1174,7 +1169,7 @@
       "aftermath_clues": [
         {
           "location_id": "drazna_house_of_names",
-          "description": "Freshly cut numerals count to fourteen beneath a public tablet that still stops at nine.",
+          "description": "The supplemental tablet ends at nine; five ruled spaces beneath it remain uncut.",
           "discoverable_for_days": 90
         }
       ]
@@ -1182,6 +1177,8 @@
     {
       "id": "undertide-expedition-launch",
       "kind": "story",
+      "chronicle_summary": "Four expedition bundles are gone from Walking Ward; colored wrist-strip ends remain tied to empty line hooks.",
+      "chronicle_location_id": "drazna_walking_ward",
       "participants": ["pava-mirek", "vasko-mirek", "vesna-korr", "luka-nen"],
       "window": {"opens_day": 3, "closes_day": 6, "cooldown_minutes": 0, "max_firings": 1},
       "conditions": [
@@ -1223,6 +1220,11 @@
           "goal_id": "rescue-dry-dock",
           "status": "active",
           "reason": "The expedition can finally reach the answering knocks beyond the survivor bunks."
+        },
+        {
+          "kind": "leave_evidence",
+          "location_id": "drazna_undertide",
+          "description": "Four colored wrist strips and a newly tensioned salvage rope mark a descent toward the dry dock."
         }
       ],
       "conversation": null,
@@ -1237,7 +1239,7 @@
           "kind": "wound_npc",
           "npc_id": "luka-nen",
           "damage": 12,
-          "summary": "Luka attempted the closing dry-dock route alone and returned with a crushed leg and blackwater burns."
+          "summary": "A lone diver returned from the closing dry-dock route with a crushed leg and blackwater burns."
         },
         {
           "kind": "set_fact",
@@ -1276,6 +1278,8 @@
     {
       "id": "vasko-returns-with-ledger",
       "kind": "story",
+      "chronicle_summary": "A water-warped closure ledger has reached Mud Crown, its payroll scored to fourteen.",
+      "chronicle_location_id": "drazna_mud_crown",
       "participants": ["vasko-mirek", "olek-var", "luka-nen"],
       "window": {"opens_day": 5, "closes_day": 9, "cooldown_minutes": 0, "max_firings": 1},
       "conditions": [
@@ -1296,6 +1300,12 @@
           "npc_id": "vasko-mirek",
           "location_id": "drazna_mud_crown",
           "reason": "Vasko returns by salvage skiff with the closure payroll wrapped beneath his shirt."
+        },
+        {
+          "kind": "relocate_npc",
+          "npc_id": "olek-var",
+          "location_id": "drazna_mud_crown",
+          "reason": "Olek comes down to inspect Vasko's skiff and make his first offer for the ledger."
         },
         {
           "kind": "set_goal_status",
@@ -1325,7 +1335,7 @@
           "kind": "wound_npc",
           "npc_id": "vasko-mirek",
           "damage": 16,
-          "summary": "Vasko surfaced alone after losing the payroll satchel and two fingers to the closing chain."
+          "summary": "A lone diver surfaced after losing the payroll satchel and two fingers to the closing chain."
         },
         {
           "kind": "set_fact",
@@ -1345,7 +1355,7 @@
       "aftermath_clues": [
         {
           "location_id": "drazna_mud_crown",
-          "description": "Vasko's salvage skiff rests high on the mud with fourteen payroll notches cut into its gunwale.",
+          "description": "A salvage skiff rests high on the mud with fourteen payroll notches cut into its gunwale.",
           "discoverable_for_days": 45
         },
         {
@@ -1356,8 +1366,46 @@
       ]
     },
     {
+      "id": "olek-vasko-ledger-return",
+      "kind": "conversation",
+      "participants": ["olek-var", "vasko-mirek"],
+      "window": {"opens_day": 5, "closes_day": null, "cooldown_minutes": 10080, "max_firings": 4},
+      "conditions": [
+        {"kind": "co_located", "npc_ids": ["olek-var", "vasko-mirek"]},
+        {"kind": "trigger_fired", "trigger_id": "vasko-returns-with-ledger"}
+      ],
+      "effects": [
+        {
+          "kind": "share_rumor",
+          "speaker_npc_id": "vasko-mirek",
+          "listener_npc_id": "olek-var",
+          "rumor_id": "drazna-crown-drowned-ward"
+        },
+        {
+          "kind": "relationship_shift",
+          "from_npc_id": "vasko-mirek",
+          "to_npc_id": "olek-var",
+          "axis": "trust",
+          "delta": -4
+        }
+      ],
+      "conversation": {
+        "opening_speaker_npc_id": "vasko-mirek",
+        "opening_line": "You sold the dive as salvage. The ledger says those rooms were sealed with families inside.",
+        "mode": "continuous",
+        "max_turns": 8,
+        "topics": ["flood", "missing_people", "family"],
+        "stop_when": ["danger", "separated", "speaker_refuses", "topic_exhausted"],
+        "followup_trigger_ids": []
+      },
+      "missed_consequences": [],
+      "aftermath_clues": []
+    },
+    {
       "id": "nera-tablet-theft",
       "kind": "story",
+      "chronicle_summary": "A comparison tablet is gone from its salt outline; a paper rubbing remains behind the public flood map.",
+      "chronicle_location_id": "drazna_tablet_vault",
       "participants": ["nera-bell", "teo-latch"],
       "window": {"opens_day": 4, "closes_day": 8, "cooldown_minutes": 0, "max_firings": 1},
       "conditions": [
@@ -1415,12 +1463,12 @@
       "aftermath_clues": [
         {
           "location_id": "drazna_tablet_vault",
-          "description": "A tablet-shaped absence in the salt dust is bordered by fibers from a Reed Market wrapping cloth.",
+          "description": "The comparison tablet rests inside a fresh salt ring; a Reed Market wrapping fiber is caught outside the unbroken seal.",
           "discoverable_for_days": 35
         },
         {
           "location_id": "drazna_house_of_names",
-          "description": "Nera's paper rubbing preserves the omitted names in reverse, hidden behind a public flood map.",
+          "description": "A paper rubbing preserves the omitted names in reverse, hidden behind a public flood map.",
           "discoverable_for_days": 120
         }
       ]
@@ -1428,6 +1476,8 @@
     {
       "id": "mara-alin-hearing-outcome",
       "kind": "story",
+      "chronicle_summary": "Fourteen witness stools face a Crown table still set with only nine name cards.",
+      "chronicle_location_id": "drazna_palace_still_water",
       "participants": ["mara-vey", "alin-vey", "nera-bell", "rada-velic"],
       "window": {"opens_day": 6, "closes_day": 11, "cooldown_minutes": 0, "max_firings": 1},
       "conditions": [
@@ -1477,7 +1527,7 @@
           "kind": "wound_npc",
           "npc_id": "alin-vey",
           "damage": 8,
-          "summary": "Palace guards broke Alin's writing hand while clearing the unlicensed hearing."
+          "summary": "Palace guards broke a scribe's writing hand while clearing the unlicensed hearing."
         },
         {
           "kind": "set_fact",
@@ -1509,7 +1559,7 @@
         },
         {
           "location_id": "drazna_birch_stair",
-          "description": "Alin's hearing text is pasted to the memorial arch in strips narrow enough to evade a single clean tear.",
+          "description": "The hearing text is pasted to the memorial arch in strips narrow enough to evade a single clean tear.",
           "discoverable_for_days": 25
         }
       ]
@@ -1517,6 +1567,8 @@
     {
       "id": "gate-seven-climax",
       "kind": "story",
+      "chronicle_summary": "Gate Seven's chain is drawn tight against its emergency pawl while the pressure needle climbs.",
+      "chronicle_location_id": "drazna_gate_seven",
       "participants": ["odran-third-bell", "rada-velic", "vasko-mirek", "sima-dren"],
       "window": {"opens_day": 7, "closes_day": null, "cooldown_minutes": 0, "max_firings": 1},
       "conditions": [
@@ -1567,6 +1619,8 @@
     {
       "id": "gate-seven-unanswered-flood",
       "kind": "story",
+      "chronicle_summary": "Fourteen dents ring the gate drum; five hold memorial wax, and the pressure needle is pinned red.",
+      "chronicle_location_id": "drazna_gate_seven",
       "participants": ["odran-third-bell", "rada-velic"],
       "window": {"opens_day": 13, "closes_day": null, "cooldown_minutes": 0, "max_firings": 1},
       "conditions": [
@@ -1577,10 +1631,17 @@
       ],
       "effects": [
         {
+          "kind": "claim_fact",
+          "fact_key": "drazna.gate_seven_resolution",
+          "subject_id": "drazna-gate-seven-reckoning",
+          "predicate": "outcome",
+          "value": {"state": "flooded", "gate": "jammed", "names_spoken": 9}
+        },
+        {
           "kind": "wound_npc",
           "npc_id": "rada-velic",
           "damage": 20,
-          "summary": "Gate Seven reversed under full pressure and drove its chain through Rada's shoulder."
+          "summary": "Gate Seven reversed under full pressure and drove its chain through the floodwarden's shoulder."
         },
         {
           "kind": "set_fact",
@@ -1619,6 +1680,8 @@
     {
       "id": "odran-cadence-pacified",
       "kind": "story",
+      "chronicle_summary": "Fourteen fresh answering marks cross the gate wax as the emergency pawl returns to its vented notch.",
+      "chronicle_location_id": "drazna_gate_seven",
       "participants": ["odran-third-bell", "rada-velic", "luka-nen"],
       "window": {"opens_day": 8, "closes_day": null, "cooldown_minutes": 0, "max_firings": 1},
       "conditions": [
@@ -1630,16 +1693,16 @@
       ],
       "effects": [
         {
+          "kind": "claim_fact",
+          "fact_key": "drazna.gate_seven_resolution",
+          "subject_id": "drazna-gate-seven-reckoning",
+          "predicate": "outcome",
+          "value": {"state": "pacified", "gate": "vented", "names_spoken": 14}
+        },
+        {
           "kind": "set_disposition",
           "npc_id": "odran-third-bell",
           "disposition": "neutral"
-        },
-        {
-          "kind": "set_fact",
-          "fact_key": "drazna.gate_seven_resolution",
-          "subject_id": "odran-third-bell",
-          "predicate": "gate_outcome",
-          "value": {"state": "pacified", "gate": "vented", "names_spoken": 14}
         },
         {
           "kind": "set_goal_status",
@@ -1663,6 +1726,8 @@
     {
       "id": "gate-seven-pacified-aftermath",
       "kind": "story",
+      "chronicle_summary": "The pressure needle has fallen below red while fourteen answered names remain cut in the gate wax.",
+      "chronicle_location_id": "drazna_gate_seven",
       "participants": ["odran-third-bell", "rada-velic", "sima-dren"],
       "window": {"opens_day": 0, "closes_day": null, "cooldown_minutes": 0, "max_firings": 1},
       "conditions": [
@@ -1705,6 +1770,8 @@
     {
       "id": "gate-seven-cadence-expired",
       "kind": "story",
+      "chronicle_summary": "Only nine of fourteen names carry answering chain marks; the vent wheel lies torn from its socket.",
+      "chronicle_location_id": "drazna_gate_seven",
       "participants": ["odran-third-bell", "rada-velic"],
       "window": {"opens_day": 15, "closes_day": null, "cooldown_minutes": 0, "max_firings": 1},
       "conditions": [
@@ -1715,6 +1782,13 @@
       ],
       "effects": [
         {
+          "kind": "claim_fact",
+          "fact_key": "drazna.gate_seven_resolution",
+          "subject_id": "drazna-gate-seven-reckoning",
+          "predicate": "outcome",
+          "value": {"state": "flooded", "gate": "jammed", "names_spoken": 9}
+        },
+        {
           "kind": "set_disposition",
           "npc_id": "odran-third-bell",
           "disposition": "hostile"
@@ -1723,7 +1797,7 @@
           "kind": "wound_npc",
           "npc_id": "rada-velic",
           "damage": 14,
-          "summary": "Odran tore the vent wheel free after the fourteen-name cadence went unanswered."
+          "summary": "The vent wheel was torn free after the fourteen-name cadence went unanswered."
         },
         {
           "kind": "set_fact",
@@ -1759,18 +1833,21 @@
     {
       "id": "odran-falls-gate-held",
       "kind": "story",
+      "chronicle_summary": "A body holds the chain in its emergency notch while the lower pressure remains unresolved.",
+      "chronicle_location_id": "drazna_gate_seven",
       "participants": ["odran-third-bell", "rada-velic"],
       "window": {"opens_day": 0, "closes_day": null, "cooldown_minutes": 0, "max_firings": 1},
       "conditions": [
         {"kind": "npc_alive", "npc_id": "odran-third-bell", "value": false},
-        {"kind": "fact_absent", "fact_key": "drazna.gate_seven_resolution"}
+        {"kind": "fact_absent", "fact_key": "drazna.gate_seven_resolution"},
+        {"kind": "fact_not_equals", "fact_key": "drazna.gate_seven_climax", "value": {"state": "flooded", "gate": "jammed", "cadence_known": true}}
       ],
       "effects": [
         {
-          "kind": "set_fact",
+          "kind": "claim_fact",
           "fact_key": "drazna.gate_seven_resolution",
-          "subject_id": "odran-third-bell",
-          "predicate": "gate_outcome",
+          "subject_id": "drazna-gate-seven-reckoning",
+          "predicate": "outcome",
           "value": {"state": "odran-killed", "gate": "held-by-chain", "names_spoken": 0}
         }
       ],
@@ -1781,6 +1858,8 @@
     {
       "id": "gate-seven-killed-aftermath",
       "kind": "story",
+      "chronicle_summary": "The chain remains fixed around a body, with the pressure needle still above safe.",
+      "chronicle_location_id": "drazna_gate_seven",
       "participants": ["odran-third-bell", "rada-velic"],
       "window": {"opens_day": 0, "closes_day": null, "cooldown_minutes": 0, "max_firings": 1},
       "conditions": [
@@ -1823,6 +1902,8 @@
     {
       "id": "gate-seven-contained-aftermath",
       "kind": "story",
+      "chronicle_summary": "A roofwright counterbrace now carries Gate Seven's load; the memorial wax remains unanswered.",
+      "chronicle_location_id": "drazna_gate_seven",
       "participants": ["odran-third-bell", "rada-velic", "sima-dren"],
       "window": {"opens_day": 0, "closes_day": null, "cooldown_minutes": 0, "max_firings": 1},
       "conditions": [
@@ -1865,10 +1946,12 @@
     {
       "id": "gate-seven-flood-aftermath",
       "kind": "story",
+      "chronicle_summary": "Gate Seven's chain shudders under a pressure surge while warning bells answer from Walking Ward.",
+      "chronicle_location_id": "drazna_gate_seven",
       "participants": ["odran-third-bell", "rada-velic", "sima-dren"],
       "window": {"opens_day": 13, "closes_day": null, "cooldown_minutes": 0, "max_firings": 1},
       "conditions": [
-        {"kind": "fact_absent", "fact_key": "drazna.gate_seven_resolution"},
+        {"kind": "fact_equals", "fact_key": "drazna.gate_seven_resolution", "value": {"state": "flooded", "gate": "jammed", "names_spoken": 9}},
         {"kind": "fact_equals", "fact_key": "drazna.gate_seven_climax", "value": {"state": "flooded", "gate": "jammed", "cadence_known": true}},
         {"kind": "npc_alive", "npc_id": "sima-dren", "value": true}
       ],
@@ -1877,7 +1960,7 @@
           "kind": "wound_npc",
           "npc_id": "sima-dren",
           "damage": 10,
-          "summary": "The Walking Ward shifted during Gate Seven's pressure surge and threw Sima from a roof bridge."
+          "summary": "The Walking Ward shifted during Gate Seven's pressure surge and threw a roofwright from a bridge."
         },
         {
           "kind": "set_fact",
@@ -1906,6 +1989,8 @@
     {
       "id": "luka-dry-dock-last-window",
       "kind": "story",
+      "chronicle_summary": "Three deliberate knots end a diver's rope beside a dry-dock wall that no longer answers.",
+      "chronicle_location_id": "drazna_dry_dock",
       "participants": ["luka-nen", "vesna-korr"],
       "window": {"opens_day": 7, "closes_day": null, "cooldown_minutes": 0, "max_firings": 1},
       "conditions": [
@@ -1918,7 +2003,7 @@
         {
           "kind": "kill_npc",
           "npc_id": "luka-nen",
-          "summary": "Luka died in the dry dock after returning alone for the unanswered knocks."
+          "summary": "A lone diver died in the dry dock after returning for the unanswered knocks."
         },
         {
           "kind": "set_fact",
@@ -1954,6 +2039,8 @@
     {
       "id": "luka-dry-dock-survives-window",
       "kind": "story",
+      "chronicle_summary": "A splinted leg-rest and three days of ration-bark scores mark the dry-dock shelter.",
+      "chronicle_location_id": "drazna_dry_dock",
       "participants": ["luka-nen", "vesna-korr"],
       "window": {"opens_day": 10, "closes_day": null, "cooldown_minutes": 0, "max_firings": 1},
       "conditions": [

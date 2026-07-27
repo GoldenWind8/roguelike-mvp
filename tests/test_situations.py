@@ -1,6 +1,7 @@
 import asyncio
 from types import SimpleNamespace
 
+import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
@@ -22,6 +23,7 @@ from backend.models import (
     PlayerKnowledge,
     PlayerRow,
     Room,
+    ScheduledWorldEvent,
     WorldEvent,
     WorldFact,
 )
@@ -104,6 +106,82 @@ async def test_gate_seven_choices_are_revealed_only_by_personal_evidence(session
     # The client is never sent the hidden alternative or missing clue ids.
     assert "brace-the-counterpressure" not in str(learned)
     assert "counterpressure-scale" not in str(learned)
+
+
+async def test_gate_situation_cannot_use_an_in_transit_actors_stale_room(
+    session,
+):
+    gate, player = await _gate_player(session)
+    definition = get_situation("drazna-gate-seven-reckoning")
+    assert definition is not None
+    odran = (await session.execute(
+        select(NPCRow).where(NPCRow.content_id == definition.actor_id)
+    )).scalar_one()
+    destination = (await session.execute(
+        select(Room).where(
+            Room.content_id == "drazna_pressure_gallery"
+        )
+    )).scalar_one()
+    for minute, object_type in enumerate(
+        (
+            "drazna_sluice_tools",
+            "drazna_listening_pipe",
+            "drazna_omitted_tablets",
+        ),
+        start=100,
+    ):
+        await _discover(session, player, gate, object_type, minute)
+    pending = ScheduledWorldEvent(
+        dedupe_key="journey:test-odran-hidden-from-situation",
+        kind="npc_arrive_room",
+        due_minute=200,
+        priority=10,
+        status="pending",
+        actor_id=odran.content_id,
+        room_id=gate.id,
+        payload={
+            "route_room_ids": [gate.id, destination.id],
+            "step_index": 1,
+            "from_room_id": gate.id,
+            "to_room_id": destination.id,
+            "final_room_id": destination.id,
+        },
+    )
+    session.add(pending)
+    await session.commit()
+
+    with pytest.raises(
+        situation_store.SituationError,
+        match="can no longer be found",
+    ):
+        await situation_view(
+            session,
+            definition=definition,
+            player_id=player.id,
+        )
+    with pytest.raises(
+        situation_store.SituationError,
+        match="moment for that answer has passed",
+    ):
+        await resolve_situation_choice(
+            session,
+            definition=definition,
+            choice_id="answer-the-fourteenth",
+            player_id=player.id,
+            room_id=gate.id,
+            world_minute=150,
+        )
+
+    pending.status = "cancelled"
+    await session.commit()
+    visible = await situation_view(
+        session,
+        definition=definition,
+        player_id=player.id,
+    )
+    assert [choice["id"] for choice in visible["choices"]] == [
+        "answer-the-fourteenth"
+    ]
 
 
 async def test_gate_seven_resolution_is_exclusive_and_updates_the_living_actor(

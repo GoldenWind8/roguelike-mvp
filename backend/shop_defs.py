@@ -16,6 +16,8 @@ class ShopDefinition:
     label: str
     stock_size: int
     rarity_weights: dict[str, int]
+    room_content_id: str | None = None
+    buys_items: bool = False
 
 
 def _definition(entry: dict) -> ShopDefinition:
@@ -36,12 +38,30 @@ def _definition(entry: dict) -> ShopDefinition:
         raise RuntimeError(f"shop {entry.get('id')!r} needs an object_id")
     if not isinstance(label, str) or not label.strip():
         raise RuntimeError(f"shop {entry.get('id')!r} needs a label")
+    room_content_id = entry.get("room_content_id")
+    if room_content_id is not None and (
+        not isinstance(room_content_id, str) or not room_content_id.strip()
+    ):
+        raise RuntimeError(
+            f"shop {entry.get('id')!r} has invalid room_content_id"
+        )
+    buys_items = entry.get("buys_items", False)
+    if not isinstance(buys_items, bool):
+        raise RuntimeError(
+            f"shop {entry.get('id')!r} has invalid buys_items policy"
+        )
     return ShopDefinition(
         id=entry["id"],
         object_id=object_id,
         label=label.strip(),
         stock_size=stock_size,
         rarity_weights=dict(weights),
+        room_content_id=(
+            room_content_id.strip()
+            if isinstance(room_content_id, str)
+            else None
+        ),
+        buys_items=buys_items,
     )
 
 
@@ -60,4 +80,3 @@ def get_shop(shop_id: str) -> ShopDefinition | None:
 
 def get_shop_for_object(object_id: str) -> ShopDefinition | None:
     return _BY_OBJECT.get(object_id)
-

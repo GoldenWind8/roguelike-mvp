@@ -8,7 +8,7 @@
     "#...............#",
     "#...............#",
     "#...............#",
-    "#..###.....###..#",
+    "#..##......###..#",
     "#...............#",
     "+...............#",
     "#...............#",
@@ -21,7 +21,7 @@
   "spawn_points": [[1, 5], [1, 6], [1, 7], [2, 6]],
   "enemy_spawns": [],
   "objects": [
-    {"id": "drazna_sluice_gatehouse", "type": "crown_sluice_gatehouse", "x": 5, "y": 2},
+    {"id": "drazna_sluice_gatehouse", "type": "crown_sluice_gatehouse", "x": 5, "y": 3},
     {"id": "drazna_sluice_wheel", "type": "sluice_control_wheel", "x": 3, "y": 7},
     {"id": "drazna_sluice_tools", "type": "drazna_sluice_tools", "x": 10, "y": 7},
     {"id": "drazna_sluice_gauge", "type": "drazna_pressure_gauge", "x": 8, "y": 10},

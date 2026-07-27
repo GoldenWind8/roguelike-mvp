@@ -12,6 +12,7 @@ from backend.models import (
     NPCRow,
     PlayerRow,
     Room,
+    ScheduledWorldEvent,
     WorldEvent,
     WorldState,
 )
@@ -102,6 +103,87 @@ async def test_present_person_with_travel_goal_is_not_described_as_out_of_sight(
         "kind": "travelling",
         "label": "Preparing to travel",
     }
+
+
+async def test_world_sync_never_observes_a_durable_row_while_npc_is_in_transit(
+    session,
+):
+    room, player, basil = await _player_and_basil(session)
+    destination = (await session.execute(
+        select(Room).where(Room.id != room.id).order_by(Room.id)
+    )).scalars().first()
+    assert destination is not None
+    first = await world_sync(
+        session,
+        player_id=player.id,
+        current_room_id=room.id,
+    )
+    assert sum(
+        person["world_id"] == basil.content_id
+        and person["availability"] == "present"
+        for person in first["known_people"]
+    ) == 1
+
+    journey = ScheduledWorldEvent(
+        dedupe_key="journey:test-basil-hidden-from-player-knowledge",
+        kind="npc_arrive_room",
+        due_minute=100,
+        priority=10,
+        status="pending",
+        actor_id=basil.content_id,
+        room_id=room.id,
+        payload={
+            "route_room_ids": [room.id, destination.id],
+            "step_index": 1,
+            "from_room_id": room.id,
+            "to_room_id": destination.id,
+            "final_room_id": destination.id,
+            "coalesced_schedule": True,
+        },
+    )
+    session.add(journey)
+    await session.commit()
+
+    travelling = await world_sync(
+        session,
+        player_id=player.id,
+        current_room_id=room.id,
+    )
+    [hidden] = [
+        person
+        for person in travelling["known_people"]
+        if person["world_id"] == basil.content_id
+    ]
+    assert hidden["availability"] == "away"
+    assert hidden["activity"] is None
+
+    journey.status = "cancelled"
+    await session.commit()
+    cancelled = await world_sync(
+        session,
+        player_id=player.id,
+        current_room_id=room.id,
+    )
+    assert sum(
+        person["world_id"] == basil.content_id
+        and person["availability"] == "present"
+        for person in cancelled["known_people"]
+    ) == 1
+
+    journey.status = "resolved"
+    basil.room_id = destination.id
+    basil.x, basil.y = 1, 1
+    await session.commit()
+    arrived = await world_sync(
+        session,
+        player_id=player.id,
+        current_room_id=destination.id,
+    )
+    assert sum(
+        person["world_id"] == basil.content_id
+        and person["availability"] == "present"
+        for person in arrived["known_people"]
+    ) == 1
 
 
 async def test_dialogue_creates_memory_relationship_rumor_and_chronicle(session):
@@ -331,7 +413,7 @@ async def test_public_aftermath_requires_presence_not_just_a_known_person(sessio
         WorldEvent(
             kind="local_trace",
             world_minute=20,
-            actor_id="unknown-stranger",
+            actor_id=basil.content_id,
             room_id=room.id,
             summary="Fresh black reeds have been arranged beneath the window.",
             visibility="public_aftermath",

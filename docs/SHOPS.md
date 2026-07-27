@@ -20,6 +20,9 @@ and a typed client interaction without putting shop rules in the room engine.
 - `shop_stock` stores immutable `item_view` snapshots, matching player packs
   and chests.
 - Prices are server-owned rarity bands. The client only displays them.
+- Authored counters may opt into fixed-price buyback with `"buys_items": true`.
+  Teo's Salvage Counter is the first: common, rare, and legendary finds sell
+  for 4, 12, and 40 coin respectively.
 
 ## Purchase Transaction
 
@@ -43,14 +46,21 @@ inventory item. New and backfilled accounts start with 30 coins. Disconnect
 saves the balance with other character state, while shop purchases write it
 through immediately as part of the transaction.
 
-Coin rewards and selling are deliberately not included yet. They should mutate
-the same balance through focused server services rather than introduce coin
-items into the pack.
+Selling uses the same persistent balance through a focused server service. The
+server revalidates the counter, pack slot, and item id; refuses equipped gear;
+then locks the player row, removes exactly one carried copy, credits coin, and
+commits both changes atomically. A sold item does not enter the shop's shared
+stock.
+
+Buyback values are strictly below the cheapest purchase in each rarity band, so
+buying and immediately reselling can never create coin. Direct enemy or story
+coin rewards remain a future extension.
 
 ## Boundaries
 
 - `shop_defs.py`: validates authored shop policy.
-- `shop_store.py`: daily lifecycle, persistence, pricing, and purchase rules.
+- `shop_store.py`: daily lifecycle, persistence, pricing, purchase, and buyback
+  rules.
 - `main.py`: proximity/authentication, lock discipline, and transport.
 - `loot.py`: remains the one item-generation entry point.
 - `inventory.py`: remains the one pack-capacity and stacking rule source.

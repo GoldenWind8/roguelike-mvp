@@ -140,6 +140,45 @@ def test_all_fifteen_drazna_residents_have_clear_unique_starting_tiles():
     }
 
 
+def test_all_drazna_dialogue_personas_share_one_intertwined_relationship_web():
+    region = load_region("world/drazna/region.json")
+    personas = {
+        persona["id"]: persona
+        for room_id, persona, *_ in (
+            *LIVING_NPC_SEEDS,
+            *SECONDARY_AUTHORED_NPC_SEEDS,
+        )
+        if room_id in region["rooms"]
+    }
+    assert len(personas) == 15
+
+    adjacency = defaultdict(set)
+    directed_edges = set()
+    for npc_id, persona in personas.items():
+        relationships = persona["relationships"]
+        assert relationships, f"{npc_id} has no dialogue relationship context"
+        targets = [relationship["npc_id"] for relationship in relationships]
+        assert len(targets) == len(set(targets))
+        assert npc_id not in targets
+        assert set(targets) <= set(personas)
+        for target_id in targets:
+            directed_edges.add((npc_id, target_id))
+            adjacency[npc_id].add(target_id)
+            adjacency[target_id].add(npc_id)
+
+    assert _reachable(adjacency, "mara-vey") == set(personas)
+    # Family, palace/archive politics, and the Low Lantern information market
+    # must all exist in the same dialogue graph as the simulated consequences.
+    assert {
+        ("mara-vey", "alin-vey"),
+        ("pava-mirek", "vasko-mirek"),
+        ("nera-bell", "luka-nen"),
+        ("olek-var", "teo-latch"),
+        ("vesna-korr", "teo-latch"),
+        ("lina-pell", "drina-sable"),
+    } <= directed_edges
+
+
 def test_drazna_has_dedicated_landmarks_services_and_enemy_ecology():
     region = load_region("world/drazna/region.json")
     buildings = load_catalog("buildings.json")
@@ -166,6 +205,8 @@ def test_drazna_has_dedicated_landmarks_services_and_enemy_ecology():
         "salvage_crane",
         "low_lantern_cache",
         "floodline_memorial",
+        "crown_ledger_plinth",
+        "first_rot_memorial",
     }
     assert landmark_ids <= set(buildings)
     assert art_object_ids <= set(objects)
@@ -183,6 +224,10 @@ def test_drazna_has_dedicated_landmarks_services_and_enemy_ecology():
     assert objects["drazna_black_key_hook"]["discovery"]["key"] == (
         "drazna:odrans-black-key"
     )
+    first_record = objects["first_rot_memorial"]["discovery"]
+    assert first_record["key"] == "drazna:first-public-record"
+    assert "verified public record" in first_record["summary"].lower()
+    assert "unknown beginning" in first_record["summary"].lower()
 
     enemy_ids = {
         spawn["enemy_id"]
@@ -284,13 +329,19 @@ def test_drazna_story_web_has_missable_consequences_and_multiple_gate_outcomes()
         for trigger in (content.triggers[trigger_id],)
         for effect in (*trigger["effects"], *trigger["missed_consequences"])
     ]
-    assert {"wound_npc", "kill_npc", "set_fact", "set_goal_status"} <= {
+    assert {
+        "claim_fact",
+        "wound_npc",
+        "kill_npc",
+        "set_fact",
+        "set_goal_status",
+    } <= {
         effect["kind"] for effect in effects
     }
     resolution_values = {
         effect["value"]["state"]
         for effect in effects
-        if effect["kind"] == "set_fact"
+        if effect["kind"] in {"claim_fact", "set_fact"}
         and effect["fact_key"] == "drazna.gate_seven_resolution"
     }
     resolution_values |= {
@@ -301,14 +352,19 @@ def test_drazna_story_web_has_missable_consequences_and_multiple_gate_outcomes()
         if condition["kind"] == "fact_equals"
         and condition["fact_key"] == "drazna.gate_seven_resolution"
     }
-    assert {"pacified", "contained", "odran-killed"} <= resolution_values
+    assert {
+        "pacified",
+        "contained",
+        "odran-killed",
+        "flooded",
+    } <= resolution_values
     assert "cadence-failed" not in resolution_values
 
     failure_facts = {
         trigger_id: {
             effect["fact_key"]: effect["value"]
             for effect in content.triggers[trigger_id]["effects"]
-            if effect["kind"] == "set_fact"
+            if effect["kind"] in {"claim_fact", "set_fact"}
         }
         for trigger_id in {
             "gate-seven-unanswered-flood",

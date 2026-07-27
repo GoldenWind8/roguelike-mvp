@@ -1540,6 +1540,7 @@ def _validate_condition(
             "fact_absent",
             "fact_equals",
             "fact_exists",
+            "fact_not_equals",
             "npc_alive",
             "npc_at",
             "npc_health_at_most",
@@ -1555,6 +1556,7 @@ def _validate_condition(
         "fact_absent": {"kind", "fact_key"},
         "fact_equals": {"kind", "fact_key", "value"},
         "fact_exists": {"kind", "fact_key"},
+        "fact_not_equals": {"kind", "fact_key", "value"},
         "npc_alive": {"kind", "npc_id", "value"},
         "npc_at": {"kind", "npc_id", "location_id"},
         "npc_health_at_most": {"kind", "npc_id", "hp"},
@@ -1600,9 +1602,17 @@ def _validate_condition(
             choices=DAY_PHASES,
             minimum=1,
         )
-    elif kind in {"fact_absent", "fact_exists", "fact_equals"}:
+    elif kind in {
+        "fact_absent",
+        "fact_exists",
+        "fact_equals",
+        "fact_not_equals",
+    }:
         _string(item["fact_key"], f"{path}.fact_key")
-        if kind == "fact_equals" and not isinstance(item["value"], dict):
+        if (
+            kind in {"fact_equals", "fact_not_equals"}
+            and not isinstance(item["value"], dict)
+        ):
             _fail(f"{path}.value", "must be an object")
     elif kind == "npc_alive":
         npc_id = _identifier(item["npc_id"], f"{path}.npc_id")
@@ -1655,6 +1665,7 @@ def _validate_effect(
         {
             "board_carriage",
             "change_need",
+            "claim_fact",
             "disappear_npc",
             "kill_npc",
             "leave_evidence",
@@ -1672,6 +1683,13 @@ def _validate_effect(
     schemas = {
         "board_carriage": {"kind", "npc_id", "carriage_id", "destination_location_id"},
         "change_need": {"kind", "npc_id", "need", "delta"},
+        "claim_fact": {
+            "kind",
+            "fact_key",
+            "subject_id",
+            "predicate",
+            "value",
+        },
         "disappear_npc": {"kind", "npc_id", "location_id", "reason"},
         "kill_npc": {"kind", "npc_id", "summary"},
         "leave_evidence": {"kind", "location_id", "description"},
@@ -1774,7 +1792,7 @@ def _validate_effect(
         npc_ref("npc_id")
         location_ref("location_id")
         _string(item["reason"], f"{path}.reason")
-    elif kind == "set_fact":
+    elif kind in {"claim_fact", "set_fact"}:
         _string(item["fact_key"], f"{path}.fact_key")
         _string(item["subject_id"], f"{path}.subject_id")
         _string(item["predicate"], f"{path}.predicate")
@@ -1849,9 +1867,45 @@ def _validate_triggers(
                 "missed_consequences",
                 "aftermath_clues",
             },
+            optional={"chronicle_location_id", "chronicle_summary"},
         )
         _identifier(item["id"], f"{path}.id")
         kind = _enum(item["kind"], f"{path}.kind", TRIGGER_KINDS)
+        if "chronicle_summary" in item:
+            if kind != "story":
+                _fail(
+                    f"{path}.chronicle_summary",
+                    "is only supported for story triggers",
+                )
+            summary = _string(
+                item["chronicle_summary"],
+                f"{path}.chronicle_summary",
+            ).strip()
+            if len(summary) < 20:
+                _fail(
+                    f"{path}.chronicle_summary",
+                    "must contain at least 20 characters",
+                )
+            if len(summary) > 240:
+                _fail(
+                    f"{path}.chronicle_summary",
+                    "must contain at most 240 characters",
+                )
+        if "chronicle_location_id" in item:
+            if kind != "story":
+                _fail(
+                    f"{path}.chronicle_location_id",
+                    "is only supported for story triggers",
+                )
+            chronicle_location_id = _identifier(
+                item["chronicle_location_id"],
+                f"{path}.chronicle_location_id",
+            )
+            if chronicle_location_id not in location_ids:
+                _fail(
+                    f"{path}.chronicle_location_id",
+                    f"unknown location {chronicle_location_id!r}",
+                )
         participants = _string_array(
             item["participants"],
             f"{path}.participants",
@@ -1880,7 +1934,7 @@ def _validate_triggers(
             f"{path}.window.cooldown_minutes",
             minimum=0,
         )
-        _integer(
+        max_firings = _integer(
             window["max_firings"],
             f"{path}.window.max_firings",
             minimum=1,
@@ -1905,8 +1959,9 @@ def _validate_triggers(
                 )
 
         effects = _array(item["effects"], f"{path}.effects", minimum=1)
+        effect_kinds = []
         for effect_index, effect in enumerate(effects):
-            _validate_effect(
+            effect_kinds.append(_validate_effect(
                 effect,
                 f"{path}.effects[{effect_index}]",
                 npc_ids=npc_ids,
@@ -1914,7 +1969,23 @@ def _validate_triggers(
                 rumor_ids=rumor_ids,
                 carriage_ids=carriage_ids,
                 npc_goal_ids=npc_goal_ids,
-            )
+            ))
+        if "claim_fact" in effect_kinds:
+            if kind != "story":
+                _fail(
+                    f"{path}.effects",
+                    "claim_fact is only supported for story triggers",
+                )
+            if effect_kinds.count("claim_fact") != 1 or effect_kinds[0] != "claim_fact":
+                _fail(
+                    f"{path}.effects",
+                    "claim_fact must be the single first effect",
+                )
+            if max_firings != 1:
+                _fail(
+                    f"{path}.window.max_firings",
+                    "a claim_fact trigger must fire at most once",
+                )
 
         conversation = item["conversation"]
         if kind == "conversation":
@@ -1980,7 +2051,7 @@ def _validate_triggers(
 
         missed = _array(item["missed_consequences"], f"{path}.missed_consequences")
         for effect_index, effect in enumerate(missed):
-            _validate_effect(
+            missed_kind = _validate_effect(
                 effect,
                 f"{path}.missed_consequences[{effect_index}]",
                 npc_ids=npc_ids,
@@ -1989,6 +2060,11 @@ def _validate_triggers(
                 carriage_ids=carriage_ids,
                 npc_goal_ids=npc_goal_ids,
             )
+            if missed_kind == "claim_fact":
+                _fail(
+                    f"{path}.missed_consequences[{effect_index}]",
+                    "claim_fact cannot be a missed consequence",
+                )
         clues = _array(item["aftermath_clues"], f"{path}.aftermath_clues")
         for clue_index, clue in enumerate(clues):
             clue_path = f"{path}.aftermath_clues[{clue_index}]"

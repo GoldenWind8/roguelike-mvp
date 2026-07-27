@@ -80,6 +80,14 @@ create generic nearest-stop links. The full Mudwheel ride costs three coin,
 takes eighty moving minutes plus one forty-five-minute High Crown layover, and
 preserves the route's guarded/safe danger ratings.
 
+The dangerous Grey Heron connection between Oakrun and Lantern Quays costs
+twenty-four coin. A new traveller can therefore use it from the thirty-coin
+starting purse and arrive with six. Teo's Salvage Counter buys carried common,
+rare, and legendary finds for four, twelve, and forty coin. Five common finds
+therefore leave that first traveller with twenty-six coin, enough for the
+return crossing without making the long road cheap. Those offers remain below
+the minimum same-rarity purchase prices, preventing shop arbitrage.
+
 ## Districts and interiors
 
 | Area | Function and evidence |
@@ -104,6 +112,44 @@ preserves the route's guarded/safe danger ratings.
 | Dry Dock | Survivor bunks, a cut dive rope, a breakable expedition window, and Gate Seven access |
 | Gate Seven | Fourteen-beat chain drum and the persistent regional climax with Odran |
 
+The fifty authored regional exits plus the two reserved Lantern Quays
+gateways all have unobstructed, engine-tested approaches. Fifteen chests are
+spread across civic, hidden, and dangerous rooms, while the three Mudwheel
+landings remain reachable from every entrance in their district. Large
+landmarks are positioned wholly inside the playable grid so their artwork
+does not crop or conceal exits, arrival tiles, residents, or enemies.
+
+The delivery art set now contains forty alpha WebP cutouts. Every room has at
+least one illustrated environmental anchor, all thirty-one initial NPC and
+enemy placements resolve to character art, and fifty-six of the 101 authored
+object placements use full artwork. The Palace's open crown ledger and the
+First Scar's cracked black-glass record memorial have unique focal assets.
+Remaining documentary and architectural clues use specific semantic symbols
+instead of a generic sparkle, so an unillustrated rope, drain, bunk, or
+listening pipe is still readable at a glance.
+
+Regional combat is tuned around a visible equipment step. A fresh, healthy
+traveller can clear every ordinary Drazna approach, but the four bespoke
+flood enemies each take two unarmed strikes. A steel sword can finish any of
+them in one, making found or purchased equipment materially useful before
+Gate Seven. Odran and his two supporting enemies remain substantially more
+dangerous: a healthy unarmed traveller survives deterministic approach audits,
+while an already wounded traveller may not.
+
+Amber Quay Provisions uses Lantern Quays as its loot context. Its daily stock
+can therefore include Smoked Eel & Blackbread and the other Drazna items,
+rather than silently drawing only from the generic world pool. Together with
+the fifteen regional chests, this keeps food in the regional survival economy
+without making hunger irrelevant.
+
+Five early civic locations—Birch Heights, Eel and Ember, House of Names, Reed
+Market, and Walking Ward—each hold at least one chest. Every generated frontier
+room also contains one to four chests, so the salvage loop remains repeatable
+after the authored caches are exhausted. A database-backed 64-seed route audit
+found Drazna in every world: the median discovery took 17 frontier expansions,
+the maximum took 30, and even the least generous path exposed 11 chests before
+the regional gateway.
+
 ## People
 
 Nine established Draznans now begin in their own districts and interiors:
@@ -127,9 +173,17 @@ Each person has three to five daily deliberation windows. Schedule movement,
 work, repair, sleep, patrol, and travel remain deterministic between those
 windows.
 
+All fifteen dialogue personas also carry explicit named relationships. The
+connected web crosses the Vey and Mirek families, Rada and Ilya's mentorship,
+Nera and Luka's archive testimony, Olek's salvage contracts, Lina and Vesna's
+carriage work, and Teo and Drina's Low Lantern information market. These ties
+shape conversation context while durable relationship changes still come from
+witnessed exchanges and authored consequences.
+
 ## Intertwined situations
 
-The chapter adds twenty-two authored triggers. These are world events and
+The chapter now has thirty-one Drazna-centered authored triggers: seven
+scheduled meetings and twenty-four story turns. These are world events and
 private-goal consequences, not tracked player objectives.
 
 | Situation | Possible development |
@@ -156,8 +210,10 @@ Odran is a persistent NPC rather than a disposable enemy spawn. This lets his
 health, hostility, memories, and death survive room reloads and appear in the
 People and Chronicle systems.
 
-The climax has four durable outcome paths. Three write explicit resolution
-facts, while the last records what happens when nobody resolves the pressure:
+The climax has four durable outcome paths. All four compete for one immutable
+resolution fact, so a player answer, Odran's defeat, and an offscreen pressure
+failure cannot split the world even if separate server processes resolve them
+at the same time:
 
 1. Luka speaks all fourteen closure names in the correct cadence; Rada vents
    the gate and Odran becomes neutral.
@@ -173,6 +229,11 @@ facts, while the last records what happens when nobody resolves the pressure:
 
 The unattended failure path cannot overwrite a completed pacified, contained,
 or Odran-killed resolution.
+
+Once a flooded or cadence-expired failure is durable, the chain drum reports
+that terminal state and no longer offers the earlier pacification or brace
+choices. Killing Odran afterward remains a persistent NPC death, but it cannot
+rewrite the flooded branch or emit a second, contradictory climax aftermath.
 
 The confrontation explains the omitted closure crew and an institutional
 cover-up. It does not identify the rot's origin.
@@ -217,4 +278,8 @@ record is not proven birthplace**.
 The dedicated regression suite checks room validity, reciprocal strong
 connectivity, reserved frontier gates, services, enemy references, schedule
 locations, persistent Odran identity, missable consequences, climax outcomes,
-and First Scar truth discipline.
+First Scar truth discipline, renderer bounds, landmark visibility, and
+combat-path survivability. Deterministic frontier audits have reached Drazna
+in 30,000 selection-level worlds and 768 fully generated wilderness worlds,
+including depth-first runs where Rouvray appeared first and Drazna was found
+later by backtracking.

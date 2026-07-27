@@ -109,12 +109,40 @@ and writes through narrative-critical outcomes immediately.
   world day**.
 - A deliberation chooses or revises a general intention. It is deterministic
   by default and may optionally request a validated model proposal.
+- An active schedule commitment is charged only when a private intention
+  conflicts with that schedule's destination. The first daily schedule anchor
+  is restored by a deterministic, coalesced dormant-room action when needed,
+  without adding another deliberation or a permanent per-NPC polling event.
+  Its durable scheduled-event record is sufficient for debugging; ordinary
+  sleep/hide returns do not become shareable memories or Chronicle chatter.
+- Ordinary schedule journeys use their durable scheduled route and final
+  position as the audit trail, without Chronicle or shareable-memory chatter.
+  A fully dormant route is one timed action whose due minute is the sum of its
+  edges; it revalidates every edge and defers if any traversed room becomes
+  active. Only private-goal and trigger journeys remain edgewise and add
+  witnessed arrival stories plus departure/plan evidence.
+- While an arrival action is pending, the NPC row records the last reached
+  room for recovery but the person is treated as physically in transit. They
+  are excluded from active-room loads, People observation, place-bound
+  situations, roommate conversations, and authored `npc_at`/`co_located`
+  predicates until arrival or cancellation makes their location authoritative
+  again.
+- The synchronization fingerprint includes goal definitions, deliberation
+  windows, schedule anchors, and relocation policy. A live content revision
+  therefore updates goals and replaces any pending return to an obsolete
+  overnight anchor without duplicating events.
+- One-shot directions authored by situation triggers override ordinary
+  routine commitments, then complete when their travel destination is reached.
 - Pathfinding, waiting, eating, working, boarding, and approaching a target
   execute programmatically without further model calls.
 - Danger, a high-importance observation, or a direct conversation may force
   an unscheduled reconsideration.
 - Conversations may cascade: exchanged knowledge can change trust, fear,
   obligation, and the next intention of either participant.
+- A recorded death atomically cancels every pending action owned by, or
+  addressed to, that NPC. Authored conversations, rumours, travel directions,
+  and carriage boarding also recheck life state immediately before applying,
+  so a same-minute death cannot leave a posthumous action behind.
 - The hot loop advances to due boundaries rather than polling every NPC every
   world minute.
 - Restart catch-up is bounded and coalesces routine schedules. It never
@@ -332,6 +360,10 @@ Each authored card has:
 - all/any/not predicates;
 - visibility and witness rules;
 - closed deterministic effects;
+- an optional, bounded `chronicle_summary` describing the local evidence
+  left by a story turn, without exposing private causes or hidden state;
+- an optional, closed `chronicle_location_id` that binds that evidence to a
+  validated authored place and subjects the place to active-room authority;
 - memory/dialogue context unlocked after firing;
 - optional follow-up cards.
 
@@ -475,6 +507,9 @@ and relationships never ride shared room broadcasts.
 - Catch-up respects its cap and records coalesced quiet time.
 - Active-room player actions win arbitration over an uncommitted off-screen
   action.
+- Mutually exclusive story and situation outcomes claim one immutable fact key
+  through a database uniqueness constraint; losing transactions apply no
+  effects and create no firing or Chronicle residue.
 - Off-screen death requires the profile's explicit permission and its full
   count of warning memories from earlier simulated minutes.
 - A named NPC killed in active combat is written through with witnessed

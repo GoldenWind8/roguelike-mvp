@@ -98,7 +98,7 @@ def _decode_webp_payload(path: Path) -> tuple[int, int, bool]:
 
 def test_all_drazna_catalog_art_urls_resolve_to_valid_images():
     references = _drazna_art_references()
-    assert len(references) == 38
+    assert len(references) == 40
     assert {
         "/art/world/enemies/drazna/flood-hollow-warden-v1.webp",
         "/art/world/enemies/drazna/silt-drowned-ferryman-v1.webp",
@@ -106,6 +106,8 @@ def test_all_drazna_catalog_art_urls_resolve_to_valid_images():
         "/art/world/enemies/drazna/black-silt-leech-colony-v1.webp",
         "/art/world/enemies/drazna/sluicebound-gate-seven-v1.webp",
         "/art/world/objects/drazna/gate-seven-chain-drum-v1.webp",
+        "/art/world/objects/drazna/crown-ledger-plinth-v1.webp",
+        "/art/world/objects/drazna/first-record-memorial-v1.webp",
     } <= references.keys()
 
     for url, sources in sorted(references.items()):

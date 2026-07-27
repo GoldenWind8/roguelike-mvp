@@ -209,6 +209,61 @@ def test_finite_offscreen_opportunities_are_final_but_leave_aftermath():
     )
 
 
+def test_story_turns_use_authored_evidence_facing_chronicle_summaries():
+    content = load_living_world_content()
+    stories = [
+        trigger
+        for trigger in content.triggers.values()
+        if trigger["kind"] == "story"
+    ]
+
+    assert stories
+    assert all("chronicle_summary" in trigger for trigger in stories)
+    assert all("chronicle_location_id" in trigger for trigger in stories)
+    assert all(
+        trigger["chronicle_location_id"] in content.locations
+        for trigger in stories
+    )
+    summaries = [
+        trigger["chronicle_summary"].strip()
+        for trigger in stories
+    ]
+    assert len(summaries) == len(set(summaries))
+    assert all(20 <= len(summary) <= 240 for summary in summaries)
+    assert all(
+        "the lives around" not in summary.lower()
+        for summary in summaries
+    )
+    assert all(
+        "rot began" not in summary.lower()
+        for summary in summaries
+    )
+
+
+def test_vasko_ledger_confrontation_waits_for_the_ledger_return():
+    content = load_living_world_content()
+    trigger = content.triggers["olek-vasko-ledger-return"]
+    return_trigger = content.triggers["vasko-returns-with-ledger"]
+    dependencies = {
+        condition["trigger_id"]
+        for condition in trigger["conditions"]
+        if condition["kind"] == "trigger_fired"
+    }
+    rendezvous = {
+        effect["npc_id"]: effect["location_id"]
+        for effect in return_trigger["effects"]
+        if effect["kind"] == "relocate_npc"
+    }
+    ordered_ids = list(content.triggers)
+
+    assert dependencies == {"vasko-returns-with-ledger"}
+    assert ordered_ids.index("vasko-returns-with-ledger") < ordered_ids.index(
+        "olek-vasko-ledger-return"
+    )
+    assert rendezvous["olek-var"] == "drazna_mud_crown"
+    assert rendezvous["vasko-mirek"] == "drazna_mud_crown"
+
+
 def test_three_kingdoms_are_connected_by_hostile_roads_and_public_carriages():
     content = load_living_world_content()
     carriage_edges = set()
@@ -280,6 +335,52 @@ def test_unknown_fields_and_executable_vocabulary_are_rejected():
     documents = _raw_documents()
     documents["trigger_document"]["triggers"][0]["effects"][0]["kind"] = "invent_plot"
     with pytest.raises(LivingWorldContentError, match="must be one of"):
+        validate_living_world_content(**documents)
+
+
+@pytest.mark.parametrize(
+    ("summary", "message"),
+    [
+        (7, "must be a string"),
+        ("Too brief.", "at least 20 characters"),
+        ("x" * 241, "at most 240 characters"),
+    ],
+)
+def test_story_chronicle_summaries_are_typed_and_bounded(summary, message):
+    documents = _raw_documents()
+    story = next(
+        trigger
+        for trigger in documents["trigger_document"]["triggers"]
+        if trigger["kind"] == "story"
+    )
+    story["chronicle_summary"] = summary
+
+    with pytest.raises(LivingWorldContentError, match=message):
+        validate_living_world_content(**documents)
+
+
+def test_story_chronicle_locations_are_closed_known_story_places():
+    documents = _raw_documents()
+    story = next(
+        trigger
+        for trigger in documents["trigger_document"]["triggers"]
+        if trigger["kind"] == "story"
+    )
+    story["chronicle_location_id"] = "place-that-does-not-exist"
+    with pytest.raises(LivingWorldContentError, match="unknown location"):
+        validate_living_world_content(**documents)
+
+    documents = _raw_documents()
+    conversation = next(
+        trigger
+        for trigger in documents["trigger_document"]["triggers"]
+        if trigger["kind"] == "conversation"
+    )
+    conversation["chronicle_location_id"] = "oakrun_crossroads"
+    with pytest.raises(
+        LivingWorldContentError,
+        match="only supported for story triggers",
+    ):
         validate_living_world_content(**documents)
 
 

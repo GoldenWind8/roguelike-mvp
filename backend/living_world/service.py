@@ -291,6 +291,7 @@ class LivingWorldService:
         """Seed durable goals, beliefs, facts, and the next thought window."""
         writes = 0
         profiles = self._profiles
+        room_ids = await store.room_id_by_content(session)
 
         for npc in npcs:
             assert npc.content_id is not None
@@ -323,6 +324,14 @@ class LivingWorldService:
                     },
                 )
                 writes += int(inserted)
+
+            writes += await self._queue_overnight_routine_if_needed(
+                session,
+                actor=npc,
+                profile=profile,
+                room_ids=room_ids,
+                world_minute=world_minute,
+            )
 
             definitions = self._goal_definitions(npc, profile)
             for definition in definitions:
@@ -365,6 +374,7 @@ class LivingWorldService:
         revision changes the signature and runs the idempotent synchronizer.
         """
         parts: list[object] = [
+            "routine-anchor-v3",
             *(npc.content_id for npc in npcs),
             "--profiles--",
         ]
@@ -372,13 +382,33 @@ class LivingWorldService:
             parts.extend((
                 npc_id,
                 tuple(
-                    (goal.get("id"), goal.get("priority"))
+                    (
+                        goal.get("id"),
+                        goal.get("priority"),
+                        (goal.get("target") or {}).get("kind"),
+                        (goal.get("target") or {}).get("id"),
+                        goal.get("desire"),
+                        goal.get("approach"),
+                        goal.get("risk_tolerance"),
+                    )
                     for goal in profile.get("private_goals", ())
                 ),
                 tuple(
-                    window.get("minute")
+                    (window.get("minute"), window.get("purpose"))
                     for window in profile.get("deliberation_windows", ())
                 ),
+                tuple(
+                    (
+                        anchor.get("start_minute"),
+                        anchor.get("location_id"),
+                        anchor.get("activity"),
+                        anchor.get("commitment"),
+                    )
+                    for anchor in profile.get("schedule", ())
+                ),
+                (
+                    profile.get("offscreen_policy") or {}
+                ).get("can_relocate", True),
             ))
         parts.append("--rumors--")
         for rumor_id, rumor in sorted(self._rumors.items()):
@@ -627,6 +657,20 @@ class LivingWorldService:
                     actor=actor,
                     counters=counters,
                 )
+            elif event.kind == "npc_routine_anchor":
+                resolved = await self._resolve_routine_anchor(
+                    session,
+                    event=event,
+                    actor=actor,
+                    room_ids=room_ids,
+                    routes=routes,
+                    active_room_ids=active_room_ids,
+                    counters=counters,
+                )
+                if not resolved:
+                    excluded.add(event.id)
+                    counters.skipped_active_events += 1
+                    continue
             elif event.kind == "npc_conversation":
                 if (
                     counters.conversations
@@ -670,7 +714,19 @@ class LivingWorldService:
     ) -> bool:
         if event.kind != "npc_arrive_room":
             return False
-        destination = (event.payload or {}).get("to_room_id")
+        payload = event.payload or {}
+        if (
+            event.kind == "npc_arrive_room"
+            and payload.get("coalesced_schedule")
+        ):
+            route = payload.get("route_room_ids")
+            if isinstance(route, list):
+                return any(
+                    isinstance(room_id, int)
+                    and room_id in active_room_ids
+                    for room_id in route
+                )
+        destination = payload.get("to_room_id")
         return isinstance(destination, int) and destination in active_room_ids
 
     async def _resolve_deliberation(
@@ -696,6 +752,12 @@ class LivingWorldService:
 
         profile = self._profiles.get(actor.content_id)
         goals = await store.goals_for_npc(session, actor.content_id)
+        pending_journey = await store.pending_actor_event(
+            session,
+            actor_id=actor.content_id,
+            kinds=("npc_arrive_room",),
+        )
+        in_transit = pending_journey is not None
         next_due = self._next_deliberation(
             profile, event.due_minute, actor.content_id,
         )
@@ -767,11 +829,13 @@ class LivingWorldService:
                 "intention": chosen.kind.value if chosen else "wait",
                 "utility": chosen.utility if chosen else 0,
                 "purpose": (event.payload or {}).get("purpose"),
+                "in_transit": in_transit,
             },
         )
         counters.writes += int(inserted)
 
-        if chosen is not None:
+        started_travel = False
+        if chosen is not None and not in_transit:
             destination = target_rooms.get(chosen.goal_key)
             can_relocate = bool(
                 (profile or {}).get("offscreen_policy", {}).get(
@@ -779,11 +843,20 @@ class LivingWorldService:
                 )
             )
             if (
+                destination == actor.room_id
+                and selected_goal is not None
+            ):
+                self._complete_authored_travel_goal(
+                    selected_goal,
+                    room_id=actor.room_id,
+                    world_minute=event.due_minute,
+                )
+            elif (
                 can_relocate
                 and destination is not None
                 and destination != actor.room_id
             ):
-                await self._begin_travel(
+                started_travel = await self._begin_travel(
                     session,
                     actor=actor,
                     chosen=chosen,
@@ -794,8 +867,26 @@ class LivingWorldService:
                     counters=counters,
                 )
 
+        # A routine action is not another thought. Queue it only after the
+        # actor's last sparse deliberation of the day, and only when a current
+        # or pending journey would leave them away from their first authored
+        # anchor overnight.
         if (
-            counters.conversations
+            next_due // MINUTES_PER_DAY
+            > event.due_minute // MINUTES_PER_DAY
+        ):
+            counters.writes += await self._queue_overnight_routine_if_needed(
+                session,
+                actor=actor,
+                profile=profile,
+                room_ids=room_ids,
+                world_minute=event.due_minute,
+            )
+
+        if (
+            not in_transit
+            and not started_travel
+            and counters.conversations
             < self.config.max_conversations_per_advance
         ):
             counters.writes += await self._schedule_conversation(
@@ -852,16 +943,20 @@ class LivingWorldService:
         target_rooms: dict[str, int | None] = {}
 
         schedule = self._schedule_anchor(profile, at_minute)
+        schedule_commitment = 0.0
+        schedule_target_room: int | None = None
         if schedule is not None:
+            schedule_commitment = float(schedule.get("commitment", 50))
             key = (
                 f"schedule:{schedule.get('start_minute')}:"
                 f"{schedule.get('location_id')}"
             )
             target_room = room_ids.get(str(schedule.get("location_id")))
+            schedule_target_room = target_room
             candidates.append(GoalCandidate(
                 key=key,
                 intention=IntentionKind.KEEP_SCHEDULE,
-                base_priority=float(schedule.get("commitment", 50)),
+                base_priority=schedule_commitment,
                 target_room_id=target_room,
                 commitment_cost=0,
                 metadata={
@@ -911,6 +1006,19 @@ class LivingWorldService:
             if goal.deadline_minute is not None:
                 remaining = max(0, goal.deadline_minute - at_minute)
                 deadline_urgency += max(0.0, 30.0 - remaining / 30.0)
+            conflicts_with_schedule = (
+                schedule_target_room is not None
+                and (
+                    (
+                        target_room is None
+                        and schedule_target_room != actor.room_id
+                    )
+                    or (
+                        target_room is not None
+                        and target_room != schedule_target_room
+                    )
+                )
+            )
             candidates.append(GoalCandidate(
                 key=goal.goal_key,
                 intention=intention,
@@ -919,6 +1027,21 @@ class LivingWorldService:
                 target_room_id=target_room,
                 deadline_urgency=deadline_urgency,
                 travel_cost=travel_cost,
+                # A conflicting routine is the opportunity cost of pursuing a
+                # private goal right now. Compatible work at the same anchor,
+                # or reflection while already there, remains unsuppressed.
+                # Previously this field was always zero, so a priority-five
+                # desire permanently beat sleep, work, and carriage meetings.
+                # Trigger-authored directions are explicit interruptions and
+                # do not pay the ordinary-routine cost.
+                commitment_cost=(
+                    0.0
+                    if (
+                        authored.get("authored_trigger")
+                        or not conflicts_with_schedule
+                    )
+                    else schedule_commitment
+                ),
                 metadata={"private_goal": True},
             ))
             target_rooms[goal.goal_key] = target_room
@@ -939,6 +1062,61 @@ class LivingWorldService:
             if int(anchor.get("start_minute", 0)) <= local
         ]
         return eligible[-1] if eligible else schedule[-1]
+
+    @staticmethod
+    def _overnight_anchor(
+        profile: Mapping[str, Any] | None,
+    ) -> Mapping[str, Any] | None:
+        schedule = tuple((profile or {}).get("schedule", ()))
+        if not schedule:
+            return None
+        return min(
+            schedule,
+            key=lambda anchor: int(anchor.get("start_minute", 0)),
+        )
+
+    @staticmethod
+    def _next_overnight_due(
+        anchor: Mapping[str, Any],
+        after_minute: int,
+    ) -> int:
+        """Return the next not-yet-reached first routine boundary.
+
+        The one-minute offset keeps a coarse whole-day catch-up's evening
+        story evaluation on the closing day, while the routine still begins
+        effectively at midnight during normal incremental simulation.
+        """
+        day_start = after_minute // MINUTES_PER_DAY * MINUTES_PER_DAY
+        boundary = (
+            day_start
+            + int(anchor.get("start_minute", 0))
+            + 1
+        )
+        if after_minute < boundary:
+            return boundary
+        return boundary + MINUTES_PER_DAY
+
+    @staticmethod
+    def _complete_authored_travel_goal(
+        goal: NPCGoal,
+        *,
+        room_id: int,
+        world_minute: int,
+    ) -> bool:
+        """Complete a one-shot trigger direction once its room is reached."""
+        context = dict(goal.context or {})
+        authored = context.get("authored") or {}
+        if (
+            goal.kind != "travel"
+            or not authored.get("authored_trigger")
+        ):
+            return False
+        goal.status = "completed"
+        goal.progress = 1.0
+        context["completed_at_minute"] = world_minute
+        context["completed_at_room_id"] = room_id
+        goal.context = context
+        return True
 
     async def _begin_travel(
         self,
@@ -990,24 +1168,50 @@ class LivingWorldService:
             f"{actor.room_id}:{destination}"
         )
         first_edge = route.edges[0]
+        coalesced_schedule = (
+            chosen.kind == IntentionKind.KEEP_SCHEDULE
+            and selected_goal is None
+        )
+        step_index = (
+            len(route.room_ids) - 1
+            if coalesced_schedule
+            else 1
+        )
+        from_room_id = (
+            actor.room_id
+            if coalesced_schedule
+            else first_edge.from_room_id
+        )
+        to_room_id = (
+            destination
+            if coalesced_schedule
+            else first_edge.to_room_id
+        )
+        due_minute = world_minute + (
+            route.travel_minutes
+            if coalesced_schedule
+            else first_edge.travel_minutes
+        )
         _scheduled, inserted = await store.schedule_once(
             session,
-            dedupe_key=f"{journey_key}:step:1",
+            dedupe_key=f"{journey_key}:step:{step_index}",
             kind="npc_arrive_room",
-            due_minute=world_minute + first_edge.travel_minutes,
+            due_minute=due_minute,
             priority=10,
             actor_id=actor.content_id,
-            target_id=str(first_edge.to_room_id),
-            room_id=first_edge.from_room_id,
+            target_id=str(to_room_id),
+            room_id=from_room_id,
             payload={
                 "journey_key": journey_key,
                 "goal_key": chosen.goal_key,
                 "route_room_ids": list(route.room_ids),
-                "step_index": 1,
-                "from_room_id": first_edge.from_room_id,
-                "to_room_id": first_edge.to_room_id,
+                "step_index": step_index,
+                "from_room_id": from_room_id,
+                "to_room_id": to_room_id,
                 "final_room_id": destination,
                 "travel_minutes": first_edge.travel_minutes,
+                "total_travel_minutes": route.travel_minutes,
+                "coalesced_schedule": coalesced_schedule,
             },
         )
         counters.writes += int(inserted)
@@ -1025,55 +1229,398 @@ class LivingWorldService:
             selected_goal.failure_reason = None
             if selected_goal.status == "blocked":
                 selected_goal.status = "active"
-        _event, inserted_event = await store.chronicle_once(
-            session,
-            dedupe_key=f"chronicle:{journey_key}:began",
-            kind="npc_began_travel",
-            world_minute=world_minute,
-            actor_id=actor.content_id,
-            target_id=str(destination),
-            room_id=actor.room_id,
-            summary=f"{actor.name} set out along the road.",
-            visibility="witnessed",
-            witnesses=[
-                row.content_id
-                for row in await store.roommates(
-                    session,
-                    room_id=actor.room_id,
-                    excluding_id=actor.content_id,
-                )
-                if row.content_id
-            ],
-            payload={
-                "journey_key": journey_key,
-                "destination_room_id": destination,
-                "route_room_ids": list(route.room_ids),
-            },
-        )
-        counters.writes += int(inserted_event)
-        plan_memory = Memory(
-            id=f"plan:{journey_key}",
-            owner_id=actor.content_id,
-            kind="plan",
-            summary=f"{actor.name} decided to travel onward.",
-            tags=frozenset({"travel", "road"}),
-            importance=3.0,
-            confidence=1.0,
-            occurred_at=world_minute,
-            shareable=False,
-        )
-        _memory, memory_inserted = await store.remember_once(
-            session,
-            plan_memory,
-            source_event_id=_event.id,
-            payload={
-                "journey_key": journey_key,
-                "destination_room_id": destination,
-            },
-        )
-        counters.memories_created += int(memory_inserted)
-        counters.writes += int(memory_inserted)
+        # The scheduled route and witnessed arrival fully audit an ordinary
+        # schedule change. Recording an additional departure Chronicle row and
+        # private plan memory for every work/sleep/social block created large
+        # amounts of low-value routine chatter. Private-goal journeys retain
+        # both records because the decision itself carries story meaning.
+        records_plan = not coalesced_schedule
+        if records_plan:
+            _event, inserted_event = await store.chronicle_once(
+                session,
+                dedupe_key=f"chronicle:{journey_key}:began",
+                kind="npc_began_travel",
+                world_minute=world_minute,
+                actor_id=actor.content_id,
+                target_id=str(destination),
+                room_id=actor.room_id,
+                summary=f"{actor.name} set out along the road.",
+                visibility="witnessed",
+                witnesses=[
+                    row.content_id
+                    for row in await store.roommates(
+                        session,
+                        room_id=actor.room_id,
+                        excluding_id=actor.content_id,
+                    )
+                    if row.content_id
+                ],
+                payload={
+                    "journey_key": journey_key,
+                    "destination_room_id": destination,
+                    "route_room_ids": list(route.room_ids),
+                },
+            )
+            counters.writes += int(inserted_event)
+            plan_memory = Memory(
+                id=f"plan:{journey_key}",
+                owner_id=actor.content_id,
+                kind="plan",
+                summary=f"{actor.name} decided to travel onward.",
+                tags=frozenset({"travel", "road"}),
+                importance=3.0,
+                confidence=1.0,
+                occurred_at=world_minute,
+                shareable=False,
+            )
+            _memory, memory_inserted = await store.remember_once(
+                session,
+                plan_memory,
+                source_event_id=_event.id,
+                payload={
+                    "journey_key": journey_key,
+                    "destination_room_id": destination,
+                },
+            )
+            counters.memories_created += int(memory_inserted)
+            counters.writes += int(memory_inserted)
         return inserted
+
+    async def _queue_overnight_routine_if_needed(
+        self,
+        session: AsyncSession,
+        *,
+        actor: NPCRow,
+        profile: Mapping[str, Any] | None,
+        room_ids: Mapping[str, int],
+        world_minute: int,
+    ) -> int:
+        """Queue one economical routine action when overnight travel is needed."""
+        if not actor.content_id:
+            return 0
+        can_relocate = bool(
+            (profile or {}).get("offscreen_policy", {}).get(
+                "can_relocate", True,
+            )
+        )
+        anchor = self._overnight_anchor(profile)
+        if not can_relocate or anchor is None:
+            return 0
+
+        location_id = str(anchor.get("location_id", ""))
+        destination = room_ids.get(location_id)
+        if destination is None:
+            return 0
+        writes = 0
+        pending_routine = await store.pending_actor_event(
+            session,
+            actor_id=actor.content_id,
+            kinds=("npc_routine_anchor",),
+        )
+        if pending_routine is not None:
+            pending_payload = pending_routine.payload or {}
+            if (
+                pending_payload.get("location_id") == location_id
+                and pending_payload.get("to_room_id") == destination
+            ):
+                return 0
+            store.cancel_scheduled_event(
+                pending_routine,
+                world_minute=world_minute,
+                reason="authored overnight anchor changed",
+            )
+            writes += 1
+
+        pending_arrival = await store.pending_actor_event(
+            session,
+            actor_id=actor.content_id,
+            kinds=("npc_arrive_room",),
+        )
+        pending_destination = (
+            (pending_arrival.payload or {}).get("final_room_id")
+            if pending_arrival is not None
+            else None
+        )
+        if pending_arrival is not None:
+            needs_routine = pending_destination != destination
+        else:
+            needs_routine = actor.room_id != destination
+        if not needs_routine:
+            return writes
+
+        routine_due = self._next_overnight_due(anchor, world_minute)
+        _row, inserted = await store.schedule_once(
+            session,
+            dedupe_key=(
+                f"routine:{actor.content_id}:{routine_due}:{location_id}"
+            ),
+            kind="npc_routine_anchor",
+            due_minute=routine_due,
+            priority=30,
+            actor_id=actor.content_id,
+            room_id=actor.room_id,
+            payload={
+                "location_id": location_id,
+                "to_room_id": destination,
+                "activity": anchor.get("activity"),
+                "commitment": anchor.get("commitment", 50),
+            },
+        )
+        return writes + int(inserted)
+
+    async def _resolve_routine_anchor(
+        self,
+        session: AsyncSession,
+        *,
+        event: ScheduledWorldEvent,
+        actor: NPCRow | None,
+        room_ids: Mapping[str, int],
+        routes: list[RouteEdge],
+        active_room_ids: frozenset[int],
+        counters: _Counters,
+    ) -> bool:
+        """Execute one coalesced dormant-room return without deliberating."""
+        if actor is None or not actor.is_alive or not actor.content_id:
+            event.attempt_count += 1
+            store.cancel_scheduled_event(
+                event,
+                world_minute=event.due_minute,
+                reason="NPC no longer exists or is dead",
+            )
+            counters.processed_events += 1
+            counters.writes += 1
+            return True
+
+        profile = self._profiles.get(actor.content_id)
+        anchor = self._overnight_anchor(profile)
+        if anchor is None:
+            event.attempt_count += 1
+            store.cancel_scheduled_event(
+                event,
+                world_minute=event.due_minute,
+                reason="NPC no longer has an authored routine",
+            )
+            counters.processed_events += 1
+            counters.writes += 1
+            return True
+
+        location_id = str(anchor.get("location_id", ""))
+        destination = room_ids.get(location_id)
+        goals = await store.goals_for_npc(session, actor.content_id)
+        authored_interruption = any(
+            goal.status == "active"
+            and float(goal.urgency) >= 100
+            and bool(
+                ((goal.context or {}).get("authored") or {}).get(
+                    "authored_trigger"
+                )
+            )
+            for goal in goals
+        )
+        if authored_interruption:
+            # The explicit story direction owns this boundary. Resolve the
+            # routine without inspecting or touching its route, even if that
+            # unused return path crosses a live room.
+            event.attempt_count += 1
+            store.resolve_scheduled_event(
+                event,
+                world_minute=event.due_minute,
+            )
+            counters.processed_events += 1
+            counters.writes += 1
+            return True
+
+        pending = await store.pending_actor_event(
+            session,
+            actor_id=actor.content_id,
+            kinds=("npc_arrive_room",),
+        )
+        raw_pending_route = (
+            (pending.payload or {}).get("route_room_ids")
+            if pending is not None
+            else ()
+        )
+        pending_route = (
+            raw_pending_route
+            if isinstance(raw_pending_route, list)
+            else ()
+        )
+        pending_payload = dict(pending.payload or {}) if pending is not None else {}
+        pending_step = pending_payload.get("step_index")
+        if pending_payload.get("coalesced_schedule"):
+            # A coalesced commute has not entered any intermediate room yet:
+            # the row remains at path[0] until the one final arrival.
+            pending_authority_route = tuple(pending_route)
+        elif (
+            isinstance(pending_step, int)
+            and not isinstance(pending_step, bool)
+            and 1 <= pending_step < len(pending_route)
+        ):
+            # An edgewise journey persists the traveller in the room reached
+            # by the previous step. Rooms before that point are history and
+            # must not block a routine that supersedes the remaining route.
+            pending_authority_route = tuple(
+                pending_route[pending_step - 1:]
+            )
+        else:
+            pending_authority_route = tuple(
+                room_id
+                for room_id in (
+                    pending_payload.get("from_room_id"),
+                    pending_payload.get("to_room_id"),
+                    pending_payload.get("final_room_id"),
+                )
+                if isinstance(room_id, int)
+                and not isinstance(room_id, bool)
+            )
+        pending_destination = (
+            pending_payload.get("final_room_id")
+            if pending is not None
+            else None
+        )
+        pending_conflicts = bool(
+            pending is not None
+            and pending_destination != destination
+        )
+        should_move = bool(
+            destination is not None
+            and destination != actor.room_id
+            and (pending is None or pending_conflicts)
+        )
+        route = (
+            shortest_route(
+                routes,
+                from_room_id=actor.room_id,
+                to_room_id=destination,
+            )
+            if should_move and destination is not None
+            else None
+        )
+        # A coalesced route may cross more than its source and destination.
+        # If any traversed room is live, the in-memory room simulation retains
+        # authority and the dormant event waits untouched.
+        if route is not None and any(
+            room_id in active_room_ids for room_id in route.room_ids
+        ):
+            return False
+
+        if (
+            pending_conflicts
+            and any(
+                room_id in active_room_ids
+                for room_id in (
+                    *(
+                        value
+                        for value in pending_authority_route
+                        if isinstance(value, int)
+                    ),
+                    pending_payload.get("to_room_id"),
+                    pending_payload.get("final_room_id"),
+                )
+                if isinstance(room_id, int)
+            )
+        ):
+            return False
+
+        event.attempt_count += 1
+        can_relocate = bool(
+            (profile or {}).get("offscreen_policy", {}).get(
+                "can_relocate", True,
+            )
+        )
+        if (
+            can_relocate
+            and destination is not None
+            and (should_move or pending_conflicts)
+        ):
+            from_room = actor.room_id
+            position: tuple[int, int] | None = None
+            if should_move:
+                if route is None:
+                    store.cancel_scheduled_event(
+                        event,
+                        world_minute=event.due_minute,
+                        reason="overnight anchor has no passable room route",
+                    )
+                    _failure, inserted = await store.chronicle_once(
+                        session,
+                        dedupe_key=f"chronicle:{event.dedupe_key}:failed",
+                        kind="npc_travel_blocked",
+                        world_minute=event.due_minute,
+                        actor_id=actor.content_id,
+                        room_id=actor.room_id,
+                        summary=f"{actor.name} found no passable road home.",
+                        visibility="developer",
+                        payload={"destination_room_id": destination},
+                    )
+                    counters.processed_events += 1
+                    counters.writes += 1 + int(inserted)
+                    return True
+
+                entry_from_room = route.room_ids[-2]
+                position = await store.arrival_position(
+                    session,
+                    room_id=destination,
+                    from_room_id=entry_from_room,
+                )
+                if position is None:
+                    store.cancel_scheduled_event(
+                        event,
+                        world_minute=event.due_minute,
+                        reason="overnight anchor has no free floor tile",
+                    )
+                    _failure, inserted = await store.chronicle_once(
+                        session,
+                        dedupe_key=f"chronicle:{event.dedupe_key}:failed",
+                        kind="npc_travel_blocked",
+                        world_minute=event.due_minute,
+                        actor_id=actor.content_id,
+                        room_id=actor.room_id,
+                        summary=f"{actor.name} could not settle at their night anchor.",
+                        visibility="developer",
+                        payload={"destination_room_id": destination},
+                    )
+                    counters.processed_events += 1
+                    counters.writes += 1 + int(inserted)
+                    return True
+
+            if pending_conflicts and pending is not None:
+                store.cancel_scheduled_event(
+                    pending,
+                    world_minute=event.due_minute,
+                    reason="overnight routine superseded ordinary journey",
+                )
+                counters.writes += 1
+
+            if should_move and route is not None and position is not None:
+                actor.room_id = destination
+                actor.x, actor.y = position
+                # The ScheduledWorldEvent remains the durable developer audit.
+                # Ordinary sleep/hide returns are deliberately not witnessed
+                # Chronicle stories or shareable memories: every traversed room
+                # is dormant, and narrating them only creates rumour noise.
+                event.payload = {
+                    **(event.payload or {}),
+                    "from_room_id": from_room,
+                    "route_room_ids": list(route.room_ids),
+                    "arrival_position": list(position),
+                    "coalesced": True,
+                }
+                counters.movements += 1
+            elif pending_conflicts and pending is not None:
+                event.payload = {
+                    **(event.payload or {}),
+                    "superseded_journey": pending.dedupe_key,
+                    "coalesced": True,
+                }
+
+        store.resolve_scheduled_event(
+            event,
+            world_minute=event.due_minute,
+        )
+        counters.processed_events += 1
+        counters.writes += 1
+        return True
 
     async def _resolve_arrival(
         self,
@@ -1098,18 +1645,38 @@ class LivingWorldService:
         to_room = payload.get("to_room_id")
         path = payload.get("route_room_ids")
         step_index = payload.get("step_index")
-        if (
-            not isinstance(from_room, int)
-            or not isinstance(to_room, int)
-            or not isinstance(path, list)
-            or not isinstance(step_index, int)
-            or actor.room_id != from_room
-            or not await store.connection_exists(
+        coalesced_schedule = bool(payload.get("coalesced_schedule"))
+        route_valid = bool(
+            isinstance(from_room, int)
+            and isinstance(to_room, int)
+            and isinstance(path, list)
+            and len(path) >= 2
+            and all(isinstance(room_id, int) for room_id in path)
+            and isinstance(step_index, int)
+            and actor.room_id == from_room
+        )
+        if route_valid and coalesced_schedule:
+            route_valid = bool(
+                path[0] == from_room
+                and path[-1] == to_room
+                and step_index == len(path) - 1
+            )
+            if route_valid:
+                for route_from, route_to in zip(path, path[1:]):
+                    if not await store.connection_exists(
+                        session,
+                        from_room_id=route_from,
+                        to_room_id=route_to,
+                    ):
+                        route_valid = False
+                        break
+        elif route_valid:
+            route_valid = await store.connection_exists(
                 session,
                 from_room_id=from_room,
                 to_room_id=to_room,
             )
-        ):
+        if not route_valid:
             store.cancel_scheduled_event(
                 event,
                 world_minute=event.due_minute,
@@ -1124,7 +1691,9 @@ class LivingWorldService:
         position = await store.arrival_position(
             session,
             room_id=to_room,
-            from_room_id=from_room,
+            from_room_id=(
+                path[-2] if coalesced_schedule else from_room
+            ),
         )
         if position is None:
             store.cancel_scheduled_event(
@@ -1141,6 +1710,24 @@ class LivingWorldService:
 
         actor.room_id = to_room
         actor.x, actor.y = position
+        if coalesced_schedule:
+            # A full-route active-room check proved that this ordinary commute
+            # was entirely dormant. Its resolved ScheduledWorldEvent is the
+            # durable audit; manufacturing a witnessed Chronicle entry and a
+            # shareable memory here would turn routine into rumour noise.
+            event.payload = {
+                **payload,
+                "arrival_position": list(position),
+                "coalesced": True,
+            }
+            store.resolve_scheduled_event(
+                event, world_minute=event.due_minute,
+            )
+            counters.movements += 1
+            counters.processed_events += 1
+            counters.writes += 1
+            return
+
         destination = await session.get(Room, to_room)
         witnesses = [
             row.content_id
@@ -1218,6 +1805,19 @@ class LivingWorldService:
                     "room_id": to_room,
                     "world_minute": event.due_minute,
                 }
+                if (
+                    step_index >= len(path) - 1
+                ):
+                    # Trigger directions are one-shot travel orders. Leaving
+                    # them active at their destination gave them permanent
+                    # urgency 100 and suppressed every later routine.
+                    goal.context = context
+                    self._complete_authored_travel_goal(
+                        goal,
+                        room_id=to_room,
+                        world_minute=event.due_minute,
+                    )
+                    context = dict(goal.context or {})
                 goal.context = context
 
         if step_index < len(path) - 1:
@@ -1346,6 +1946,14 @@ class LivingWorldService:
             if event.target_id
             else None
         )
+        in_transit = await store.pending_arrival_actor_ids(
+            session,
+            (
+                npc.content_id
+                for npc in (actor, listener)
+                if npc is not None and npc.content_id
+            ),
+        )
         if (
             actor is not None
             and listener is not None
@@ -1365,6 +1973,8 @@ class LivingWorldService:
             or not actor.content_id
             or not listener.content_id
             or actor.room_id != listener.room_id
+            or actor.content_id in in_transit
+            or listener.content_id in in_transit
         ):
             store.cancel_scheduled_event(
                 event,

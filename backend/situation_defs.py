@@ -71,6 +71,22 @@ class SituationDefeat:
 
 
 @dataclass(frozen=True)
+class SituationTerminalOutcome:
+    """An authored world fact that permanently closes player choices.
+
+    Some situations can end through the ordinary off-screen simulation rather
+    than through a player choice or the actor's defeat. The terminal fact is
+    matched exactly so a later inspection or forged resolution request reads
+    that durable ending instead of reopening an already-lost moment.
+    """
+
+    fact_key: str
+    value: dict[str, object]
+    outcome: str
+    result: str
+
+
+@dataclass(frozen=True)
 class SituationChoice:
     id: str
     label: str
@@ -95,6 +111,7 @@ class SituationDefinition:
     description: str
     fact_key: str
     defeat_outcome: SituationDefeat
+    terminal_outcomes: tuple[SituationTerminalOutcome, ...]
     choices: tuple[SituationChoice, ...]
 
 
@@ -134,6 +151,29 @@ def _defeat(value: object, path: str) -> SituationDefeat:
         ),
         result=_text(item["result"], f"{path}.result"),
         chronicle=_text(item["chronicle"], f"{path}.chronicle"),
+    )
+
+
+def _terminal_outcome(
+    value: object,
+    path: str,
+) -> SituationTerminalOutcome:
+    item = _closed(value, path, {
+        "fact_key",
+        "value",
+        "outcome",
+        "result",
+    })
+    outcome = _identifier(item["outcome"], f"{path}.outcome")
+    return SituationTerminalOutcome(
+        fact_key=_fact_key(item["fact_key"], f"{path}.fact_key"),
+        value=_fact_value(
+            item["value"],
+            f"{path}.value",
+            expected_state=outcome,
+        ),
+        outcome=outcome,
+        result=_text(item["result"], f"{path}.result"),
     )
 
 
@@ -212,8 +252,25 @@ def _definition(entry: dict) -> SituationDefinition:
         "description",
         "fact_key",
         "defeat_outcome",
+        "terminal_outcomes",
         "choices",
     })
+    raw_terminals = item["terminal_outcomes"]
+    if not isinstance(raw_terminals, list):
+        raise RuntimeError(f"{path}.terminal_outcomes must be a list")
+    terminal_outcomes = tuple(
+        _terminal_outcome(
+            terminal,
+            f"{path}.terminal_outcomes[{index}]",
+        )
+        for index, terminal in enumerate(raw_terminals)
+    )
+    terminal_fact_keys = [terminal.fact_key for terminal in terminal_outcomes]
+    terminal_states = [terminal.outcome for terminal in terminal_outcomes]
+    if len(terminal_fact_keys) != len(set(terminal_fact_keys)):
+        raise RuntimeError(f"{path}.terminal_outcomes repeats a fact_key")
+    if len(terminal_states) != len(set(terminal_states)):
+        raise RuntimeError(f"{path}.terminal_outcomes repeats an outcome")
     raw_choices = item["choices"]
     if not isinstance(raw_choices, list) or len(raw_choices) < 2:
         raise RuntimeError(f"{path}.choices must contain at least two choices")
@@ -230,6 +287,10 @@ def _definition(entry: dict) -> SituationDefinition:
     defeat = _defeat(item["defeat_outcome"], f"{path}.defeat_outcome")
     if defeat.value in outcomes:
         raise RuntimeError(f"{path}.defeat_outcome duplicates a choice outcome")
+    if set(terminal_states) & ({defeat.value} | set(outcomes)):
+        raise RuntimeError(
+            f"{path}.terminal_outcomes duplicates a choice or defeat outcome"
+        )
     return SituationDefinition(
         id=_identifier(item["id"], f"{path}.id"),
         object_id=_identifier(item["object_id"], f"{path}.object_id"),
@@ -239,6 +300,7 @@ def _definition(entry: dict) -> SituationDefinition:
         description=_text(item["description"], f"{path}.description"),
         fact_key=_fact_key(item["fact_key"], f"{path}.fact_key"),
         defeat_outcome=defeat,
+        terminal_outcomes=terminal_outcomes,
         choices=choices,
     )
 

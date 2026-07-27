@@ -10,12 +10,21 @@ export function ItemArt({ item, className = "" }: ItemArtProps) {
   return (
     <span className={`${className} item-art`.trim()} aria-hidden>
       {item.art.kind === "url" ? (
-        <img
-          className="item-art-image"
-          src={item.art.value}
-          alt=""
-          draggable={false}
-        />
+        <>
+          <img
+            className="item-art-image"
+            src={item.art.value}
+            alt=""
+            draggable={false}
+            onLoad={(event) => {
+              event.currentTarget.hidden = false;
+            }}
+            onError={(event) => {
+              event.currentTarget.hidden = true;
+            }}
+          />
+          <span className="item-art-fallback">◇</span>
+        </>
       ) : (
         item.art.value
       )}

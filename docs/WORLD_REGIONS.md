@@ -175,8 +175,8 @@ Finite opportunities are intentionally unforgiving:
 
 - Fen has a limited span in which fear, carriage timing, and confidence may
   align long enough for him to board the Grey Heron.
-- Edda may leave for Drazna without Wren if their shared departure never
-  becomes possible.
+- Edda and Wren can miss their one affordable shared departure; Edda refuses
+  to abandon Wren, and both retain memories and physical traces of the choice.
 - Vasko's low-water exit closes as the Undertide changes.
 - Matthieu may fail to turn his coach away from the Penitent Mile.
 - Ilya may descend alone if Mara never comes below the safe waterline.
@@ -185,6 +185,13 @@ Missing one does not create a hidden failed task. It changes where people go,
 what they remember, whom they trust, and what physical traces remain. Cold
 fires, split cases, chalk marks, abandoned maps, wheel tracks, and unlit
 memorial ribbons allow players to reconstruct an absence after the fact.
+
+Edda and Wren are deliberately anchored at their Pilgrim's Hollow shelter
+until either a player takes them on the road or the authored Grey Heron
+departure fires. Hester, Tom, and Maud make short deterministic visits there,
+so waiting does not sever their Oakrun relationships. Once the shared carriage
+departure carries Edda and Wren to Lantern Quays, ordinary Oakrun routine
+anchors cannot silently drag them home the following night.
 
 ## Rumor Discipline
 

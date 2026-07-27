@@ -109,7 +109,7 @@ contain small near-magenta variation, so the installed imagegen helper used
 the exact conversion flags
 `--auto-key border --transparent-threshold 12 --opaque-threshold 220 --soft-matte --despill`.
 Sources are kept for reprocessing; only alpha WebP finals ship to the client.
-All thirty-eight Drazna cutouts total 6,659,464 bytes in delivery form, while
+All forty Drazna cutouts total 6,983,714 bytes in delivery form, while
 their full-resolution PNG/chroma masters remain here.
 
 ## Gate Seven chain drum prompt
@@ -157,6 +157,50 @@ their full-resolution PNG/chroma masters remain here.
 - Compact hand-winched salvage crane
 - Covered Low Lantern cache
 - Banded floodline memorial
+- Crown ledger plinth beneath a wrought-metal canopy
+
+### Crown ledger plinth prompt
+
+Generated with the built-in image-generation workflow on 2026-07-27. The
+Palace of Still Water exterior was supplied as a style reference only.
+
+> A freestanding dark-stone crown-ledger plinth holding one large open flood
+> ledger beneath a narrow wrought-metal canopy, with a small red-glass
+> drainage channel built into the base. The severe, water-worn civic archive
+> uses slate-black stone, tarnished iron, restrained burgundy cloth tabs, and
+> tiny warm candle accents. It is isolated in a polished realistic
+> dark-fantasy game-asset render with a readable compact silhouette and no
+> people, room, floor, cast shadow, text, logo, or watermark.
+
+| Accepted subject | Chroma source | Transparent final | Visual size |
+| --- | --- | --- | --- |
+| Crown Ledger Plinth | `art-source/generated/drazna/production/objects/crown-ledger-plinth-v1-chroma.png` | `frontend-react/public/art/world/objects/drazna/crown-ledger-plinth-v1.webp` | `2x2` |
+
+The source used a flat `#00ff00` backdrop. The installed helper sampled the
+border and used `--transparent-threshold 12 --opaque-threshold 220
+--soft-matte --despill`.
+
+### Memorial of the First Public Record prompt
+
+Generated with the built-in image-generation workflow on 2026-07-27. The
+floodline memorial and Palace of Still Water exterior were supplied as style
+and material references only.
+
+> A broad cracked slab of smoke-black glass in a low basalt civic frame,
+> carrying shallow abstract name-cuts, one visibly removed-and-recut final
+> name area, a thin old floodline, empty tablet hooks, and three extinguished
+> votive cups. The isolated monument uses a polished realistic dark-fantasy
+> game-asset treatment, restrained weathering, and a bottom-center anchor. It
+> contains no readable text, date, origin symbol, crown, arrow, people,
+> religious iconography, logo, or watermark.
+
+| Accepted subject | Chroma source | Transparent final | Visual size |
+| --- | --- | --- | --- |
+| Memorial of the First Public Record | `art-source/generated/drazna/production/objects/first-record-memorial-v1-chroma.png` | `frontend-react/public/art/world/objects/drazna/first-record-memorial-v1.webp` | `2x3` |
+
+The source used a flat `#00ff00` backdrop. The installed helper sampled the
+border and used `--transparent-threshold 12 --opaque-threshold 220
+--soft-matte --despill`.
 
 ## Item subjects
 

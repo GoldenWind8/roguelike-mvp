@@ -112,6 +112,8 @@ export interface ShopView {
   label: string;
   stock: ShopStock[];
   restocks_at: string;
+  /** Server-owned offer per rarity, or null when this counter only sells. */
+  buyback_prices: Record<Rarity, number> | null;
 }
 
 export interface NoticeView {
@@ -489,6 +491,7 @@ export type ClientMessage =
   | { type: "take_item"; object_id: string; index: number; item_id: number }
   | { type: "open_shop"; object_id: string }
   | { type: "buy_shop_item"; object_id: string; slot: number; item_id: number; stocked_on: string }
+  | { type: "sell_shop_item"; object_id: string; slot: number; item_id: number }
   | { type: "open_noticeboard"; object_id: string }
   | { type: "post_notice"; object_id: string; body: string }
   | { type: "delete_notice"; object_id: string; notice_id: number }

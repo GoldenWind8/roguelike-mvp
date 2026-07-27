@@ -10,7 +10,17 @@
     "id": "drazna_amber_quay_provisions",
     "object_id": "drazna_quay_stall",
     "label": "Amber Quay Provisions",
+    "room_content_id": "drazna_lantern_quays",
     "stock_size": 6,
     "rarity_weights": {"common": 68, "rare": 29, "legendary": 3}
+  },
+  {
+    "id": "drazna_reed_market_fence",
+    "object_id": "drazna_market_stores",
+    "label": "Teo's Salvage Counter",
+    "room_content_id": "drazna_reed_market",
+    "stock_size": 5,
+    "rarity_weights": {"common": 72, "rare": 26, "legendary": 2},
+    "buys_items": true
   }
 ]

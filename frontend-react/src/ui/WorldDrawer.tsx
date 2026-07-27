@@ -109,16 +109,30 @@ function RumorCard({ rumor }: { rumor: RumorView }) {
 }
 
 function PersonPortrait({ npc }: { npc: KnownNpcView }) {
-  if (npc.image) {
-    return (
-      <span className="world-person-portrait">
-        <img src={npc.image} alt="" draggable={false} />
-      </span>
-    );
-  }
+  const monogram = npc.name.trim().charAt(0).toUpperCase() || "?";
   return (
-    <span className="world-person-portrait world-person-monogram" aria-hidden>
-      {npc.name.trim().charAt(0).toUpperCase() || "?"}
+    <span className="world-person-portrait" aria-hidden>
+      {npc.image && (
+        <img
+          src={npc.image}
+          alt=""
+          draggable={false}
+          onLoad={(event) => {
+            event.currentTarget.hidden = false;
+          }}
+          onError={(event) => {
+            event.currentTarget.hidden = true;
+          }}
+        />
+      )}
+      <span
+        className={[
+          "world-person-monogram",
+          npc.image ? "" : "world-person-monogram-only",
+        ].join(" ")}
+      >
+        {monogram}
+      </span>
     </span>
   );
 }
@@ -342,6 +356,24 @@ export function WorldDrawer() {
 
   if (!worldDrawerOpen) return null;
 
+  const moveTabFocus = (
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    currentTab: WorldDrawerTab,
+  ) => {
+    const currentIndex = TABS.findIndex((tab) => tab.id === currentTab);
+    let nextIndex: number | null = null;
+    if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % TABS.length;
+    if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + TABS.length) % TABS.length;
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = TABS.length - 1;
+    if (nextIndex === null) return;
+
+    event.preventDefault();
+    const nextTab = TABS[nextIndex].id;
+    api.setWorldDrawerTab(nextTab);
+    requestAnimationFrame(() => document.getElementById(`world-tab-${nextTab}`)?.focus());
+  };
+
   return (
     <div
       className="world-drawer-veil"
@@ -408,7 +440,9 @@ export function WorldDrawer() {
               role="tab"
               aria-selected={worldDrawerTab === tab.id}
               aria-controls={`world-page-${tab.id}`}
+              tabIndex={worldDrawerTab === tab.id ? 0 : -1}
               onClick={() => api.setWorldDrawerTab(tab.id)}
+              onKeyDown={(event) => moveTabFocus(event, tab.id)}
             >
               <span className="world-tab-icon" aria-hidden>{tab.icon}</span>
               <span>{tab.label}</span>
@@ -426,6 +460,7 @@ export function WorldDrawer() {
           id={`world-page-${worldDrawerTab}`}
           role="tabpanel"
           aria-labelledby={`world-tab-${worldDrawerTab}`}
+          tabIndex={0}
         >
           {worldDrawerTab === "rumors" && <RumorsPage rumors={rumors} />}
           {worldDrawerTab === "people" && <PeoplePage people={knownPeople} />}

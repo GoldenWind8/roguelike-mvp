@@ -333,8 +333,245 @@ _LIVING_NPC_VOICES = {
         "Fiercely hospitable, suspicious of borders, and unwilling to let strangers simplify what happened to her home.",
         ["We were people before we were evidence.", "Mudwheel takes anyone who helps push when the road sinks."],
         "She may join briefly when protecting refugees or reopening a stranded road demands it.",
-        "road_weary_traveller",
+        "carriage_driver",
     ),
+}
+
+_LIVING_NPC_RELATIONSHIPS = {
+    "mara-vey": [
+        {
+            "npc_id": "alin-vey",
+            "name": "Alin Vey",
+            "connection": (
+                "Her son and political opponent inside the same palace. "
+                "She trusts his conscience more than his timing."
+            ),
+        },
+        {
+            "npc_id": "rada-velic",
+            "name": "Rada Velic",
+            "connection": (
+                "The floodwarden whose unsentimental reports Mara believes "
+                "even when the court does not."
+            ),
+        },
+        {
+            "npc_id": "nera-bell",
+            "name": "Nera Bell",
+            "connection": (
+                "The archivist preserving names Mara delayed publishing; "
+                "their respect survives a grievance neither will soften."
+            ),
+        },
+    ],
+    "ilya-sorn": [
+        {
+            "npc_id": "rada-velic",
+            "name": "Rada Velic",
+            "connection": (
+                "His severe mentor, first defender, and the person most "
+                "likely to recognize what he has concealed."
+            ),
+        },
+        {
+            "npc_id": "nera-bell",
+            "name": "Nera Bell",
+            "connection": (
+                "An archive contact who turns his pressure readings into "
+                "records the Crown cannot quietly revise."
+            ),
+        },
+        {
+            "npc_id": "mara-vey",
+            "name": "Mara Vey",
+            "connection": (
+                "His queen and direct authority at the sluice; her trust "
+                "makes disobedience harder, not easier."
+            ),
+        },
+    ],
+    "nera-bell": [
+        {
+            "npc_id": "luka-nen",
+            "name": "Luka Nen",
+            "connection": (
+                "A surviving census witness whose five omitted workmates "
+                "could force the public roll open."
+            ),
+        },
+        {
+            "npc_id": "alin-vey",
+            "name": "Alin Vey",
+            "connection": (
+                "A reformist ally who wants her evidence published faster "
+                "than she believes it can safely survive."
+            ),
+        },
+        {
+            "npc_id": "lina-pell",
+            "name": "Lina Pell",
+            "connection": (
+                "The Mudwheel driver who carries household bundles uphill "
+                "without turning absence into an official death."
+            ),
+        },
+    ],
+    "olek-var": [
+        {
+            "npc_id": "vasko-mirek",
+            "name": "Vasko Mirek",
+            "connection": (
+                "His most gifted diver and the missing crewman whose return "
+                "could expose Olek's last unsafe contract."
+            ),
+        },
+        {
+            "npc_id": "pava-mirek",
+            "name": "Pava Mirek",
+            "connection": (
+                "A roofwright who bargains rescue rope against his salvage "
+                "gear and never lets him price her brother's life."
+            ),
+        },
+        {
+            "npc_id": "teo-latch",
+            "name": "Teo Latch",
+            "connection": (
+                "A useful fence whose maps Olek buys only after checking "
+                "which names have been scraped away."
+            ),
+        },
+    ],
+    "pava-mirek": [
+        {
+            "npc_id": "vasko-mirek",
+            "name": "Vasko Mirek",
+            "connection": (
+                "Her younger brother, a brilliant diver, and the one person "
+                "whose reckless promises still frighten her."
+            ),
+        },
+        {
+            "npc_id": "sima-dren",
+            "name": "Sima Dren",
+            "connection": (
+                "Her apprentice and chosen heir to the seven-fold brace "
+                "marks; Pava is proud enough to sound perpetually angry."
+            ),
+        },
+        {
+            "npc_id": "olek-var",
+            "name": "Olek Var",
+            "connection": (
+                "A salvage captain she hires for impossible lifts and "
+                "blames for treating danger as an honest price."
+            ),
+        },
+    ],
+    "vasko-mirek": [
+        {
+            "npc_id": "pava-mirek",
+            "name": "Pava Mirek",
+            "connection": (
+                "His older sister, rescuer, and fiercest critic; he fears "
+                "her relief more than her anger."
+            ),
+        },
+        {
+            "npc_id": "luka-nen",
+            "name": "Luka Nen",
+            "connection": (
+                "A dry-route partner who kept counting survivors while "
+                "Vasko followed the Gate Seven signals."
+            ),
+        },
+        {
+            "npc_id": "olek-var",
+            "name": "Olek Var",
+            "connection": (
+                "His captain and creditor, who supplied the line Vasko cut "
+                "when the official route stopped being safe."
+            ),
+        },
+    ],
+    "vesna-korr": [
+        {
+            "npc_id": "teo-latch",
+            "name": "Teo Latch",
+            "connection": (
+                "A broker who sells her useful routes and dangerous reasons "
+                "to doubt who else bought them."
+            ),
+        },
+        {
+            "npc_id": "lina-pell",
+            "name": "Lina Pell",
+            "connection": (
+                "A fellow driver whose visible Mudwheel runs cover the "
+                "quieter journeys Vesna cannot put on a timetable."
+            ),
+        },
+        {
+            "npc_id": "drina-sable",
+            "name": "Drina Sable",
+            "connection": (
+                "The innkeeper who holds a warm back room for passengers "
+                "Vesna brings in without names."
+            ),
+        },
+    ],
+    "alin-vey": [
+        {
+            "npc_id": "mara-vey",
+            "name": "Mara Vey",
+            "connection": (
+                "His mother, queen, and strongest political obstacle; he "
+                "mistakes their shared purpose for agreement."
+            ),
+        },
+        {
+            "npc_id": "nera-bell",
+            "name": "Nera Bell",
+            "connection": (
+                "The archivist he needs as an ally and keeps endangering by "
+                "demanding a public answer before her evidence is secure."
+            ),
+        },
+        {
+            "npc_id": "luka-nen",
+            "name": "Luka Nen",
+            "connection": (
+                "A witness Alin wants heard at court, though Luka refuses to "
+                "become a symbol before the dry-dock survivors are safe."
+            ),
+        },
+    ],
+    "lina-pell": [
+        {
+            "npc_id": "drina-sable",
+            "name": "Drina Sable",
+            "connection": (
+                "The keeper of her unofficial arrival book and the only "
+                "person Lina trusts to record a passenger's chosen name."
+            ),
+        },
+        {
+            "npc_id": "nera-bell",
+            "name": "Nera Bell",
+            "connection": (
+                "The archivist receiving her uphill name bundles, sometimes "
+                "after Lina has quietly changed their route."
+            ),
+        },
+        {
+            "npc_id": "vesna-korr",
+            "name": "Vesna Korr",
+            "connection": (
+                "A night-route counterpart who knows which Mudwheel "
+                "passengers must not appear on a public fare tally."
+            ),
+        },
+    ],
 }
 
 
@@ -357,7 +594,13 @@ def _living_persona(profile: dict) -> dict:
             goal["desire"] for goal in profile["private_goals"][:3]
         ],
         "knowledge": beliefs,
-        "relationships": [],
+        "relationships": [
+            dict(relationship)
+            for relationship in _LIVING_NPC_RELATIONSHIPS.get(
+                profile["id"],
+                (),
+            )
+        ],
         "disposition": (
             "friendly" if profile["id"] in {"sabine-vauclair", "lina-pell"}
             else "neutral"
@@ -1134,6 +1377,14 @@ async def _sync_drazna_carriage_topology(session) -> None:
     )).scalars().first()
     if oakrun_stop is None:
         raise ValueError("Oakrun Exchange must exist before Drazna routes sync")
+    oakrun_stop.details = {
+        **(
+            oakrun_stop.details
+            if isinstance(oakrun_stop.details, dict)
+            else {}
+        ),
+        "physical_object_id": "oakrun_covered_carriage",
+    }
 
     mudwheel = _LIVING_WORLD_CONTENT.carriages["mudwheel"]
     climb = _LIVING_WORLD_CONTENT.routes["drazna-quay-high-crown"]

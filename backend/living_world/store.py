@@ -11,7 +11,10 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Iterable, Mapping
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.living_world.memory import Memory, retrieve_memories
@@ -19,6 +22,11 @@ from backend.living_world.movement import RouteEdge
 from backend.living_world.relationships import (
     Relationship,
     apply_relationship_delta,
+)
+from backend.object_defs import (
+    OBJECT_ARRIVAL_APRON_RADIUS,
+    get_object_definition,
+    occupied_cells,
 )
 from backend.models import (
     NPCGoal,
@@ -473,10 +481,16 @@ async def roommates(
     room_id: int,
     excluding_id: str | None = None,
 ) -> list[NPCRow]:
+    pending_arrival = select(ScheduledWorldEvent.id).where(
+        ScheduledWorldEvent.actor_id == NPCRow.content_id,
+        ScheduledWorldEvent.kind == "npc_arrive_room",
+        ScheduledWorldEvent.status == "pending",
+    ).exists()
     statement = select(NPCRow).where(
         NPCRow.room_id == room_id,
         NPCRow.is_alive.is_(True),
         NPCRow.content_id.is_not(None),
+        ~pending_arrival,
     )
     if excluding_id is not None:
         statement = statement.where(NPCRow.content_id != excluding_id)
@@ -560,6 +574,23 @@ async def pending_actor_event(
     )).scalar_one_or_none()
 
 
+async def pending_arrival_actor_ids(
+    session: AsyncSession,
+    actor_ids: Iterable[str],
+) -> frozenset[str]:
+    """Return actors whose durable location is currently between rooms."""
+    identities = tuple(dict.fromkeys(actor_ids))
+    if not identities:
+        return frozenset()
+    return frozenset((await session.execute(
+        select(ScheduledWorldEvent.actor_id).where(
+            ScheduledWorldEvent.actor_id.in_(identities),
+            ScheduledWorldEvent.kind == "npc_arrive_room",
+            ScheduledWorldEvent.status == "pending",
+        )
+    )).scalars())
+
+
 async def connection_exists(
     session: AsyncSession,
     *,
@@ -580,7 +611,13 @@ async def arrival_position(
     room_id: int,
     from_room_id: int,
 ) -> tuple[int, int] | None:
-    """Choose a stable free floor tile near the returning connection."""
+    """Choose a stable free floor tile near the returning connection.
+
+    Coach aprons are intentionally unavailable to dormant NPC placement. A
+    player carriage preflights its complete landing cluster before committing
+    journey time; reserving the same radius here makes that promise stable
+    while schedules and authored relocations advance offscreen.
+    """
     room = await session.get(Room, room_id)
     if room is None:
         return None
@@ -604,10 +641,41 @@ async def arrival_position(
             )
         )).scalars()
     }
-    object_tiles = {
-        (obj.get("x"), obj.get("y"))
-        for obj in (room.objects or [])
-        if isinstance(obj, dict)
+    object_tiles: set[tuple[int, int]] = set()
+    carriage_cells: list[tuple[int, int]] = []
+    for obj in room.objects or []:
+        if not isinstance(obj, dict):
+            continue
+        x = obj.get("x")
+        y = obj.get("y")
+        object_type = obj.get("type")
+        if not isinstance(x, int) or not isinstance(y, int):
+            continue
+        definition = (
+            get_object_definition(object_type)
+            if isinstance(object_type, str)
+            else None
+        )
+        if definition is None:
+            # Authored/seeded rooms are validated against the catalogue. Keep
+            # the old conservative anchor exclusion for legacy rows whose
+            # definition is no longer available.
+            object_tiles.add((x, y))
+            continue
+        placement_cells = occupied_cells(definition, x, y)
+        object_tiles.update(placement_cells)
+        if definition.interaction == "carriage":
+            carriage_cells.extend(placement_cells)
+    carriage_apron_tiles = {
+        (x, y)
+        for y, terrain_row in enumerate(room.terrain)
+        for x, tile in enumerate(terrain_row)
+        if tile == "."
+        and any(
+            abs(x - carriage_x) + abs(y - carriage_y)
+            <= OBJECT_ARRIVAL_APRON_RADIUS
+            for carriage_x, carriage_y in carriage_cells
+        )
     }
     spawn_tiles = {
         (int(point[0]), int(point[1]))
@@ -621,6 +689,7 @@ async def arrival_position(
         if tile == "."
         and (x, y) not in occupied
         and (x, y) not in object_tiles
+        and (x, y) not in carriage_apron_tiles
         and (x, y) not in spawn_tiles
     ]
     if not candidates:
@@ -628,7 +697,10 @@ async def arrival_position(
             (x, y)
             for y, terrain_row in enumerate(room.terrain)
             for x, tile in enumerate(terrain_row)
-            if tile == "." and (x, y) not in occupied
+            if tile == "."
+            and (x, y) not in occupied
+            and (x, y) not in object_tiles
+            and (x, y) not in carriage_apron_tiles
         ]
     if not candidates:
         return None
@@ -671,6 +743,90 @@ async def ensure_fact(
     session.add(row)
     await session.flush()
     return row, True
+
+
+async def claim_fact_once(
+    session: AsyncSession,
+    *,
+    fact_key: str,
+    subject_id: str,
+    predicate: str,
+    value: Mapping[str, object],
+    confidence: float,
+    visibility: str,
+    world_minute: int,
+) -> tuple[WorldFact, bool]:
+    """Atomically claim an immutable fact key and return the durable winner.
+
+    A read-before-insert cannot protect a missing row: SQLite ignores
+    ``FOR UPDATE`` and no database can lock a row that does not yet exist.
+    The unique ``fact_key`` is therefore the mutex. Competing situation,
+    trigger, or process transactions all attempt the same insert; exactly one
+    receives the new row and every loser reloads the committed winner without
+    replacing it.
+    """
+    values = {
+        "fact_key": fact_key,
+        "subject_id": subject_id,
+        "predicate": predicate,
+        "value": dict(value),
+        "confidence": confidence,
+        "visibility": visibility,
+        "established_at_minute": world_minute,
+        "updated_at_minute": world_minute,
+    }
+    dialect = session.get_bind().dialect.name
+    if dialect == "sqlite":
+        statement = (
+            sqlite_insert(WorldFact)
+            .values(**values)
+            .on_conflict_do_nothing(index_elements=["fact_key"])
+            .returning(WorldFact.id)
+        )
+    elif dialect == "postgresql":
+        statement = (
+            postgresql_insert(WorldFact)
+            .values(**values)
+            .on_conflict_do_nothing(index_elements=["fact_key"])
+            .returning(WorldFact.id)
+        )
+    else:
+        nested = await session.begin_nested()
+        row = WorldFact(**values)
+        session.add(row)
+        try:
+            await session.flush()
+        except IntegrityError:
+            await nested.rollback()
+        else:
+            await nested.commit()
+            return row, True
+        existing = (await session.execute(
+            select(WorldFact).where(WorldFact.fact_key == fact_key)
+        )).scalar_one_or_none()
+        if existing is None:
+            raise RuntimeError(
+                f"immutable world fact {fact_key!r} could not be secured"
+            )
+        return existing, False
+
+    claimed_id = (await session.execute(statement)).scalar_one_or_none()
+    if claimed_id is not None:
+        claimed = await session.get(WorldFact, claimed_id)
+        if claimed is None:  # pragma: no cover - INSERT just returned its id
+            raise RuntimeError(
+                f"immutable world fact {fact_key!r} could not be secured"
+            )
+        return claimed, True
+
+    existing = (await session.execute(
+        select(WorldFact).where(WorldFact.fact_key == fact_key)
+    )).scalar_one_or_none()
+    if existing is None:  # pragma: no cover - conflict rows become visible
+        raise RuntimeError(
+            f"immutable world fact {fact_key!r} could not be secured"
+        )
+    return existing, False
 
 
 async def set_fact(
@@ -731,6 +887,21 @@ async def record_npc_death(
     """Persist one individual's death and the evidence players can discover."""
     account = summary or f"{npc_name} died."
     witness_ids = tuple(sorted(set(witnesses)))
+    pending_actions = (await session.execute(
+        select(ScheduledWorldEvent).where(
+            ScheduledWorldEvent.status == "pending",
+            or_(
+                ScheduledWorldEvent.actor_id == npc_content_id,
+                ScheduledWorldEvent.target_id == npc_content_id,
+            ),
+        )
+    )).scalars().all()
+    for pending in pending_actions:
+        cancel_scheduled_event(
+            pending,
+            world_minute=world_minute,
+            reason="NPC died before this action resolved",
+        )
     event, inserted = await chronicle_once(
         session,
         dedupe_key=f"npc-death:{npc_content_id}",

@@ -97,34 +97,36 @@ export function SituationModal() {
           </button>
         </header>
 
-        <p id="situation-description" className="situation-description">
-          {situation.description}
-        </p>
-
-        {situation.resolved ? (
-          <div className="situation-result" role="status" aria-live="polite">
-            <span aria-hidden>◇</span>
-            <p>{situation.result}</p>
-          </div>
-        ) : situation.choices.length > 0 ? (
-          <div className="situation-choices">
-            {situation.choices.map((choice, index) => (
-              <button
-                key={choice.id}
-                ref={index === 0 ? firstChoiceRef : undefined}
-                disabled={situationPending}
-                onClick={() => api.resolveSituation(choice.id)}
-              >
-                <span>{choice.label}</span>
-                <small>{choice.description}</small>
-              </button>
-            ))}
-          </div>
-        ) : (
-          <p className="situation-silent">
-            The mechanism answers only with the cadence it already knows.
+        <div className="situation-body" role="document" tabIndex={0}>
+          <p id="situation-description" className="situation-description">
+            {situation.description}
           </p>
-        )}
+
+          {situation.resolved ? (
+            <div className="situation-result" role="status" aria-live="polite">
+              <span aria-hidden>◇</span>
+              <p>{situation.result}</p>
+            </div>
+          ) : situation.choices.length > 0 ? (
+            <div className="situation-choices">
+              {situation.choices.map((choice, index) => (
+                <button
+                  key={choice.id}
+                  ref={index === 0 ? firstChoiceRef : undefined}
+                  disabled={situationPending}
+                  onClick={() => api.resolveSituation(choice.id)}
+                >
+                  <span>{choice.label}</span>
+                  <small>{choice.description}</small>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="situation-silent">
+              The mechanism answers only with the cadence it already knows.
+            </p>
+          )}
+        </div>
 
         <footer className="situation-foot">
           {situationPending

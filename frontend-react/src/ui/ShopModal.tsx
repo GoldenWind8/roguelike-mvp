@@ -10,6 +10,7 @@ export function ShopModal() {
   if (!shop) return null;
 
   const me = room && playerId ? room.players[playerId] : null;
+  const pack = me?.inventory ?? [];
   const coins = me?.coins ?? 0;
   const nextStock = new Date(shop.restocks_at);
   const restockLabel = Number.isNaN(nextStock.getTime())
@@ -64,8 +65,56 @@ export function ShopModal() {
           </div>
         )}
 
+        {shop.buyback_prices && (
+          <section className="shop-buyback">
+            <div className="shop-section-head">
+              <div>
+                <div className="shop-kicker">Portable salvage</div>
+                <h3>Sell from your pack</h3>
+              </div>
+              <span>One copy per trade. Equipped gear stays yours.</span>
+            </div>
+            {pack.length === 0 ? (
+              <div className="shop-pack-empty">Your pack holds nothing Teo can price.</div>
+            ) : (
+              <div className="shop-stock">
+                {pack.map((held, slot) => {
+                  const price = shop.buyback_prices?.[held.item.rarity] ?? 0;
+                  return (
+                    <article
+                      key={`${slot}-${held.item.id}`}
+                      className={`shop-item rarity-${held.item.rarity}`}
+                    >
+                      <ItemArt item={held.item} className="shop-item-icon" />
+                      <div className="shop-item-copy">
+                        <strong>{held.item.name}{held.quantity > 1 ? ` x${held.quantity}` : ""}</strong>
+                        <em>{held.item.rarity} {held.item.type}</em>
+                        <p>{held.equipped ? "Equipped: put it away before selling." : held.item.description}</p>
+                      </div>
+                      <button
+                        type="button"
+                        className="shop-buy shop-sell"
+                        disabled={held.equipped}
+                        title={held.equipped ? "Put it away before selling" : "Sell one copy"}
+                        onClick={() => api.sellShopItem(
+                          shop.object_id, slot, held.item.id,
+                        )}
+                      >
+                        Sell <span>●</span> {price}
+                      </button>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
+
         <footer className="shop-foot">
-          <span>Stock is shared by every traveller. Fresh wares: {restockLabel}.</span>
+          <span>
+            Stock is shared by every traveller. Fresh wares: {restockLabel}.
+            {shop.buyback_prices ? " Buyback offers do not expire." : ""}
+          </span>
           <button type="button" onClick={() => api.closeShop()}>Leave counter</button>
         </footer>
       </section>

@@ -1,4 +1,5 @@
 """Drazna's scoped item backfill and content-aware chest accent."""
+from datetime import date
 from pathlib import Path
 import random
 
@@ -17,6 +18,8 @@ from backend.regional_items import (
 )
 from backend.room_loader import load_room
 from backend.seeds import STARTER_ITEMS, seed_items_if_missing
+from backend.shop_defs import get_shop_for_object
+from backend.shop_store import ensure_daily_stock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -47,6 +50,29 @@ def test_authored_content_id_selects_only_the_drazna_scope():
     assert region_for_room_content_id("drazna_birch_heights") == "drazna"
     assert region_for_room_content_id("oakrun_market_square") is None
     assert region_for_room_content_id(None) is None
+
+
+@pytest.mark.asyncio
+async def test_amber_quay_provisions_can_stock_its_own_regional_food(
+    session,
+    monkeypatch,
+):
+    await seed_items_if_missing(session)
+    monkeypatch.setattr(loot_module, "LOOT_LLM_CHANCE", 0.0)
+    shop = get_shop_for_object("drazna_quay_stall")
+
+    assert shop is not None
+    assert shop.room_content_id == "drazna_lantern_quays"
+    stock = await ensure_daily_stock(
+        session,
+        shop,
+        day=date(2042, 3, 5),
+        rng=random.Random(1),
+    )
+
+    assert "Smoked Eel & Blackbread" in {
+        offer["item"]["name"] for offer in stock
+    }
 
 
 @pytest.mark.asyncio
@@ -114,9 +140,19 @@ async def test_drazna_draws_prefer_but_do_not_exclude_global_items(
         for _ in range(500)
     ]
     regional_count = sum(item["art"]["value"] in regional for item in draws)
+    food_count = sum(
+        any(
+            effect["kind"] == "restore_hunger"
+            for effect in item["payload"].get("effects", [])
+        )
+        for item in draws
+    )
 
     assert 320 <= regional_count <= 410
     assert regional_count < len(draws)
+    # Regional accent must not starve the survival loop: local eel parcels
+    # and the retained global food pool together remain a meaningful share.
+    assert 100 <= food_count <= 175
 
 
 @pytest.mark.asyncio

@@ -28,6 +28,7 @@ from backend.models import (
     PlayerKnowledge,
     PlayerWorldState,
     Room,
+    ScheduledWorldEvent,
     WorldEvent,
     WorldState,
 )
@@ -70,6 +71,15 @@ _CHRONICLE_SCAN_LIMIT = 400
 _CHRONICLE_HISTORY_LIMIT = 120
 
 
+def _pending_arrival_for_npc_row():
+    """Correlated physical-presence guard for an ``NPCRow`` query."""
+    return select(ScheduledWorldEvent.id).where(
+        ScheduledWorldEvent.actor_id == NPCRow.content_id,
+        ScheduledWorldEvent.kind == "npc_arrive_room",
+        ScheduledWorldEvent.status == "pending",
+    ).exists()
+
+
 async def observe_room(
     session: AsyncSession,
     *,
@@ -88,6 +98,7 @@ async def observe_room(
         select(NPCRow).where(
             NPCRow.room_id == room_id,
             NPCRow.content_id.is_not(None),
+            ~_pending_arrival_for_npc_row(),
         )
     )).scalars().all()
     known_rows = (await session.execute(
@@ -594,11 +605,11 @@ async def world_sync(
                 previously_learned=event.id in previously_retained,
             ),
             "place": await _room_name(session, event.room_id),
-            "actor_world_ids": [
-                actor
-                for actor in (event.actor_id, event.target_id)
-                if actor == player_id or actor in known_person_ids
-            ],
+            "actor_world_ids": _visible_event_actor_ids(
+                event,
+                player_id=player_id,
+                known_person_ids=known_person_ids,
+            ),
             "while_away": event.world_minute > away_after,
             "unread": not initial_sync and event.id not in previously_retained,
         }
@@ -654,12 +665,21 @@ async def _known_people_view(
 ) -> list[dict]:
     result: list[dict] = []
     content = _content()
+    identities = tuple(row.knowledge_key for row in rows)
+    npc_presence = {
+        npc.content_id: (npc, bool(in_transit))
+        for npc, in_transit in (await session.execute(
+            select(
+                NPCRow,
+                _pending_arrival_for_npc_row().label("in_transit"),
+            ).where(NPCRow.content_id.in_(identities))
+        )).all()
+    }
     for known in rows:
-        npc = (await session.execute(
-            select(NPCRow).where(NPCRow.content_id == known.knowledge_key)
-        )).scalars().first()
-        if npc is None:
+        presence = npc_presence.get(known.knowledge_key)
+        if presence is None:
             continue
+        npc, in_transit = presence
         relation = (await session.execute(
             select(NPCRelationship).where(
                 NPCRelationship.source_npc_content_id == known.knowledge_key,
@@ -687,7 +707,10 @@ async def _known_people_view(
             })
             if len(topics) == 3:
                 break
-        present = npc.room_id == current_room_id
+        present = (
+            npc.room_id == current_room_id
+            and not in_transit
+        )
         observed_availability = known.payload.get("availability", "unknown")
         availability = (
             "dead" if present and not npc.is_alive
@@ -850,10 +873,37 @@ def _event_provenance(
     return "heard"
 
 
+def _visible_event_actor_ids(
+    event: WorldEvent,
+    *,
+    player_id: str,
+    known_person_ids: set[str],
+) -> list[str]:
+    # A footprint, empty chair, altered record, or other local aftermath does
+    # not identify everyone who caused it. Linking known People cards here
+    # would silently disclose private participants even when the authored
+    # evidence deliberately leaves responsibility uncertain.
+    witnessed = (
+        player_id in (event.witnesses or [])
+        or event.actor_id == player_id
+    )
+    if event.visibility != "public" and not witnessed:
+        return []
+    return [
+        actor
+        for actor in (event.actor_id, event.target_id)
+        if actor == player_id or actor in known_person_ids
+    ]
+
+
 def _event_title(event: WorldEvent) -> str:
     return {
+        "authored_story_turn": "A local trace",
         "player_npc_conversation": "Words exchanged",
+        "situation_resolved": "A decisive moment",
         "npc_moved": "Someone moved on",
+        "npc_relocated": "Someone moved on",
+        "npc_disappeared": "Someone vanished",
         "rumor_shared": "A rumor changed hands",
         "npc_goal_changed": "A life changed direction",
         "missed_opportunity": "An opportunity passed",

@@ -11,6 +11,11 @@ from backend.content import load_catalog, require_art_path
 
 Cell = tuple[int, int]
 
+# Object-anchored player transfers reserve this complete logical apron. Dormant
+# NPC placement uses the same radius around carriage interactions so an
+# initially valid coach landing cannot be consumed while its journey runs.
+OBJECT_ARRIVAL_APRON_RADIUS = 2
+
 
 @dataclass(frozen=True)
 class ObjectDiscovery:

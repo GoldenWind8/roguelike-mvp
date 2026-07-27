@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from backend.living_world.player_knowledge import record_object_discovery
 from backend.living_world.service import LivingWorldConfig, LivingWorldService
@@ -9,8 +9,11 @@ from backend.models import (
     NPCRow,
     PlayerRow,
     Room,
+    ScheduledWorldEvent,
     TriggerFiring,
+    WorldEvent,
     WorldFact,
+    WorldState,
 )
 from backend.object_defs import get_object_definition
 from backend.seeds import get_or_seed_default_room
@@ -26,14 +29,13 @@ async def test_thirty_day_absent_player_simulation_reaches_coherent_climax(
         game_minutes_per_real_minute=1440,
         catchup_cap_minutes=1440,
         max_events_per_advance=5000,
-        # Thirty days still exercise roughly 240 ordinary conversations,
-        # while keeping this content audit bounded despite the separately
-        # tracked superlinear history-scan cost at the production cap of 32.
-        max_conversations_per_advance=8,
+        max_conversations_per_advance=32,
     ))
 
+    results = []
     for day in range(31):
         result = await service.advance(session, day * 60, ())
+        results.append(result)
         await advance_authored_triggers(
             session,
             from_minute=result.from_minute,
@@ -57,6 +59,7 @@ async def test_thirty_day_absent_player_simulation_reaches_coherent_climax(
         "undertide-expedition-launch",
         "nera-tablet-theft",
         "vasko-returns-with-ledger",
+        "olek-vasko-ledger-return",
         "mara-alin-hearing-outcome",
         "gate-seven-climax",
         "odran-cadence-pacified",
@@ -108,6 +111,71 @@ async def test_thirty_day_absent_player_simulation_reaches_coherent_climax(
         )
     )).scalar_one()
     assert rada_goal.status == "completed"
+
+    # Keep the production conversation budget under a deterministic
+    # long-horizon growth bound. These ratios tolerate new authored effects
+    # while catching recursive scheduling, rumour, or Chronicle amplification.
+    living_people = (await session.execute(
+        select(func.count()).select_from(NPCRow).where(
+            NPCRow.is_alive.is_(True),
+        )
+    )).scalar_one()
+    memory_count = (await session.execute(
+        select(func.count()).select_from(NPCMemory)
+    )).scalar_one()
+    event_count = (await session.execute(
+        select(func.count()).select_from(WorldEvent)
+    )).scalar_one()
+    scheduled_count = (await session.execute(
+        select(func.count()).select_from(ScheduledWorldEvent)
+    )).scalar_one()
+    pending_count = (await session.execute(
+        select(func.count()).select_from(ScheduledWorldEvent).where(
+            ScheduledWorldEvent.status == "pending",
+        )
+    )).scalar_one()
+    pending_deliberations = (await session.execute(
+        select(func.count()).select_from(ScheduledWorldEvent).where(
+            ScheduledWorldEvent.status == "pending",
+            ScheduledWorldEvent.kind == "npc_deliberate",
+        )
+    )).scalar_one()
+    pending_routines = (await session.execute(
+        select(func.count()).select_from(ScheduledWorldEvent).where(
+            ScheduledWorldEvent.status == "pending",
+            ScheduledWorldEvent.kind == "npc_routine_anchor",
+        )
+    )).scalar_one()
+    state = await session.get(WorldState, 1)
+    overdue_count = (await session.execute(
+        select(func.count()).select_from(ScheduledWorldEvent).where(
+            ScheduledWorldEvent.status == "pending",
+            ScheduledWorldEvent.due_minute <= state.world_minute,
+        )
+    )).scalar_one()
+    max_cascade_depth = (await session.execute(
+        select(func.max(NPCMemory.cascade_depth))
+    )).scalar_one()
+
+    assert max(result.conversations for result in results) == 32
+    assert all(result.conversations <= 32 for result in results)
+    assert memory_count <= sum(
+        result.memories_created for result in results
+    ) + 250
+    assert event_count <= sum(
+        result.processed_events for result in results
+    ) + 500
+    assert scheduled_count <= sum(
+        result.processed_events for result in results
+    ) + living_people * 2
+    # Every living person retains one sparse deliberation. Overnight routine
+    # actions are queued only for people whose current or pending journey
+    # conflicts with their first authored anchor.
+    assert pending_deliberations == living_people
+    assert pending_routines <= living_people
+    assert pending_count <= living_people * 2
+    assert overdue_count == 0
+    assert max_cascade_depth <= service.config.max_rumour_cascade_depth
 
 
 async def test_thirty_day_engaged_resolution_is_not_overridden_offscreen(
@@ -262,7 +330,11 @@ async def test_unanswered_engaged_cadence_floods_without_overwriting_resolution(
             )
         )).scalars()
     }
-    assert "drazna.gate_seven_resolution" not in facts
+    assert facts["drazna.gate_seven_resolution"] == {
+        "state": "flooded",
+        "gate": "jammed",
+        "names_spoken": 9,
+    }
     assert facts["drazna.gate_seven_cadence"] == {
         "state": "failed",
         "names_spoken": 9,
@@ -355,6 +427,7 @@ async def test_thirty_day_missed_undertide_branch_reaches_flooded_gate(session):
                 WorldFact.fact_key.in_({
                     "drazna.undertide_expedition",
                     "drazna.luka_last_window",
+                    "drazna.gate_seven_resolution",
                     "drazna.gate_seven_climax",
                     "drazna.walking_ward_after_gate",
                 })
@@ -363,6 +436,11 @@ async def test_thirty_day_missed_undertide_branch_reaches_flooded_gate(session):
     }
     assert facts["drazna.undertide_expedition"]["state"] == "missed"
     assert facts["drazna.luka_last_window"]["state"] == "dead"
+    assert facts["drazna.gate_seven_resolution"] == {
+        "state": "flooded",
+        "gate": "jammed",
+        "names_spoken": 9,
+    }
     assert facts["drazna.gate_seven_climax"] == {
         "state": "flooded",
         "gate": "jammed",

@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.actor_defs import get_actor_art
 from backend.config import NPC_TRANSCRIPT_LIMIT
 from backend.entities import NPC, Disposition, Position
-from backend.models import NPCRow
+from backend.models import NPCRow, ScheduledWorldEvent
 from backend.persona import validate_persona
 
 
@@ -50,10 +50,24 @@ async def get_npc_row_by_content_id(
 async def load_npcs(session: AsyncSession, room_id: int) -> list[NPC]:
     """All individuals currently in a room, personas re-validated on the way
     in (the gate runs on load as well as insert, so a row edited by hand or a
-    future generator can't smuggle a malformed persona into the world)."""
+    future generator can't smuggle a malformed persona into the world).
+
+    A traveller keeps their last reached room in ``npcs.room_id`` while the
+    durable arrival action accounts for time on the road.  Do not materialize
+    that in-transit row in an active room: doing so would make the same person
+    simultaneously visible on the grid and travelling in the world queue.
+    """
+    pending_arrival = select(ScheduledWorldEvent.id).where(
+        ScheduledWorldEvent.actor_id == NPCRow.content_id,
+        ScheduledWorldEvent.kind == "npc_arrive_room",
+        ScheduledWorldEvent.status == "pending",
+    ).exists()
     rows = (await session.execute(
         select(NPCRow)
-        .where(NPCRow.room_id == room_id)
+        .where(
+            NPCRow.room_id == room_id,
+            ~pending_arrival,
+        )
         .order_by(NPCRow.content_id, NPCRow.id)
     )).scalars().all()
 

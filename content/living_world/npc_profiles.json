@@ -138,7 +138,7 @@
         {"start_minute": 270, "location_id": "oakrun_crossroads", "activity": "care", "commitment": 100},
         {"start_minute": 720, "location_id": "oakrun_north_road", "activity": "investigate", "commitment": 45},
         {"start_minute": 900, "location_id": "oakrun_crossroads", "activity": "work", "commitment": 95},
-        {"start_minute": 1170, "location_id": "oakrun_crossroads", "activity": "socialize", "commitment": 55}
+        {"start_minute": 1170, "location_id": "oakrun_pilgrims_hollow", "activity": "care", "commitment": 70}
       ],
       "needs": [
         {"kind": "duty", "weight": 86, "satisfiers": ["care", "work"]},
@@ -198,7 +198,7 @@
         {"start_minute": 240, "location_id": "oakrun_crossroads", "activity": "care", "commitment": 95},
         {"start_minute": 390, "location_id": "oakrun_crossroads", "activity": "travel", "commitment": 85},
         {"start_minute": 840, "location_id": "oakrun_crossroads", "activity": "repair", "commitment": 90},
-        {"start_minute": 1110, "location_id": "oakrun_crossroads", "activity": "socialize", "commitment": 55}
+        {"start_minute": 1110, "location_id": "oakrun_pilgrims_hollow", "activity": "investigate", "commitment": 70}
       ],
       "needs": [
         {"kind": "duty", "weight": 96, "satisfiers": ["protect", "travel", "work"]},
@@ -318,7 +318,7 @@
         {"start_minute": 270, "location_id": "oakrun_orchard_lane", "activity": "work", "commitment": 100},
         {"start_minute": 720, "location_id": "oakrun_old_mill_yard", "activity": "investigate", "commitment": 50},
         {"start_minute": 870, "location_id": "oakrun_orchard_lane", "activity": "work", "commitment": 95},
-        {"start_minute": 1110, "location_id": "oakrun_crossroads", "activity": "socialize", "commitment": 45}
+        {"start_minute": 1110, "location_id": "oakrun_pilgrims_hollow", "activity": "care", "commitment": 70}
       ],
       "needs": [
         {"kind": "duty", "weight": 94, "satisfiers": ["work", "protect"]},
@@ -494,9 +494,9 @@
       "schedule": [
         {"start_minute": 0, "location_id": "oakrun_pilgrims_hollow", "activity": "sleep", "commitment": 70},
         {"start_minute": 300, "location_id": "oakrun_pilgrims_hollow", "activity": "work", "commitment": 75},
-        {"start_minute": 630, "location_id": "oakrun_old_mill_yard", "activity": "investigate", "commitment": 55},
+        {"start_minute": 630, "location_id": "oakrun_pilgrims_hollow", "activity": "investigate", "commitment": 55},
         {"start_minute": 900, "location_id": "oakrun_pilgrims_hollow", "activity": "travel", "commitment": 50},
-        {"start_minute": 1110, "location_id": "oakrun_crossroads", "activity": "socialize", "commitment": 45}
+        {"start_minute": 1110, "location_id": "oakrun_pilgrims_hollow", "activity": "socialize", "commitment": 45}
       ],
       "needs": [
         {"kind": "answers", "weight": 86, "satisfiers": ["investigate", "travel"]},
@@ -506,10 +506,10 @@
       "private_goals": [
         {
           "id": "return-to-drazna",
-          "desire": "Reach Drazna by a road whose sequence she can prove to people travelling after her.",
+          "desire": "Prove the erased road's sequence before she risks Wren or another traveller on the departure.",
           "priority": 5,
-          "approach": "direct",
-          "target": {"kind": "kingdom", "id": "drazna"},
+          "approach": "patient",
+          "target": {"kind": "rumor", "id": "east-road-is-closed"},
           "risk_tolerance": "bold"
         },
         {
@@ -534,7 +534,7 @@
       ],
       "trigger_ids": ["edda-hester-east-road", "wren-leaves-for-drazna"],
       "offscreen_policy": {
-        "can_relocate": true,
+        "can_relocate": false,
         "can_die": true,
         "missed_windows_are_final": true,
         "minimum_warning_memories": 1
@@ -554,8 +554,8 @@
       ],
       "schedule": [
         {"start_minute": 0, "location_id": "oakrun_pilgrims_hollow", "activity": "sleep", "commitment": 70},
-        {"start_minute": 390, "location_id": "oakrun_orchard_lane", "activity": "work", "commitment": 75},
-        {"start_minute": 780, "location_id": "oakrun_old_mill_yard", "activity": "investigate", "commitment": 45},
+        {"start_minute": 390, "location_id": "oakrun_pilgrims_hollow", "activity": "work", "commitment": 75},
+        {"start_minute": 780, "location_id": "oakrun_pilgrims_hollow", "activity": "investigate", "commitment": 45},
         {"start_minute": 960, "location_id": "oakrun_pilgrims_hollow", "activity": "care", "commitment": 60},
         {"start_minute": 1170, "location_id": "oakrun_pilgrims_hollow", "activity": "hide", "commitment": 80}
       ],
@@ -567,10 +567,10 @@
       "private_goals": [
         {
           "id": "follow-remembered-water",
-          "desire": "Reach Drazna and learn whether the place in their dreams is a home, a wound, or somebody else's memory.",
+          "desire": "Test whether the Drazna in their dreams is memory, warning, or a story somebody planted before choosing the road.",
           "priority": 5,
-          "approach": "direct",
-          "target": {"kind": "kingdom", "id": "drazna"},
+          "approach": "patient",
+          "target": {"kind": "rumor", "id": "rot-speaks-in-dreams"},
           "risk_tolerance": "bold"
         },
         {
@@ -595,7 +595,7 @@
       ],
       "trigger_ids": ["maud-wren-root-memory", "tom-wren-black-mud", "wren-leaves-for-drazna"],
       "offscreen_policy": {
-        "can_relocate": true,
+        "can_relocate": false,
         "can_die": true,
         "missed_windows_are_final": true,
         "minimum_warning_memories": 1

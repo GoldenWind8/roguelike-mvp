@@ -990,6 +990,18 @@ button {
   place-items: center;
   line-height: 1;
 }
+.item-art-fallback,
+.item-art-image {
+  grid-area: 1 / 1;
+}
+.item-art-fallback {
+  display: none;
+  color: rgba(189, 150, 96, 0.72);
+  font-size: 0.72em;
+}
+.item-art-image[hidden] + .item-art-fallback {
+  display: grid;
+}
 .item-art-image {
   display: block;
   width: 100%;
@@ -1714,6 +1726,30 @@ button {
 }
 .shop-buy:hover:not(:disabled), .shop-foot button:hover { background: rgba(151, 94, 39, 0.52); }
 .shop-buy:disabled { opacity: 0.38; cursor: not-allowed; }
+.shop-buyback {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(218, 169, 86, 0.2);
+}
+.shop-section-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+.shop-section-head h3 { margin: 2px 0 0; color: #e8d2a7; }
+.shop-section-head > span, .shop-pack-empty {
+  color: var(--muted);
+  font-size: 11px;
+}
+.shop-pack-empty {
+  padding: 18px;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 5px;
+  text-align: center;
+}
+.shop-sell { min-width: 92px; }
 .shop-empty {
   min-height: 180px;
   display: grid;
@@ -2236,10 +2272,17 @@ button {
 }
 
 .world-person-monogram {
-  display: grid;
+  position: absolute;
+  inset: 0;
+  display: none;
   place-items: center;
   color: #bd9660;
   font-size: 19px;
+}
+
+.world-person-portrait img[hidden] + .world-person-monogram,
+.world-person-monogram-only {
+  display: grid;
 }
 
 .person-identity {
@@ -2560,7 +2603,7 @@ button {
 }
 
 .carriage-modal {
-  width: min(760px, 96vw);
+  width: min(760px, 100%);
   max-height: min(820px, calc(100vh - 48px));
   display: flex;
   flex-direction: column;
@@ -2587,6 +2630,11 @@ button {
   gap: 13px;
   padding: 18px 20px 15px;
   border-bottom: 1px solid rgba(122, 88, 51, 0.38);
+}
+
+.carriage-head > div:nth-child(2),
+.carriage-route-copy {
+  min-width: 0;
 }
 
 .carriage-glyph {
@@ -2620,6 +2668,7 @@ button {
   font-size: 23px;
   font-weight: normal;
   line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .carriage-head p {
@@ -2754,11 +2803,19 @@ button {
 }
 
 .carriage-routes {
-  min-height: 140px;
+  min-height: 0;
+  flex: 1 1 auto;
   display: grid;
+  grid-auto-rows: max-content;
+  align-content: start;
   gap: 8px;
   padding: 0 20px 18px;
   overflow-y: auto;
+}
+
+.carriage-routes:focus-visible {
+  outline: 1px solid rgba(232, 168, 78, 0.68);
+  outline-offset: -3px;
 }
 
 .carriage-route {
@@ -2906,7 +2963,7 @@ button {
 }
 
 .situation-modal {
-  width: min(650px, 96vw);
+  width: min(650px, 100%);
   max-height: min(780px, calc(100vh - 48px));
   display: flex;
   flex-direction: column;
@@ -2936,6 +2993,10 @@ button {
   gap: 14px;
   padding: 19px 21px 16px;
   border-bottom: 1px solid rgba(118, 140, 130, 0.32);
+}
+
+.situation-head > div:nth-child(2) {
+  min-width: 0;
 }
 
 .situation-sigil {
@@ -2974,6 +3035,7 @@ button {
   color: #d6d8cf;
   font: normal 25px/1.15 Georgia, serif;
   letter-spacing: 0.035em;
+  overflow-wrap: anywhere;
 }
 
 .situation-close {
@@ -2994,6 +3056,18 @@ button {
 
 .situation-close:disabled { opacity: 0.3; cursor: default; }
 
+.situation-body {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.situation-body:focus-visible {
+  outline: 1px solid rgba(151, 181, 167, 0.62);
+  outline-offset: -3px;
+}
+
 .situation-description {
   margin: 0;
   padding: 24px 28px 20px;
@@ -3005,7 +3079,6 @@ button {
   display: grid;
   gap: 9px;
   padding: 2px 24px 25px;
-  overflow-y: auto;
 }
 
 .situation-choices button {

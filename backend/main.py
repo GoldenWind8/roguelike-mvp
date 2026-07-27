@@ -70,11 +70,13 @@ from backend.room_loader import load_room
 from backend.seeds import get_or_seed_default_room, reset_npcs, seed_items_if_missing
 from backend.shop_defs import get_shop_for_object
 from backend.shop_store import (
+    BUYBACK_PRICES,
     PurchaseError,
     ensure_daily_stock,
     list_stock,
     next_restock_at,
     purchase,
+    sell_item,
     utc_day,
 )
 from backend.situation_defs import get_situation_for_object
@@ -355,6 +357,24 @@ async def maybe_evict(runtime: RoomRuntime) -> None:
         del active_rooms[runtime.room_id]
 
 
+def _discard_speculative_room(runtime: RoomRuntime) -> None:
+    """Forget a read-only room load without writing its occupants back.
+
+    A carriage preflight needs real authored geometry, enemies, and persistent
+    NPC positions before it can promise that a whole party fits.  A cold room
+    loaded solely for that check is not live authority, though: leaving it in
+    ``active_rooms`` would freeze its dormant simulation during the journey,
+    while evicting it normally after the journey could overwrite newer NPC
+    rows with the speculative snapshot.  Callers hold ``state_lock`` and must
+    only use this for an unmodified runtime with no players.
+    """
+    if runtime.engine.room.players:
+        raise RuntimeError("cannot discard a speculative room with players")
+    cancel_round_timeout(runtime)
+    if active_rooms.get(runtime.room_id) is runtime:
+        del active_rooms[runtime.room_id]
+
+
 # --- room-scoped messaging ----------------------------------------------------
 
 
@@ -609,20 +629,40 @@ def _transfer_plan(
     origin: RoomRuntime,
     destination: RoomRuntime,
     player_id: str,
+    *,
+    arrival_object_id: str | None = None,
 ) -> _TransferPlan | None:
     """Calculate a complete party landing without mutating either room."""
     player = origin.engine.room.get_player(player_id)
     if player is None or not player.is_alive:
         return None
     room = destination.engine.room
-    player_spawn = room.free_arrival(origin.room_id)
-    if len(room.players) >= room.template.capacity or player_spawn is None:
-        return None
-
     followers = tuple(
         npc for npc in origin.engine.room.npcs.values()
         if npc.is_alive and npc.party_owner_id == player_id
     )
+    if len(room.players) >= room.template.capacity:
+        return None
+
+    if arrival_object_id is not None:
+        landing_cluster = room.free_positions_near_object(
+            arrival_object_id,
+            1 + len(followers),
+        )
+        if not landing_cluster:
+            return None
+        return _TransferPlan(
+            player=player,
+            player_spawn=landing_cluster[0],
+            followers=followers,
+            follower_positions=landing_cluster[1:],
+        )
+
+    # Legacy and procedural stops have no authored physical landmark and keep
+    # the ordinary room-entry behavior.
+    player_spawn = room.free_arrival(origin.room_id)
+    if player_spawn is None:
+        return None
     reserved = {player_spawn}
     follower_positions: list[tuple[int, int]] = []
     destination_exit_tiles = {
@@ -665,6 +705,8 @@ async def _transfer_player(
     origin: RoomRuntime,
     player_id: str,
     to_room_id: int,
+    *,
+    arrival_object_id: str | None = None,
 ) -> bool:
     """Caller holds state_lock. Validate everything, THEN mutate — a failure
     at any check denies the traversal with zero state change."""
@@ -682,7 +724,12 @@ async def _transfer_player(
         await send_to(origin, player_id, {"type": "error", "message": "The way is blocked."})
         return False
 
-    plan = _transfer_plan(origin, dest, player_id)
+    plan = _transfer_plan(
+        origin,
+        dest,
+        player_id,
+        arrival_object_id=arrival_object_id,
+    )
     if plan is None:
         if not dest_was_loaded:
             await maybe_evict(dest)
@@ -1365,6 +1412,9 @@ def _shop_message(definition, object_id: str, stock: list[dict]) -> dict:
             "label": definition.label,
             "stock": stock,
             "restocks_at": next_restock_at(day),
+            "buyback_prices": (
+                dict(BUYBACK_PRICES) if definition.buys_items else None
+            ),
         },
     }
 
@@ -1479,6 +1529,61 @@ async def handle_buy_shop_item(websocket: WebSocket, player_id: str, data: dict)
             "shop_id": definition.id,
             "stock": remaining,
         })
+
+
+async def handle_sell_shop_item(
+    websocket: WebSocket,
+    player_id: str,
+    data: dict,
+) -> None:
+    """Sell one carried copy at an authored buyback counter."""
+    async with state_lock:
+        runtime = runtime_for(player_id)
+        room = runtime.engine.room if runtime else None
+        player = room.get_player(player_id) if room else None
+        obj, definition, error = (
+            _adjacent_shop(room, player, data.get("object_id")) if room
+            else (None, None, "Not in a room")
+        )
+        if error:
+            await websocket.send_json({"type": "error", "message": error})
+            return
+
+        try:
+            async with SessionMaker() as session:
+                sold = await sell_item(
+                    session,
+                    definition=definition,
+                    slot=data.get("slot"),
+                    item_id=data.get("item_id"),
+                    player_id=player_id,
+                    live_inventory=player.inventory,
+                )
+        except PurchaseError as exc:
+            await websocket.send_json({"type": "error", "message": str(exc)})
+            return
+        except Exception:
+            logging.exception("sale failed for shop %s", definition.id)
+            await websocket.send_json({
+                "type": "error",
+                "message": "The trade could not be completed.",
+            })
+            return
+
+        player.inventory = sold.inventory
+        player.coins = sold.coins
+        await broadcast_state_and_events(runtime, [GameEvent(
+            EventType.ITEM_SOLD,
+            {
+                "player_id": player_id,
+                "shop_id": definition.id,
+                "object_id": obj.id,
+                "slot": sold.slot,
+                "item": sold.item,
+                "price": sold.price,
+            },
+            room.round,
+        )])
 
 
 # --- exploration noticeboards -------------------------------------------------
@@ -2061,19 +2166,45 @@ async def handle_carriage_travel(
             })
             return
 
-        # A live destination can be full even though the route itself is
-        # available. Reject before advancing the irreversible shared clock.
-        # Inactive rooms have no live players and are validated when loaded.
-        loaded_destination = active_rooms.get(destination.room_id)
-        if (
-            loaded_destination is not None
-            and _transfer_plan(origin, loaded_destination, player_id) is None
-        ):
+        # Load even a cold destination before advancing the irreversible
+        # shared clock. Persistent NPCs and seeded enemies can fill an authored
+        # coach apron despite there being no live players in the room.
+        destination_was_loaded = destination.room_id in active_rooms
+        try:
+            landing_runtime = await get_or_load_room(destination.room_id)
+        except Exception:
+            logging.exception(
+                "failed to load carriage destination %s",
+                destination.room_id,
+            )
             await websocket.send_json({
                 "type": "error",
                 "message": "There is no room for your party at that stop.",
             })
             return
+        if (
+            _transfer_plan(
+                origin,
+                landing_runtime,
+                player_id,
+                arrival_object_id=destination.arrival_object_id,
+            )
+            is None
+        ):
+            if not destination_was_loaded:
+                _discard_speculative_room(landing_runtime)
+            await websocket.send_json({
+                "type": "error",
+                "message": "There is no room for your party at that stop.",
+            })
+            return
+
+        # A cold destination was loaded only to validate the initial landing.
+        # Drop that read-only snapshot before simulating the ride so its NPCs
+        # remain dormant participants.  The transfer reloads their committed
+        # post-journey positions instead of saving this stale snapshot.
+        if not destination_was_loaded:
+            _discard_speculative_room(landing_runtime)
 
         await websocket.send_json({
             "type": "travel_started",
@@ -2123,6 +2254,7 @@ async def handle_carriage_travel(
             origin,
             player_id,
             destination.room_id,
+            arrival_object_id=destination.arrival_object_id,
         )
         if not transferred:
             return
@@ -2370,6 +2502,12 @@ async def websocket_endpoint(websocket: WebSocket):
                     await websocket.send_json({"type": "error", "message": "Join first"})
                     continue
                 await handle_buy_shop_item(websocket, player_id, data)
+
+            elif msg_type == "sell_shop_item":
+                if not player_id:
+                    await websocket.send_json({"type": "error", "message": "Join first"})
+                    continue
+                await handle_sell_shop_item(websocket, player_id, data)
 
             elif msg_type == "open_noticeboard":
                 if not player_id:

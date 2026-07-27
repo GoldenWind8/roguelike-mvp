@@ -1,9 +1,11 @@
 # Roguelike MMO MVP
 
 A browser-based multiplayer roguelike prototype. The current build is a
-server-authoritative persistent room graph: tactical grid combat, free
-exploration, and LLM-driven NPCs you can recruit, provoke, or talk down —
-with every AI proposal validated by the engine before it touches the world.
+server-authoritative persistent world: tactical grid combat, free exploration,
+procedural frontier growth, authored kingdoms, and living NPCs you can recruit,
+provoke, follow, or simply miss. Every AI proposal is validated by the engine
+before it touches the world; travel, schedules, consequences, and persistence
+remain deterministic.
 
 The project direction is bigger than the current build: an open-world grid game
 where AI helps generate rooms, lore, NPCs, objects, and encounters. The docs are
@@ -16,6 +18,15 @@ ideas stay separate.
 - Oakrun is an eight-room handcrafted starting region. Its peaceful crossroads,
   orchard, hollow, and tollhouse connect through two loops to the hostile north
   road, old mill, barrow, and severed fieldsite.
+- Drazna is a nineteen-room lake kingdom with layered civic, palace, archive,
+  thieves' underworld, floodworks, and Undertide routes. Its records establish
+  the first verified public account of the black rot without claiming the rot
+  began there. A temporary Oakrun door supports direct playtesting while a
+  separate frontier gateway exercises the intended procedural discovery loop.
+- The frontier grows persistent rooms and connections from authored gateway
+  exits. Discovering a regional gateway can open its named carriage stops and
+  routes atomically without folding temporary development bridges into the
+  procedural graph.
 - Authored raster art is used for meaningful actors, enemies, landmarks, and
   placed objects; floors and walls keep the same neutral renderer-owned tiles
   used by generated rooms.
@@ -53,6 +64,19 @@ ideas stay separate.
 - Authored NPC knowledge and relationships: Oakrun residents know specific
   people and facts rather than receiving omniscient lore. Edda and Wren are
   recruitable travellers whose goals point toward Drazna and the fieldsite.
+- Living-world simulation: persistent people hold private goals, sparse
+  deliberation windows, deterministic schedules, memories, relationships,
+  beliefs, travel plans, meetings, injuries, deaths, and missable off-screen
+  opportunities. Dormant-room catch-up is bounded and gives active rooms
+  authority whenever a player is present.
+- Drazna's intertwined situations include the Undertide expedition, Mara and
+  Alin's political conflict, Nera's omitted names, Vasko's return, Low Lantern
+  betrayals, carriage meetings, and Gate Seven's multi-outcome regional climax.
+  They are discovered through people, evidence, timing, and consequences
+  rather than a quest tracker.
+- A player-private World drawer separates heard Rumours, evidence-shaped
+  Chronicle entries, and last-observed People records. Private motives and
+  unseen condition changes are not exposed by the server.
 - Escalation: insult the caretaker and his room flips to combat live; kill or
   parley the last hostile and it returns to exploration.
 - Accounts & identity (M8): register/login with username + password (optional
@@ -69,18 +93,23 @@ ideas stay separate.
 - Exploration noticeboard service: Oakrun mixes authored town notices with
   globally visible, expiring player messages. Each account may hold one short
   notice on the board and may remove only its own.
-- Tests covering database setup, room validation, seeding, room loading, the
-  room registry, traversal, NPC persistence, the dialogue provider seam,
-  dialogue effects, party members, escalation, and accounts (auth, resume,
-  the one-socket rule).
+- Scheduled carriage services use named stops, operating windows, fares,
+  layovers, route danger, persistent travel, and generated frontier waystops.
+- Tests cover database setup, region topology, procedural discovery, map
+  reachability, combat and loot balance, carriage travel, long-horizon living
+  world replay, authored branch exclusivity, player-knowledge privacy, room
+  loading, traversal, dialogue effects, parties, escalation, and account
+  persistence.
 
 ## Not Built Yet
 
-- Room generation (in progress on a parallel track; joins the game once the
-  presets are workable).
+- Production-scale procedural variety, encounter ecology, and remote-region
+  discovery weighting beyond the current deterministic frontier generator.
 - Password reset, email verification, login rate limiting, session expiry —
   deferred with named triggers in [Accounts & Identity](docs/archive/ACCOUNTS.md).
-- Object pickup, inventory, or object effects.
+- General world-object pickup and non-consumable key-item support. Chests,
+  shops, inventory use, evidence inspection, and authored interactions are
+  already functional.
 - Multi-process workers, Redis routing, or production-scale MMO infrastructure.
 
 ## Setup
@@ -127,10 +156,14 @@ npm run build
 - Press E beside a resident or object to interact; clicking any visible part
   of accepted world artwork works too.
 - Press Home (or the ◎ button) to recenter the camera after looking around.
+- Press J to open Rumours, People, and the Chronicle; these surfaces show only
+  what your character has heard, witnessed, or found.
 - Click an adjacent player or enemy to attack.
 - Hold a belt item (`1`–`0` or click a slot), then click its target — an
   enemy for the sword, a tile for a bomb, yourself for food or a potion.
 - Press Space to wait.
+- Inspect a named carriage stop to see only currently known destinations,
+  departure timing, duration, danger, and fare.
 - The server resolves a round when all living players act, or when the turn
   timeout fires.
 
@@ -152,6 +185,17 @@ Each doc has one job:
   ownership, and persistent-versus-respawnable character rules.
 - [Oakrun Starting Region](docs/OAKRUN.md): room graph, evidence threads,
   interconnected cast, and content ownership.
+- [Drazna Kingdom Chapter](docs/DRAZNA.md): the nineteen-room lake kingdom,
+  intertwined situations, Gate Seven outcomes, evidence discipline, and
+  procedural release boundary.
+- [Living World](docs/LIVING_WORLD.md): sparse NPC deliberation, deterministic
+  schedules, memory, rumours, authored consequences, and player knowledge.
+- [World Regions](docs/WORLD_REGIONS.md): kingdom identities, roads, carriage
+  services, and frontier integration.
+- [Traversal](docs/TRAVERSAL.md): room connections, procedural gateways, and
+  active-room handoff rules.
+- [Loot](docs/LOOT.md): runtime item rolls, regional preferences, persistence,
+  and inventory delivery.
 - [Exploration Noticeboards](docs/NOTICEBOARDS.md): authored notices, persistent
   player posts, expiry, ownership, and protocol boundaries.
 - [World Object Assets](docs/OBJECT_ASSETS.md): the small data contract for

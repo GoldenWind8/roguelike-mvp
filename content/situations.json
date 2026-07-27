@@ -7,6 +7,18 @@
     "kicker": "Gate Seven",
     "description": "The chain drum answers the lake with fourteen measured blows. Odran's bound hand tightens on the emergency pawl whenever the ninth blow passes, as though five replies have been withheld.",
     "fact_key": "drazna.gate_seven_resolution",
+    "terminal_outcomes": [
+      {
+        "fact_key": "drazna.gate_seven_climax",
+        "value": {
+          "state": "flooded",
+          "gate": "jammed",
+          "cadence_known": true
+        },
+        "outcome": "flooded",
+        "result": "The pressure release has already failed. Gate Seven is jammed under a full head, and the Walking Ward bells are answering the surge."
+      }
+    ],
     "defeat_outcome": {
       "value": "odran-killed",
       "fact_value": {

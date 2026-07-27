@@ -12,9 +12,6 @@ from dataclasses import dataclass
 from collections.abc import Iterable
 
 from sqlalchemy import select
-from sqlalchemy.dialects.postgresql import insert as postgresql_insert
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.living_world import store
@@ -28,6 +25,7 @@ from backend.models import (
 from backend.situation_defs import (
     SituationChoice,
     SituationDefinition,
+    SituationTerminalOutcome,
     get_situation_for_actor,
 )
 
@@ -67,6 +65,20 @@ async def situation_view(
             "choices": [],
         }
 
+    terminal = await _terminal_outcome(session, definition)
+    if terminal is not None:
+        return {
+            "id": definition.id,
+            "object_id": definition.object_id,
+            "title": definition.title,
+            "kicker": definition.kicker,
+            "description": definition.description,
+            "resolved": True,
+            "outcome": terminal.outcome,
+            "result": terminal.result,
+            "choices": [],
+        }
+
     actor = await _actor(session, definition)
     if actor is None:
         raise SituationError("The person bound to this place can no longer be found.")
@@ -92,6 +104,12 @@ async def situation_view(
             "result": resolution.result,
             "choices": [],
         }
+    if await store.has_pending_actor_action(
+        session,
+        actor_id=definition.actor_id,
+        kinds=("npc_arrive_room",),
+    ):
+        raise SituationError("The person bound to this place can no longer be found.")
 
     known_clues = await _known_clues(session, player_id)
     return {
@@ -147,13 +165,33 @@ async def resolve_situation_choice(
             inserted=False,
         )
 
+    terminal = await _terminal_outcome(session, definition, lock=True)
+    if terminal is not None:
+        return SituationResolution(
+            situation_id=definition.id,
+            outcome=terminal.outcome,
+            result=terminal.result,
+            actor_id=definition.actor_id,
+            actor_disposition=None,
+            inserted=False,
+        )
+
     known_clues = await _known_clues(session, player_id)
     if not set(choice.requires_all_clues) <= known_clues:
         # Do not tell a forged client which evidence it lacks.
         raise SituationError("The mechanism does not answer that attempt.")
 
     actor = await _actor(session, definition, lock=True)
-    if actor is None or not actor.is_alive or actor.room_id != room_id:
+    if (
+        actor is None
+        or not actor.is_alive
+        or actor.room_id != room_id
+        or await store.has_pending_actor_action(
+            session,
+            actor_id=definition.actor_id,
+            kinds=("npc_arrive_room",),
+        )
+    ):
         raise SituationError("The moment for that answer has passed.")
 
     goal = (await session.execute(
@@ -264,6 +302,17 @@ async def record_situation_actor_defeat(
             inserted=False,
         )
 
+    terminal = await _terminal_outcome(session, definition, lock=True)
+    if terminal is not None:
+        return SituationResolution(
+            situation_id=definition.id,
+            outcome=terminal.outcome,
+            result=terminal.result,
+            actor_id=actor_id,
+            actor_disposition=None,
+            inserted=False,
+        )
+
     defeat = definition.defeat_outcome
     fact, inserted = await _claim_outcome_fact(
         session,
@@ -332,6 +381,40 @@ async def _outcome_fact(
     return (await session.execute(statement)).scalar_one_or_none()
 
 
+async def _terminal_outcome(
+    session: AsyncSession,
+    definition: SituationDefinition,
+    *,
+    lock: bool = False,
+) -> SituationTerminalOutcome | None:
+    """Return the first exact authored terminal fact, if one is durable."""
+    if not definition.terminal_outcomes:
+        return None
+    statement = select(WorldFact).where(
+        WorldFact.fact_key.in_(
+            terminal.fact_key
+            for terminal in definition.terminal_outcomes
+        )
+    )
+    if lock:
+        statement = statement.with_for_update()
+    rows = {
+        row.fact_key: row
+        for row in (await session.execute(statement)).scalars()
+    }
+    return next(
+        (
+            terminal
+            for terminal in definition.terminal_outcomes
+            if (
+                (fact := rows.get(terminal.fact_key)) is not None
+                and (fact.value or {}) == terminal.value
+            )
+        ),
+        None,
+    )
+
+
 async def _claim_outcome_fact(
     session: AsyncSession,
     *,
@@ -339,70 +422,17 @@ async def _claim_outcome_fact(
     value: dict[str, object],
     world_minute: int,
 ) -> tuple[WorldFact, bool]:
-    """Atomically claim one situation outcome without replacing its winner.
-
-    ``SELECT ... FOR UPDATE`` cannot lock a row that does not exist, and
-    SQLite ignores that clause entirely.  The unique ``fact_key`` is the
-    durable mutex instead: one transaction inserts the canonical outcome,
-    while concurrent attempts wait for it and then reload the winner.  The
-    claim stays in the caller's transaction so its actor, Chronicle, and
-    witness changes still commit or roll back as one unit.
-    """
-    values = {
-        "fact_key": definition.fact_key,
-        "subject_id": definition.id,
-        "predicate": "outcome",
-        "value": dict(value),
-        "confidence": 1.0,
-        "visibility": "hidden",
-        "established_at_minute": world_minute,
-        "updated_at_minute": world_minute,
-    }
-    dialect = session.get_bind().dialect.name
-    if dialect == "sqlite":
-        statement = (
-            sqlite_insert(WorldFact)
-            .values(**values)
-            .on_conflict_do_nothing(index_elements=["fact_key"])
-            .returning(WorldFact.id)
-        )
-    elif dialect == "postgresql":
-        statement = (
-            postgresql_insert(WorldFact)
-            .values(**values)
-            .on_conflict_do_nothing(index_elements=["fact_key"])
-            .returning(WorldFact.id)
-        )
-    else:
-        # The configured deployments are SQLite and PostgreSQL. Keep a safe
-        # savepoint fallback for other SQLAlchemy dialects rather than ever
-        # falling back to the mutable set_fact operation.
-        nested = await session.begin_nested()
-        row = WorldFact(**values)
-        session.add(row)
-        try:
-            await session.flush()
-        except IntegrityError:
-            await nested.rollback()
-        else:
-            await nested.commit()
-            return row, True
-        existing = await _outcome_fact(session, definition)
-        if existing is None:
-            raise SituationError("The mechanism's answer could not be secured.")
-        return existing, False
-
-    claimed_id = (await session.execute(statement)).scalar_one_or_none()
-    if claimed_id is not None:
-        claimed = await session.get(WorldFact, claimed_id)
-        if claimed is None:  # pragma: no cover - the insert just returned it
-            raise SituationError("The mechanism's answer could not be secured.")
-        return claimed, True
-
-    existing = await _outcome_fact(session, definition)
-    if existing is None:  # pragma: no cover - conflict rows are transactionally visible
-        raise SituationError("The mechanism's answer could not be secured.")
-    return existing, False
+    """Claim the situation's shared canonical key without replacing a winner."""
+    return await store.claim_fact_once(
+        session,
+        fact_key=definition.fact_key,
+        subject_id=definition.id,
+        predicate="outcome",
+        value=value,
+        confidence=1.0,
+        visibility="hidden",
+        world_minute=world_minute,
+    )
 
 
 async def _world_state(session: AsyncSession):
@@ -495,6 +525,16 @@ def _fact_outcome(fact: WorldFact) -> str:
 def _result_for(definition: SituationDefinition, outcome: str) -> str:
     if outcome == definition.defeat_outcome.value:
         return definition.defeat_outcome.result
+    terminal = next(
+        (
+            candidate
+            for candidate in definition.terminal_outcomes
+            if candidate.outcome == outcome
+        ),
+        None,
+    )
+    if terminal is not None:
+        return terminal.result
     choice = next(
         (candidate for candidate in definition.choices if candidate.outcome == outcome),
         None,

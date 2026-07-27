@@ -18,14 +18,14 @@
     "#...............#",
     "########+########"
   ],
-  "spawn_points": [[7, 1], [8, 1], [9, 1], [8, 2]],
+  "spawn_points": [[7, 1], [8, 1], [9, 1], [9, 2]],
   "enemy_spawns": [
-    {"enemy_id": 13, "x": 11, "y": 8},
-    {"enemy_id": 14, "x": 3, "y": 7}
+    {"enemy_id": 13, "x": 10, "y": 3},
+    {"enemy_id": 14, "x": 6, "y": 9}
   ],
   "objects": [
     {"id": "drazna_gate_drum", "type": "drazna_gate_chain_drum", "x": 6, "y": 3},
-    {"id": "drazna_gate_wheel", "type": "sluice_control_wheel", "x": 3, "y": 9},
+    {"id": "drazna_gate_wheel", "type": "sluice_control_wheel", "x": 1, "y": 9},
     {"id": "drazna_gate_listening", "type": "drazna_listening_pipe", "x": 12, "y": 4},
     {"id": "drazna_gate_order", "type": "drazna_crown_flood_order", "x": 10, "y": 9},
     {"id": "drazna_gate_black_key", "type": "drazna_black_key_hook", "x": 15, "y": 10},

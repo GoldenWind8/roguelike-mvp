@@ -152,7 +152,7 @@ async def test_successful_drazna_arc_matrix_stays_coherent_for_sixty_days(sessio
     assert theft_event.visibility == "public_aftermath"
 
     remote = rooms["oakrun_crossroads"]
-    archive = rooms["drazna_house_of_names"]
+    archive = rooms["drazna_tablet_vault"]
     session.add_all((
         PlayerRow(
             id="arc-remote-reader",
@@ -273,7 +273,10 @@ async def test_withheld_list_secured_tablet_and_suppressed_hearing_are_exclusive
     rubbing = (await session.execute(
         select(WorldEvent).where(
             WorldEvent.kind == "evidence_left",
-            WorldEvent.summary.like("Nera's paper rubbing%"),
+            WorldEvent.summary == (
+                "A paper rubbing preserves the omitted names in reverse, "
+                "hidden behind a public flood map."
+            ),
         )
     )).scalar_one()
     assert rubbing.room_id == rooms["drazna_house_of_names"].id
@@ -348,7 +351,11 @@ async def test_missed_expedition_persists_fatal_and_collapsed_aftermath_privatel
         "state": "partly-collapsed",
         "evacuated_houses": 3,
     }
-    assert "drazna.gate_seven_resolution" not in facts
+    assert facts["drazna.gate_seven_resolution"] == {
+        "state": "flooded",
+        "gate": "jammed",
+        "names_spoken": 9,
+    }
     assert "drazna.gate_seven_cadence" not in facts
 
     luka = await _npc(session, "luka-nen")
@@ -393,8 +400,12 @@ async def test_missed_expedition_persists_fatal_and_collapsed_aftermath_privatel
     )
     assert remote_luka["availability"] == "unknown"
     assert remote_luka["condition"]["kind"] == "well"
+    death_trace = (
+        "A lone diver died in the dry dock after returning for the "
+        "unanswered knocks."
+    )
     assert not any(
-        "Luka died" in entry["body"]
+        death_trace == entry["body"]
         for entry in remote_sync["chronicle"]
     )
 
@@ -413,11 +424,13 @@ async def test_missed_expedition_persists_fatal_and_collapsed_aftermath_privatel
     )
     assert found_luka["availability"] == "dead"
     assert found_luka["condition"]["kind"] == "dead"
-    assert any(
-        "Luka died" in entry["body"]
-        and entry["provenance"] == "found"
+    found_death = next(
+        entry
         for entry in found_sync["chronicle"]
+        if entry["body"] == death_trace
     )
+    assert found_death["provenance"] == "found"
+    assert found_death["actor_world_ids"] == []
 
     session.expire_all()
     persisted_luka = await _npc(session, "luka-nen")

@@ -18,14 +18,14 @@
     "#...............#",
     "########+########"
   ],
-  "spawn_points": [[1, 5], [1, 6], [1, 7], [2, 6]],
+  "spawn_points": [[7, 11], [8, 11], [9, 11], [8, 10]],
   "enemy_spawns": [],
   "objects": [
     {"id": "drazna_quay_carriage", "type": "drazna_mudwheel_stop", "x": 10, "y": 1},
-    {"id": "drazna_quay_bell", "type": "drowned_bell_tower", "x": 1, "y": 1},
-    {"id": "drazna_quay_inn", "type": "eel_and_ember_inn", "x": 2, "y": 3},
+    {"id": "drazna_quay_bell", "type": "drowned_bell_tower", "x": 1, "y": 4},
+    {"id": "drazna_quay_inn", "type": "eel_and_ember_inn", "x": 4, "y": 4},
     {"id": "drazna_quay_mast", "type": "lantern_mast", "x": 13, "y": 5},
-    {"id": "drazna_quay_wash", "type": "drazna_lye_trough", "x": 5, "y": 7},
+    {"id": "drazna_quay_wash", "type": "drazna_lye_trough", "x": 6, "y": 7},
     {"id": "drazna_quay_skiff", "type": "drazna_ferry_skiff", "x": 2, "y": 8},
     {"id": "drazna_quay_names", "type": "drazna_refugee_bundles", "x": 8, "y": 8},
     {"id": "drazna_quay_stall", "type": "amber_quay_stall", "x": 10, "y": 9},

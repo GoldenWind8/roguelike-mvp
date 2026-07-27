@@ -51,6 +51,8 @@ class EventType(Enum):
     ITEM_UNEQUIPPED = "item_unequipped"
     # One globally shared shop slot was bought and removed.
     SHOP_PURCHASED = "shop_purchased"
+    # One carried copy was sold to an authored buyback counter.
+    ITEM_SOLD = "item_sold"
     ITEM_CONSUMED = "item_consumed"
     # A throwable landed: tile, area, and the thrown item for narration.
     ITEM_THROWN = "item_thrown"

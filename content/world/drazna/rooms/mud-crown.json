@@ -23,7 +23,7 @@
     {"enemy_id": 14, "x": 14, "y": 3}
   ],
   "objects": [
-    {"id": "drazna_mud_crane", "type": "salvage_crane", "x": 7, "y": 3},
+    {"id": "drazna_mud_crane", "type": "salvage_crane", "x": 7, "y": 5},
     {"id": "drazna_mud_skiff", "type": "drazna_ferry_skiff", "x": 1, "y": 6},
     {"id": "drazna_mud_dryline", "type": "drazna_dryline_chalk", "x": 5, "y": 7},
     {"id": "drazna_mud_dock", "type": "dry_dock_entrance", "x": 6, "y": 9},

@@ -5,6 +5,7 @@ from backend.actions import Action
 from backend.entities import Actor, Enemy, NPC, Player, Position
 from backend.config import PLAYER_MAX_HP, PLAYER_DEFENSE
 from backend.events import GameEvent, EventType
+from backend.object_defs import OBJECT_ARRIVAL_APRON_RADIUS
 from backend.room_loader import RoomTemplate
 
 
@@ -203,6 +204,80 @@ class RoomState:
                 point[0],
             ),
         )
+
+    def free_positions_near_object(
+        self,
+        object_id: str,
+        count: int,
+    ) -> tuple[tuple[int, int], ...]:
+        """Reserve a visible, deterministic landing cluster around an object.
+
+        Carriages and future object-anchored transfers should arrive beside
+        their physical landmark, not at a room's unrelated login spawn. Exit
+        tiles remain clear, and occupied, blocked, or sprite-obscured cells
+        are excluded. The two-tile apron keeps the landmark readable on
+        arrival. An empty tuple means the object is missing or the complete
+        party cannot fit inside that apron.
+        """
+        if count <= 0:
+            return ()
+        room_object = self.get_object(object_id)
+        if room_object is None:
+            return ()
+
+        object_cells = room_object.occupied_cells()
+        exit_tiles = {
+            *self.template.connections.keys(),
+            *self.template.frontier_exits.keys(),
+        }
+        min_x = min(x for x, _ in object_cells)
+        max_x = max(x for x, _ in object_cells)
+        min_y = min(y for _, y in object_cells)
+        max_y = max(y for _, y in object_cells)
+        logical_width = max_x - min_x + 1
+        visual_width, visual_height = room_object.visual_size
+        visual_left = min_x + (logical_width - visual_width) / 2
+        visual_right = visual_left + visual_width
+        visual_bottom = max_y + 1
+        visual_top = visual_bottom - visual_height
+
+        def hidden_by_landmark(point: tuple[int, int]) -> bool:
+            x, y = point
+            return (
+                visual_left < x + 0.5 < visual_right
+                and visual_top < y + 0.8
+                and y <= max_y
+            )
+
+        def object_distance(point: tuple[int, int]) -> int:
+            x, y = point
+            return min(
+                abs(x - object_x) + abs(y - object_y)
+                for object_x, object_y in object_cells
+            )
+
+        center_x = (min_x + max_x) / 2
+        candidates = sorted(
+            (
+                (x, y)
+                for y in range(self.template.height)
+                for x in range(self.template.width)
+                if self.is_valid_position(x, y)
+                and not self.is_occupied(x, y)
+                and (x, y) not in exit_tiles
+                and object_distance((x, y)) <= OBJECT_ARRIVAL_APRON_RADIUS
+                and not hidden_by_landmark((x, y))
+            ),
+            key=lambda point: (
+                object_distance(point),
+                abs(point[0] - center_x),
+                point[1],
+                point[0],
+            ),
+        )
+        if len(candidates) < count:
+            return ()
+        return tuple(candidates[:count])
 
     def get_player(self, player_id: str) -> Player | None:
         return self.players.get(player_id)

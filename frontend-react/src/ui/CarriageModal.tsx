@@ -224,11 +224,16 @@ export function CarriageModal() {
         )}
 
         <div className="carriage-routes-head">
-          <h3>Known roads from here</h3>
+          <h3 id="carriage-routes-title">Known roads from here</h3>
           <span>Only publicly named stops appear.</span>
         </div>
 
-        <div className="carriage-routes">
+        <div
+          className="carriage-routes"
+          role="region"
+          aria-labelledby="carriage-routes-title"
+          tabIndex={carriage.destinations.length > 0 ? 0 : -1}
+        >
           {carriage.destinations.length === 0 ? (
             <div className="carriage-empty">
               <span aria-hidden>⌁</span>

@@ -62,20 +62,45 @@ async def advance_authored_triggers(
     try:
         state = await session.get(WorldState, 1)
         variables = dict(state.variables or {}) if state is not None else {}
+        raw_watermark = variables.get(_TRIGGER_WATERMARK_KEY)
+        has_durable_watermark = (
+            isinstance(raw_watermark, int)
+            and not isinstance(raw_watermark, bool)
+            and raw_watermark >= 0
+        )
         watermark = _nonnegative_minute(
-            variables.get(_TRIGGER_WATERMARK_KEY),
+            raw_watermark,
             default=from_minute,
         )
-        pass_from = min(from_minute, watermark)
+        # The durable consumer watermark, rather than a caller-supplied
+        # historical ``from_minute``, is the canonical start of new work.
+        # Otherwise replaying 0..N after N was already committed can create
+        # another ordinal for a recurring trigger from an old qualifying
+        # event. A trigger explicitly deferred by an active room is the only
+        # work allowed to retry at the same watermark.
+        pass_from = watermark
         deferred = _deferred_trigger_minutes(
             variables.get(_TRIGGER_DEFERRED_KEY),
         )
 
         for trigger in authored.triggers.values():
             trigger_id = trigger["id"]
-            trigger_from = min(
-                pass_from,
-                deferred.get(trigger_id, pass_from),
+            deferred_from = deferred.get(trigger_id)
+            if (
+                has_durable_watermark
+                and (
+                    to_minute < watermark
+                    or (
+                        to_minute == watermark
+                        and deferred_from is None
+                    )
+                )
+            ):
+                continue
+            trigger_from = (
+                deferred_from
+                if deferred_from is not None
+                else pass_from
             )
             firings = (await session.execute(
                 select(TriggerFiring).where(
@@ -122,6 +147,9 @@ async def advance_authored_triggers(
                 session,
                 participants=participants,
                 effects=(),
+                authored_location_ids=(
+                    trigger.get("chronicle_location_id"),
+                ),
                 active_room_ids=active,
             ):
                 _defer_trigger(deferred, trigger_id, trigger_from)
@@ -149,12 +177,15 @@ async def advance_authored_triggers(
                     session,
                     participants=participants,
                     effects=trigger["effects"],
+                    authored_location_ids=(
+                        trigger.get("chronicle_location_id"),
+                    ),
                     active_room_ids=active,
                 ):
                     _defer_trigger(deferred, trigger_id, trigger_from)
                     continue
                 deferred.pop(trigger_id, None)
-                effects_count += await _record_applied(
+                applied_effects = await _record_applied(
                     session,
                     trigger=trigger,
                     participants=participants,
@@ -163,6 +194,12 @@ async def advance_authored_triggers(
                     content=authored,
                     ordinal=len(applied) + 1,
                 )
+                if applied_effects is None:
+                    # Another transaction claimed the trigger's immutable
+                    # first-effect fact. The losing branch applies no effects
+                    # and leaves no firing or Chronicle row.
+                    continue
+                effects_count += applied_effects
                 fired_count += 1
                 continue
 
@@ -178,6 +215,10 @@ async def advance_authored_triggers(
                 session,
                 participants=participants,
                 effects=missed_effects,
+                authored_location_ids=tuple(
+                    clue.get("location_id")
+                    for clue in trigger.get("aftermath_clues", ())
+                ),
                 active_room_ids=active,
             ):
                 _defer_trigger(deferred, trigger_id, trigger_from)
@@ -258,10 +299,38 @@ async def _record_applied(
     active_room_ids,
     content,
     ordinal,
-) -> int:
-    effects = await _apply_effects(
+) -> int | None:
+    fixed_location_id = trigger.get("chronicle_location_id")
+    fixed_room_id = None
+    if fixed_location_id is not None:
+        location_rooms = await store.room_id_by_content(session)
+        fixed_room_id = location_rooms.get(fixed_location_id)
+        if fixed_room_id is None:
+            raise RuntimeError(
+                "authored Chronicle location is absent from the seeded world: "
+                f"{fixed_location_id!r}"
+            )
+    authored_effects = trigger["effects"]
+    claimed_fact = None
+    if authored_effects and authored_effects[0]["kind"] == "claim_fact":
+        claim = authored_effects[0]
+        claimed_fact, inserted = await store.claim_fact_once(
+            session,
+            fact_key=claim["fact_key"],
+            subject_id=claim["subject_id"],
+            predicate=claim["predicate"],
+            value=claim["value"],
+            confidence=1.0,
+            visibility="hidden",
+            world_minute=world_minute,
+        )
+        if not inserted:
+            return None
+        authored_effects = authored_effects[1:]
+
+    effects = int(claimed_fact is not None) + await _apply_effects(
         session,
-        effects=trigger["effects"],
+        effects=authored_effects,
         trigger=trigger,
         world_minute=world_minute,
         active_room_ids=active_room_ids,
@@ -283,7 +352,11 @@ async def _record_applied(
             trigger["participants"][1]
             if len(trigger["participants"]) > 1 else None
         ),
-        room_id=participants[trigger["participants"][0]].room_id,
+        room_id=(
+            fixed_room_id
+            if fixed_room_id is not None
+            else participants[trigger["participants"][0]].room_id
+        ),
         # An NPC conversation changes memories and beliefs, but spoken words
         # do not leave a discoverable residue for a player who visits later.
         # They must travel through a witness, dialogue, or rumor. Story turns
@@ -299,8 +372,11 @@ async def _record_applied(
                 trigger["conversation"]["opening_line"]
                 if trigger.get("conversation") else None
             ),
+            "chronicle_location_id": fixed_location_id,
         },
     )
+    if claimed_fact is not None:
+        claimed_fact.source_event_id = event.id
     session.add(TriggerFiring(
         trigger_id=trigger["id"],
         scope_id="world",
@@ -388,14 +464,32 @@ async def _conditions_hold(
     to_minute,
     content,
 ) -> bool:
+    if trigger["kind"] == "conversation" and any(
+        not participants[npc_id].is_alive
+        for npc_id in trigger["participants"]
+    ):
+        return False
     location_rooms = await store.room_id_by_content(session)
+    in_transit: frozenset[str] | None = None
     for condition in trigger["conditions"]:
         kind = condition["kind"]
         if kind == "co_located":
+            if in_transit is None:
+                in_transit = await store.pending_arrival_actor_ids(
+                    session, participants,
+                )
+            if any(npc_id in in_transit for npc_id in condition["npc_ids"]):
+                return False
             rows = [participants[npc_id] for npc_id in condition["npc_ids"]]
             if len({row.room_id for row in rows}) != 1:
                 return False
         elif kind == "npc_at":
+            if in_transit is None:
+                in_transit = await store.pending_arrival_actor_ids(
+                    session, participants,
+                )
+            if condition["npc_id"] in in_transit:
+                return False
             npc = participants.get(condition["npc_id"])
             if (
                 npc is None
@@ -407,7 +501,12 @@ async def _conditions_hold(
                 from_minute, to_minute, set(condition["phases"])
             ):
                 return False
-        elif kind in {"fact_absent", "fact_exists", "fact_equals"}:
+        elif kind in {
+            "fact_absent",
+            "fact_exists",
+            "fact_equals",
+            "fact_not_equals",
+        }:
             fact = (await session.execute(
                 select(WorldFact).where(
                     WorldFact.fact_key == condition["fact_key"]
@@ -426,6 +525,12 @@ async def _conditions_hold(
                 return False
             if kind == "fact_equals" and (
                 not exists or fact.value != condition["value"]
+            ):
+                return False
+            if (
+                kind == "fact_not_equals"
+                and exists
+                and fact.value == condition["value"]
             ):
                 return False
         elif kind in {"npc_alive", "npc_health_at_most"}:
@@ -583,6 +688,7 @@ async def _touches_active_room(
     *,
     participants,
     effects,
+    authored_location_ids=(),
     active_room_ids,
 ) -> bool:
     """Keep every DB-owned actor and movement target out of live rooms."""
@@ -606,13 +712,22 @@ async def _touches_active_room(
         if any(room_id in active_room_ids for room_id in actor_rooms):
             return True
 
-    destinations = await _effect_destination_rooms(session, effects)
+    destinations = await _effect_destination_rooms(
+        session,
+        effects,
+        authored_location_ids=authored_location_ids,
+    )
     return bool(destinations & active_room_ids)
 
 
-async def _effect_destination_rooms(session, effects) -> set[int]:
+async def _effect_destination_rooms(
+    session,
+    effects,
+    *,
+    authored_location_ids=(),
+) -> set[int]:
     location_rooms = await store.room_id_by_content(session)
-    return {
+    destinations = {
         location_rooms[location_id]
         for effect in effects
         for location_id in (
@@ -621,6 +736,7 @@ async def _effect_destination_rooms(session, effects) -> set[int]:
                 effect.get("location_id")
                 if effect["kind"] in {
                     "disappear_npc",
+                    "leave_evidence",
                     "relocate_npc",
                     "set_direction",
                 }
@@ -629,6 +745,12 @@ async def _effect_destination_rooms(session, effects) -> set[int]:
         )
         if location_id in location_rooms
     }
+    destinations.update(
+        location_rooms[location_id]
+        for location_id in authored_location_ids
+        if isinstance(location_id, str) and location_id in location_rooms
+    )
+    return destinations
 
 
 async def _effects_ready(
@@ -646,10 +768,18 @@ async def _effects_ready(
     location_rooms: dict[str, int] | None = None
     for effect in effects:
         kind = effect["kind"]
+        if kind == "share_rumor":
+            for field in ("speaker_npc_id", "listener_npc_id"):
+                npc = await store.npc_by_content_id(session, effect[field])
+                if npc is None or not npc.is_alive:
+                    return False
+            continue
         if kind not in {
+            "board_carriage",
             "disappear_npc",
             "kill_npc",
             "relocate_npc",
+            "set_direction",
             "set_disposition",
             "set_goal_status",
             "wound_npc",
@@ -660,8 +790,10 @@ async def _effects_ready(
             return False
         if kind in {
             "disappear_npc",
+            "board_carriage",
             "kill_npc",
             "relocate_npc",
+            "set_direction",
             "wound_npc",
         } and not npc.is_alive:
             return False
@@ -788,7 +920,7 @@ async def _apply_effects(
                 world_minute=world_minute,
             )
         elif kind == "set_direction":
-            await _set_direction(
+            directed = await _set_direction(
                 session,
                 npc_id=effect["npc_id"],
                 location_id=effect["location_id"],
@@ -796,7 +928,7 @@ async def _apply_effects(
                 world_minute=world_minute,
                 key=key,
             )
-            applied += 1
+            applied += int(directed)
         elif kind == "board_carriage":
             moved = await _board_carriage(
                 session,
@@ -845,6 +977,11 @@ async def _apply_effects(
                 world_minute=world_minute,
             )
             applied += 1
+        elif kind == "claim_fact":
+            raise RuntimeError(
+                "claim_fact must be the first effect and claimed before "
+                "ordinary trigger effects"
+            )
         elif kind == "set_disposition":
             applied += int(await _set_disposition(
                 session,
@@ -1014,7 +1151,7 @@ async def _relocate_npc(
         dedupe_key=f"{event_kind}:{key}",
         kind=event_kind,
         world_minute=world_minute,
-        summary=reason,
+        summary="Signs show that someone left this place between visits.",
         actor_id=npc_id,
         room_id=origin,
         visibility="public_aftermath",
@@ -1044,7 +1181,7 @@ async def _relocate_npc(
             dedupe_key=f"disappearance-evidence:{key}",
             kind="evidence_left",
             world_minute=world_minute,
-            summary=reason,
+            summary="An abandoned place holds signs of a hurried departure.",
             actor_id=npc_id,
             room_id=origin,
             visibility="discoverable",
@@ -1074,7 +1211,10 @@ async def _set_disposition(
         summary=f"{npc.name}'s loyalties changed.",
         actor_id=npc_id,
         room_id=npc.room_id,
-        visibility="public_aftermath",
+        # Disposition is private simulation state. A player can infer hostility
+        # from a live encounter, but a later visitor cannot read a changed
+        # allegiance from the room itself.
+        visibility="private",
         payload={"disposition": disposition},
     )
     return changed
@@ -1149,7 +1289,7 @@ async def _set_goal_status(
         world_minute=world_minute,
         summary=reason,
         actor_id=npc_id,
-        visibility="public_aftermath",
+        visibility="private",
         payload={"goal_id": goal_id, "status": status},
     )
     await store.set_fact(
@@ -1175,6 +1315,15 @@ async def _share_rumor(
     memory_key,
     world_minute,
 ) -> int:
+    speaker = await store.npc_by_content_id(session, speaker_id)
+    listener = await store.npc_by_content_id(session, listener_id)
+    if (
+        speaker is None
+        or listener is None
+        or not speaker.is_alive
+        or not listener.is_alive
+    ):
+        return 0
     rows = (await session.execute(
         select(NPCMemory).where(NPCMemory.npc_content_id == speaker_id)
     )).scalars().all()
@@ -1216,7 +1365,10 @@ async def _set_direction(
     reason,
     world_minute,
     key,
-) -> None:
+) -> bool:
+    npc = await store.npc_by_content_id(session, npc_id)
+    if npc is None or not npc.is_alive:
+        return False
     goal, _ = await store.ensure_goal(
         session,
         npc_content_id=npc_id,
@@ -1245,6 +1397,7 @@ async def _set_direction(
         actor_id=npc_id,
         payload={"purpose": "triggered_replan"},
     )
+    return True
 
 
 async def _board_carriage(
@@ -1261,6 +1414,7 @@ async def _board_carriage(
     destination = rooms.get(location_id)
     if (
         npc is None
+        or not npc.is_alive
         or destination is None
         or npc.room_id in active_room_ids
         or destination in active_room_ids
@@ -1281,7 +1435,10 @@ async def _board_carriage(
         dedupe_key=f"carriage-board:{carriage_id}:{npc_id}:{world_minute}",
         kind="npc_boarded_carriage",
         world_minute=world_minute,
-        summary=f"{npc.name} took the {carriage_id.replace('-', ' ')} east.",
+        summary=(
+            f"One passenger took the "
+            f"{carriage_id.replace('-', ' ')} east."
+        ),
         actor_id=npc_id,
         room_id=origin,
         visibility="public_aftermath",
@@ -1293,6 +1450,8 @@ async def _board_carriage(
 def _fired_summary(trigger: dict) -> str:
     if trigger.get("conversation"):
         return trigger["conversation"]["opening_line"]
+    if trigger.get("chronicle_summary"):
+        return trigger["chronicle_summary"]
     return f"The lives around {trigger['id'].replace('-', ' ')} changed course."
 
 

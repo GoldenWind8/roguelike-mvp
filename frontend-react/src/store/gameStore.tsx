@@ -146,6 +146,8 @@ function formatEvents(events: GameEvent[], state: RoomStatePayload): (LogLine | 
         return line("item", `${nameOf(d.player_id)} takes the ${itemLogLabel(itemOf(e))} from the chest.`);
       case "shop_purchased":
         return line("item", `${nameOf(d.player_id)} buys ${itemLogLabel(itemOf(e))} for ${d.price} coins.`);
+      case "item_sold":
+        return line("item", `${nameOf(d.player_id)} sells ${itemLogLabel(itemOf(e))} for ${d.price} coins.`);
       case "item_generated":
         return line("danger", `✨ Something never seen before takes shape: ${itemLogLabel(itemOf(e))} (${itemOf(e).rarity})!`);
       case "item_consumed":
@@ -827,6 +829,7 @@ interface GameApi {
   openChest(objectId: string): void;
   openShop(objectId: string): void;
   buyShopItem(objectId: string, slot: number, itemId: number, stockedOn: string): void;
+  sellShopItem(objectId: string, slot: number, itemId: number): void;
   openNoticeboard(objectId: string): void;
   postNotice(objectId: string, body: string): void;
   deleteNotice(objectId: string, noticeId: number): void;
@@ -1000,6 +1003,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
           slot,
           item_id: itemId,
           stocked_on: stockedOn,
+        });
+      },
+      sellShopItem(objectId, slot, itemId) {
+        socket().send({
+          type: "sell_shop_item",
+          object_id: objectId,
+          slot,
+          item_id: itemId,
         });
       },
       openNoticeboard(objectId) {

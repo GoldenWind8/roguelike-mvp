@@ -969,7 +969,7 @@
       "stop_location_ids": ["oakrun_pilgrims_hollow", "hollowmere_post", "drazna_lantern_quays"],
       "route_ids": ["oakrun-hollowmere", "glasswater-causeway"],
       "capacity": 5,
-      "fare_coin": 31,
+      "fare_coin": 24,
       "operating_windows": [
         {"day": "wednesday", "start_minute": 270, "end_minute": 390, "from_location_id": "oakrun_pilgrims_hollow"},
         {"day": "sunday", "start_minute": 240, "end_minute": 360, "from_location_id": "drazna_lantern_quays"}

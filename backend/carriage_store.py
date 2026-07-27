@@ -39,6 +39,7 @@ class CarriageDestination:
     travel_minutes: int
     fare: int
     route_stop_ids: tuple[int, ...]
+    arrival_object_id: str | None = None
     wait_minutes: int = 0
     transfer_wait_minutes: int = 0
     journey_minutes: int = 0
@@ -532,6 +533,18 @@ async def reachable_destinations(
             travel_minutes=ride_minutes,
             fare=fare,
             route_stop_ids=path,
+            arrival_object_id=(
+                stop.details.get("physical_object_id")
+                if (
+                    isinstance(stop.details, dict)
+                    and isinstance(
+                        stop.details.get("physical_object_id"),
+                        str,
+                    )
+                    and stop.details["physical_object_id"]
+                )
+                else None
+            ),
             wait_minutes=initial_wait,
             transfer_wait_minutes=sum(waits[1:]),
             journey_minutes=arrival - start_minute,

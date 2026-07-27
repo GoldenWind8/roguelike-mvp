@@ -6,6 +6,7 @@ from backend.carriage_store import (
     reachable_destinations,
     resolve_carriage_travel,
 )
+from backend.config import PLAYER_STARTING_COINS
 from backend.models import (
     CarriageRoute,
     CarriageStop,
@@ -19,7 +20,9 @@ from backend.procgen.frontier_store import (
     materialize_frontier_exit,
 )
 from backend.room_loader import load_room
+from backend.room_state import RoomState
 from backend.seeds import get_or_seed_default_room
+from backend.shop_store import BUYBACK_PRICES
 
 
 DRAZNA_STOP_KEYS = {
@@ -91,6 +94,20 @@ async def _discover_drazna_from_frontier(session) -> None:
     assert expansion.discovered_region_id == "drazna"
 
 
+def _hidden_by_object_sprite(room_object, point: tuple[int, int]) -> bool:
+    cells = room_object.occupied_cells()
+    min_x = min(x for x, _ in cells)
+    max_x = max(x for x, _ in cells)
+    max_y = max(y for _, y in cells)
+    logical_width = max_x - min_x + 1
+    visual_width, visual_height = room_object.visual_size
+    left = min_x + (logical_width - visual_width) / 2
+    right = left + visual_width
+    top = max_y + 1 - visual_height
+    x, y = point
+    return left < x + 0.5 < right and top < y + 0.8 and y <= max_y
+
+
 async def test_drazna_carriage_seed_is_closed_and_idempotent(session):
     await get_or_seed_default_room(session)
 
@@ -147,6 +164,19 @@ async def test_temporary_bridge_exposes_physical_but_closed_stops(session):
         )
         assert carriage.type == "drazna_mudwheel_stop"
         assert carriage.interaction == "carriage"
+        state = RoomState(template, seed=0)
+        landing_cluster = state.free_positions_near_object(carriage.id, 4)
+        assert len(landing_cluster) == len(set(landing_cluster)) == 4
+        exit_tiles = {
+            *template.connections.keys(),
+            *template.frontier_exits.keys(),
+        }
+        for point in landing_cluster:
+            assert state.is_valid_position(*point)
+            assert state.is_occupied(*point) is None
+            assert point not in exit_tiles
+            assert carriage.distance_from(*point) <= 2
+            assert not _hidden_by_object_sprite(carriage, point)
         view = await carriage_view(
             session,
             room_id=room.id,
@@ -243,6 +273,7 @@ async def test_mudwheel_schedule_fares_and_return_are_reachable(session):
     )
     assert resolved.route_stop_ids == (quays.id, crown.id, birch.id)
     assert resolved.arrival_minute == tuesday_0800 + 125
+    assert resolved.arrival_object_id == "drazna_heights_mudwheel"
 
     tuesday_1050 = 1440 + 650
     [crown_down, quays_down] = [
@@ -284,10 +315,15 @@ async def test_grey_heron_is_the_only_seeded_external_drazna_service(session):
         world_minute=wednesday_0530,
     )
     assert outbound.route_stop_ids == (oakrun_stop.id, quays.id)
+    assert outbound.arrival_object_id == "drazna_quay_carriage"
     assert outbound.travel_minutes == outbound.journey_minutes == 1800
-    assert outbound.fare == 31
+    assert outbound.fare == 24
     assert outbound.danger == 5
     assert outbound.route_status == "dangerous"
+    # The route is usable from the actual new-account purse. Teo's Reed Market
+    # buyback then makes the return earnable from exploration rather than
+    # silently stranding a first-time traveller.
+    assert PLAYER_STARTING_COINS - outbound.fare == 6
 
     sunday_0500 = 6 * 1440 + 300
     returning = await resolve_carriage_travel(
@@ -297,6 +333,12 @@ async def test_grey_heron_is_the_only_seeded_external_drazna_service(session):
         world_minute=sunday_0500,
     )
     assert returning.route_stop_ids == (quays.id, oakrun_stop.id)
+    assert returning.arrival_object_id == "oakrun_covered_carriage"
     assert returning.travel_minutes == returning.journey_minutes == 1800
-    assert returning.fare == 31
+    assert returning.fare == 24
     assert returning.danger == 5
+    assert (
+        PLAYER_STARTING_COINS
+        - outbound.fare
+        + 5 * BUYBACK_PRICES["common"]
+    ) >= returning.fare

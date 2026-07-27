@@ -21,7 +21,7 @@
   "spawn_points": [[7, 11], [8, 11], [9, 11], [8, 10]],
   "enemy_spawns": [],
   "objects": [
-    {"id": "drazna_palace_ledger", "type": "crown_ledger_plinth", "x": 8, "y": 5},
+    {"id": "drazna_palace_ledger", "type": "crown_ledger_plinth", "x": 8, "y": 6},
     {"id": "drazna_palace_order_copy", "type": "drazna_crown_flood_order", "x": 5, "y": 7},
     {"id": "drazna_palace_red_drain", "type": "drazna_palace_drain", "x": 10, "y": 7},
     {"id": "drazna_palace_names", "type": "drazna_refugee_bundles", "x": 8, "y": 9}

@@ -60,6 +60,10 @@ only their visual presentation, not the neutral grid language.
 - [x] `floodline_memorial` — Birch Heights clue landmark; logical `2x1`, visual `2x3`
 - [x] `gate_seven_chain_drum` — evidence-gated regional climax mechanism;
   logical `3x2`, visual `3x3`
+- [x] `crown_ledger_plinth` — Palace and High Crown civic archive focal
+  object; logical `1x1`, visual `2x2`
+- [x] `first_rot_memorial` — black-glass monument to the first verified
+  public record, not an origin claim; logical `1x1`, visual `2x3`
 
 ## Inventory and quest-item icons
 
@@ -105,18 +109,18 @@ Shared contract: square icon, isolated object, no rarity frame or label.
 ## Production QA
 
 - Built-in ImageGen mode with one call per distinct asset
-- Prompts requested a flat `#ff00ff` chroma backdrop. Generated borders retain
-  small near-magenta variations, so conversion uses the border-derived key
-  rather than assuming byte-exact source pixels.
+- Prompts requested flat `#ff00ff` or `#00ff00` chroma backdrops. Generated
+  borders retain small near-key variations, so conversion uses the
+  border-derived key rather than assuming byte-exact source pixels.
 - Chroma sources are retained under
   `art-source/generated/drazna/production/<category>/`; final cutouts live
   under the matching Drazna directories in `frontend-react/public/art/`.
 - Backgrounds were removed with the installed imagegen chroma-key helper using
   `--auto-key border --transparent-threshold 12 --opaque-threshold 220 --soft-matte --despill`.
-- All 38 production images validate as alpha WebP with transparent corners
-  and nonempty subject bounds. Their delivery files total 6,659,464 bytes;
+- All 40 production images validate as alpha WebP with transparent corners
+  and nonempty subject bounds. Their delivery files total 6,983,714 bytes;
   full-resolution PNG/chroma masters remain available for reprocessing.
-- No opaque magenta residue detected
+- No opaque chroma-key residue detected
 - NPCs checked at the live `54x108` pixel `1x2`-cell presentation
 - Items checked near live hotbar scale
 - Objects and landmarks checked against their suggested visual footprints on
