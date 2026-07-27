@@ -319,6 +319,22 @@ function upsertById<T>(items: T[], item: T, key: keyof T = "id" as keyof T): T[]
   return next;
 }
 
+/** A full sync is a state snapshot, not proof that the player opened the
+ * corresponding page. Keep local unread markers until that page is read. */
+function preserveUnread<T extends { unread: boolean }>(
+  current: T[],
+  incoming: T[],
+  key: keyof T,
+): T[] {
+  const unreadKeys = new Set(
+    current.filter((item) => item.unread).map((item) => item[key]),
+  );
+  return incoming.map((item) =>
+    unreadKeys.has(item[key]) && !item.unread
+      ? { ...item, unread: true }
+      : item);
+}
+
 function countWorldUnread(state: Pick<GameState, "rumors" | "worldChronicle" | "knownPeople">): number {
   return [
     ...state.rumors,
@@ -610,12 +626,23 @@ function reduceServer(state: GameState, msg: ServerMessage): GameState {
       };
     case "world_sync":
       {
+        const rumors = preserveUnread(state.rumors, msg.rumors, "id");
+        const worldChronicle = preserveUnread(
+          state.worldChronicle,
+          msg.chronicle,
+          "id",
+        );
+        const knownPeople = preserveUnread(
+          state.knownPeople,
+          msg.known_people,
+          "world_id",
+        );
         const next: GameState = {
           ...state,
           worldTime: msg.time,
-          rumors: msg.rumors,
-          worldChronicle: msg.chronicle,
-          knownPeople: msg.known_people,
+          rumors,
+          worldChronicle,
+          knownPeople,
           worldUnread: 0,
         };
         if (state.worldDrawerOpen) return markWorldTabRead(next, state.worldDrawerTab);
