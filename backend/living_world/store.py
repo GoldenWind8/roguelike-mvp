@@ -272,16 +272,146 @@ async def memory_rows(
     statement = select(NPCMemory).where(
         NPCMemory.npc_content_id == npc_content_id
     )
-    rows = list((await session.execute(
+    if now_minute is not None:
+        statement = statement.where(or_(
+            NPCMemory.expires_at_minute.is_(None),
+            NPCMemory.expires_at_minute > now_minute,
+        ))
+    return list((await session.execute(
         statement.order_by(NPCMemory.world_minute, NPCMemory.id)
     )).scalars())
-    if now_minute is None:
-        return rows
-    return [
-        row
-        for row in rows
-        if row.expires_at_minute is None or row.expires_at_minute > now_minute
-    ]
+
+
+async def conversation_topic_tags(
+    session: AsyncSession,
+    npc_content_id: str,
+    *,
+    now_minute: int,
+    max_cascade_depth: int,
+) -> list[str] | None:
+    """Read the exact schedulable topic union without hydrating memories.
+
+    A deliberation needs only to know whether the speaker has a transmissible
+    memory and which tags appear across those memories.  Returning ``None``
+    distinguishes no eligible memories from an eligible memory with no tags.
+    The owner/minute index still serves this projection as histories grow.
+    """
+    statement = select(NPCMemory.tags).where(
+        NPCMemory.npc_content_id == npc_content_id,
+        NPCMemory.shareable.is_(True),
+        NPCMemory.cascade_depth < max_cascade_depth,
+        or_(
+            NPCMemory.expires_at_minute.is_(None),
+            NPCMemory.expires_at_minute > now_minute,
+        ),
+    )
+    found = False
+    topic_tags: set[str] = set()
+    for tags in (await session.execute(statement)).scalars():
+        found = True
+        topic_tags.update(tags or ())
+    if not found:
+        return None
+    return sorted(topic_tags)
+
+
+async def conversation_candidate_memories(
+    session: AsyncSession,
+    *,
+    speaker_content_id: str,
+    listener_content_id: str,
+    now_minute: int,
+    max_cascade_depth: int,
+) -> list[Memory]:
+    """Project the exact conversation candidates without ORM history loads.
+
+    Conversation selection needs the speaker's ``Memory`` value fields, but
+    only two identity fields from the listener's history.  Selecting scalar
+    projections prevents every turn from adding both lifetime histories to
+    the session identity map.  Expiry, shareability, and cascade constraints
+    are applied by the database before conversion; provenance exclusions are
+    then kept byte-for-byte equivalent to the service's original rules.
+    """
+    listener_statement = select(
+        NPCMemory.source_memory_id,
+        NPCMemory.payload,
+    ).where(
+        NPCMemory.npc_content_id == listener_content_id,
+        or_(
+            NPCMemory.expires_at_minute.is_(None),
+            NPCMemory.expires_at_minute > now_minute,
+        ),
+    )
+    known_source_memories: set[str | None] = set()
+    known_rumors: set[object] = set()
+    for source_memory_id, payload in await session.execute(
+        listener_statement
+    ):
+        known_source_memories.add(source_memory_id)
+        rumor_id = (payload or {}).get("rumor_id")
+        if rumor_id:
+            known_rumors.add(rumor_id)
+
+    speaker_statement = select(
+        NPCMemory.memory_key,
+        NPCMemory.npc_content_id,
+        NPCMemory.kind,
+        NPCMemory.summary,
+        NPCMemory.tags,
+        NPCMemory.importance,
+        NPCMemory.confidence,
+        NPCMemory.world_minute,
+        NPCMemory.last_recalled_minute,
+        NPCMemory.source_id,
+        NPCMemory.source_memory_id,
+        NPCMemory.shareable,
+        NPCMemory.secrecy,
+        NPCMemory.cascade_depth,
+        NPCMemory.payload,
+    ).where(
+        NPCMemory.npc_content_id == speaker_content_id,
+        NPCMemory.shareable.is_(True),
+        NPCMemory.cascade_depth < max_cascade_depth,
+        or_(
+            NPCMemory.expires_at_minute.is_(None),
+            NPCMemory.expires_at_minute > now_minute,
+        ),
+    ).order_by(NPCMemory.world_minute, NPCMemory.id)
+    result: list[Memory] = []
+    for row in (await session.execute(speaker_statement)):
+        rumor_id = (row.payload or {}).get("rumor_id")
+        if (
+            (rumor_id and rumor_id in known_rumors)
+            or row.memory_key in known_source_memories
+        ):
+            continue
+        result.append(Memory(
+            id=row.memory_key,
+            owner_id=row.npc_content_id,
+            kind=row.kind,
+            summary=row.summary,
+            tags=frozenset(row.tags or ()),
+            importance=float(row.importance),
+            confidence=float(row.confidence),
+            occurred_at=row.world_minute,
+            last_recalled_at=row.last_recalled_minute,
+            source_id=row.source_id,
+            source_memory_id=row.source_memory_id,
+            shareable=bool(row.shareable),
+            secrecy=float(row.secrecy),
+            cascade_depth=row.cascade_depth,
+        ))
+    return result
+
+
+async def memory_row_by_key(
+    session: AsyncSession,
+    memory_key: str,
+) -> NPCMemory | None:
+    """Load one selected memory through its unique stable-key index."""
+    return (await session.execute(
+        select(NPCMemory).where(NPCMemory.memory_key == memory_key)
+    )).scalar_one_or_none()
 
 
 async def reflection_source_rows(

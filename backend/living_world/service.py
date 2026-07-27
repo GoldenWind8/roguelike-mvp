@@ -1885,20 +1885,20 @@ class LivingWorldService:
         world_minute: int,
     ) -> int:
         assert actor.content_id is not None
-        memories = [
-            row
-            for row in await store.memory_rows(
-                session, actor.content_id, now_minute=world_minute,
-            )
-            if row.shareable
-            and row.cascade_depth < self.config.max_rumour_cascade_depth
-        ]
         listeners = await store.roommates(
             session,
             room_id=actor.room_id,
             excluding_id=actor.content_id,
         )
-        if not memories or not listeners:
+        if not listeners:
+            return 0
+        topic_tags = await store.conversation_topic_tags(
+            session,
+            actor.content_id,
+            now_minute=world_minute,
+            max_cascade_depth=self.config.max_rumour_cascade_depth,
+        )
+        if topic_tags is None:
             return 0
         listener = listeners[
             _stable_u64(actor.content_id, world_minute, "listener")
@@ -1909,9 +1909,6 @@ class LivingWorldService:
         root_key = (
             f"conversation:{actor.room_id}:{actor.content_id}:"
             f"{listener.content_id}:{world_minute}"
-        )
-        topic_tags = sorted(
-            set().union(*(set(memory.tags or ()) for memory in memories))
         )
         _event, inserted = await store.schedule_once(
             session,
@@ -1985,33 +1982,13 @@ class LivingWorldService:
             counters.writes += 1
             return True
 
-        speaker_rows = [
-            row
-            for row in await store.memory_rows(
-                session, actor.content_id, now_minute=event.due_minute,
-            )
-            if row.shareable
-            and row.cascade_depth < self.config.max_rumour_cascade_depth
-        ]
-        listener_rows = await store.memory_rows(
-            session, listener.content_id, now_minute=event.due_minute,
+        candidates = await store.conversation_candidate_memories(
+            session,
+            speaker_content_id=actor.content_id,
+            listener_content_id=listener.content_id,
+            now_minute=event.due_minute,
+            max_cascade_depth=self.config.max_rumour_cascade_depth,
         )
-        known_rumors = {
-            (row.payload or {}).get("rumor_id")
-            for row in listener_rows
-            if (row.payload or {}).get("rumor_id")
-        }
-        candidates = [
-            row
-            for row in speaker_rows
-            if not (
-                (row.payload or {}).get("rumor_id")
-                and (row.payload or {}).get("rumor_id") in known_rumors
-            )
-            and row.memory_key not in {
-                listener_row.source_memory_id for listener_row in listener_rows
-            }
-        ]
         topic_tags = frozenset(
             str(tag)
             for tag in (event.payload or {}).get("topic_tags", ())
@@ -2022,19 +1999,24 @@ class LivingWorldService:
             target_id=listener.content_id,
         )
         selected = select_conversation_memories(
-            (store.memory_from_row(row) for row in candidates),
+            candidates,
             topic_tags=topic_tags,
             now_minute=event.due_minute,
             trust=trust,
             max_items=self.config.memories_per_conversation_turn,
             max_cascade_depth=self.config.max_rumour_cascade_depth,
         )
-        source_by_key = {row.memory_key: row for row in candidates}
 
         transmitted = False
         if selected:
             source_memory = selected[0]
-            source_row = source_by_key[source_memory.id]
+            source_row = await store.memory_row_by_key(
+                session, source_memory.id,
+            )
+            if source_row is None:
+                raise RuntimeError(
+                    f"conversation source memory disappeared: {source_memory.id}"
+                )
             source_row.last_recalled_minute = event.due_minute
             precision = 0.65 + 0.35 * _stable_unit(
                 world_seed,

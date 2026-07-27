@@ -4,12 +4,18 @@ from dataclasses import dataclass, field
 
 from sqlalchemy import delete, func, select
 
-from backend.living_world.memory import Memory, synthesize_reflection
+from backend.living_world.memory import (
+    Memory,
+    select_conversation_memories,
+    synthesize_reflection,
+)
 from backend.living_world.service import (
     LivingWorldConfig,
     LivingWorldService,
 )
 from backend.living_world.store import (
+    conversation_candidate_memories,
+    conversation_topic_tags,
     epoch_datetime,
     memory_from_row,
     memory_rows,
@@ -1752,6 +1758,173 @@ async def test_reflection_evidence_query_is_bounded_and_semantically_exact(
     assert len(bounded_rows) == 4
     assert all(row.kind != "reflection" for row in bounded_rows)
     assert bounded_result == full_result
+
+
+async def test_conversation_projections_preserve_full_history_selection(
+    session,
+):
+    _hall, _ante, gorrik, mara = await _prototype_world(session)
+    now_minute = 1_000
+    max_cascade_depth = 3
+    for index in range(120):
+        await remember_once(
+            session,
+            Memory(
+                id=f"conversation-source:{index:03}",
+                owner_id=gorrik.content_id,
+                kind="observation",
+                summary=f"Source memory {index}",
+                tags=frozenset({
+                    "shared-road",
+                    f"thread-{index % 7}",
+                }),
+                importance=float(index % 10 + 1),
+                confidence=0.55 + (index % 4) * 0.1,
+                occurred_at=index * 5,
+                shareable=index % 5 != 0,
+                secrecy=(index % 5) * 0.15,
+                cascade_depth=index % 4,
+            ),
+            expires_at_minute=(
+                900 if index % 12 == 0
+                else 1_100 if index % 6 == 0
+                else None
+            ),
+            payload=(
+                {"rumor_id": f"rumor-{index % 4}"}
+                if index % 9 == 0 else {}
+            ),
+        )
+    await remember_once(
+        session,
+        Memory(
+            id="listener-source-proof",
+            owner_id=mara.content_id,
+            kind="rumour",
+            summary="Mara already heard one exact source.",
+            tags=frozenset({"shared-road"}),
+            importance=4.0,
+            confidence=0.7,
+            occurred_at=800,
+            source_memory_id="conversation-source:007",
+        ),
+    )
+    await remember_once(
+        session,
+        Memory(
+            id="listener-rumor-proof",
+            owner_id=mara.content_id,
+            kind="rumour",
+            summary="Mara already knows this rumor family.",
+            tags=frozenset({"shared-road"}),
+            importance=4.0,
+            confidence=0.7,
+            occurred_at=810,
+        ),
+        payload={"rumor_id": "rumor-3"},
+    )
+
+    speaker_rows = [
+        row
+        for row in await memory_rows(
+            session, gorrik.content_id, now_minute=now_minute,
+        )
+        if row.shareable and row.cascade_depth < max_cascade_depth
+    ]
+    listener_rows = await memory_rows(
+        session, mara.content_id, now_minute=now_minute,
+    )
+    known_rumors = {
+        (row.payload or {}).get("rumor_id")
+        for row in listener_rows
+        if (row.payload or {}).get("rumor_id")
+    }
+    known_sources = {
+        row.source_memory_id for row in listener_rows
+    }
+    reference_candidates = [
+        memory_from_row(row)
+        for row in speaker_rows
+        if not (
+            (row.payload or {}).get("rumor_id")
+            and (row.payload or {}).get("rumor_id") in known_rumors
+        )
+        and row.memory_key not in known_sources
+    ]
+    reference_tags = sorted(set().union(*(
+        set(row.tags or ()) for row in speaker_rows
+    )))
+    reference_selection = select_conversation_memories(
+        reference_candidates,
+        topic_tags=frozenset({"shared-road", "thread-2"}),
+        now_minute=now_minute,
+        trust=18.0,
+        max_items=3,
+        max_cascade_depth=max_cascade_depth,
+    )
+
+    session.expunge_all()
+    projected_tags = await conversation_topic_tags(
+        session,
+        gorrik.content_id,
+        now_minute=now_minute,
+        max_cascade_depth=max_cascade_depth,
+    )
+    projected_candidates = await conversation_candidate_memories(
+        session,
+        speaker_content_id=gorrik.content_id,
+        listener_content_id=mara.content_id,
+        now_minute=now_minute,
+        max_cascade_depth=max_cascade_depth,
+    )
+    projected_selection = select_conversation_memories(
+        projected_candidates,
+        topic_tags=frozenset({"shared-road", "thread-2"}),
+        now_minute=now_minute,
+        trust=18.0,
+        max_items=3,
+        max_cascade_depth=max_cascade_depth,
+    )
+
+    assert projected_tags == reference_tags
+    assert projected_candidates == reference_candidates
+    assert projected_selection == reference_selection
+    assert not any(
+        isinstance(row, NPCMemory) for row in session.identity_map.values()
+    )
+
+
+async def test_lonely_actor_skips_lifetime_memory_projection(
+    session,
+    monkeypatch,
+):
+    hall, ante, gorrik, _mara = await _prototype_world(session)
+    other_room_id = hall.id if gorrik.room_id == ante.id else ante.id
+    for roommate in await roommates(
+        session,
+        room_id=gorrik.room_id,
+        excluding_id=gorrik.content_id,
+    ):
+        roommate.room_id = other_room_id
+    await session.flush()
+
+    async def fail_if_queried(*_args, **_kwargs):
+        raise AssertionError("a lonely actor must not scan its memory history")
+
+    monkeypatch.setattr(
+        "backend.living_world.service.store.conversation_topic_tags",
+        fail_if_queried,
+    )
+    writes = await LivingWorldService(
+        config=_config(),
+        content=FakeContent(),
+    )._schedule_conversation(
+        session,
+        actor=gorrik,
+        world_minute=1_000,
+    )
+
+    assert writes == 0
 
 
 async def test_kingdom_goal_resolves_to_its_capital_room(session):
